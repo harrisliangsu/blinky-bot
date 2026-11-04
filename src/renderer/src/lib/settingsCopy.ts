@@ -10,7 +10,14 @@ export interface SettingsCopy {
   subtitle: string
   search: string
   close: string
-  nav: Record<'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'apps' | 'updates' | 'about', string>
+  nav: Record<
+    'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'apps' | 'tools' | 'updates' | 'about',
+    string
+  >
+  account: {
+    menu: string
+    more: string
+  }
   general: {
     appearance: string
     theme: string
@@ -194,8 +201,6 @@ export interface SettingsCopy {
     title: string
     add: string
     intro: string
-    addEndpoint: string
-    catalogHint: string
     empty: string
     name: string
     account: string
@@ -222,17 +227,26 @@ export interface SettingsCopy {
     connected: string
     removed: string
   }
+  tools: {
+    intro: string
+    skillsTitle: string
+    skillsIntro: string
+    skillsInstall: string
+    skillsLoading: string
+    skillsEmpty: string
+    skillsShared: string
+    skillsRemove: string
+  }
   apps: {
     title: string
     intro: string
-    shared: string
-    confirm: string
     refresh: string
     connect: string
     connected: string
     disconnected: string
     unavailable: string
     pending: string
+    comingSoon: string
     githubTitle: string
     githubHint: string
     githubMissing: string
@@ -247,9 +261,6 @@ export interface SettingsCopy {
     gitFailed: string
     gmailTitle: string
     gmailHint: string
-    gmailPending: string
-    advanced: string
-    advancedHint: string
   }
   chat: {
     ready: string
@@ -290,10 +301,15 @@ const en: SettingsCopy = {
     profile: 'Profile',
     notifications: 'Notifications',
     permissions: 'Permissions',
-    backends: 'Providers & CLIs',
+    backends: 'Local CLIs & providers',
     apps: 'Apps',
+    tools: 'Tools',
     updates: 'Updates',
     about: 'About'
+  },
+  account: {
+    menu: 'Settings menu',
+    more: 'More…'
   },
   general: {
     appearance: 'Appearance',
@@ -402,7 +418,7 @@ const en: SettingsCopy = {
     computerEmpty: 'No apps are granted yet, so computer use is off. Add an app above before asking a bot to drive one.'
   },
   backends: {
-    title: 'Providers and local CLIs',
+    title: 'Local CLIs and providers',
     refresh: 'Refresh',
     empty: 'Nothing is configured yet. Add a provider or a local CLI.',
     local: 'local',
@@ -492,8 +508,6 @@ const en: SettingsCopy = {
     title: 'MCP servers',
     add: 'Add server',
     intro: 'Connect a local or remote MCP server. Tokens stay in the OS keychain.',
-    addEndpoint: 'Add its MCP endpoint',
-    catalogHint: 'A card only starts a remote account. Paste the endpoint the provider publishes. BlinkyBot does not ship those URLs.',
     empty: 'No MCP servers configured.',
     name: 'Name',
     account: 'Account label',
@@ -520,17 +534,26 @@ const en: SettingsCopy = {
     connected: 'connected',
     removed: 'That MCP server was removed, so the editor closed without saving.'
   },
+  tools: {
+    intro: 'MCP servers and skills for every Bot. Apps stays GitHub, Git, and Gmail.',
+    skillsTitle: 'Skills',
+    skillsIntro: 'Install a folder into the shared directory, then assign it on each Bot.',
+    skillsInstall: 'Install',
+    skillsLoading: 'Looking for skills…',
+    skillsEmpty: 'No skills installed yet.',
+    skillsShared: 'shared',
+    skillsRemove: 'Remove'
+  },
   apps: {
     title: 'Apps',
-    intro: 'Connect once. Every Bot can use the connection.',
-    shared: 'GitHub, Git, and Gmail are shared. They are not chosen per Bot.',
-    confirm: 'Sending mail, pushing, and opening a pull request still wait for you to confirm.',
+    intro: 'GitHub and Git are shared by every Bot. Pushing and pull requests still wait for you.',
     refresh: 'Check again',
     connect: 'Connect',
     connected: 'Connected',
     disconnected: 'Not connected',
     unavailable: 'Not installed',
     pending: 'Waiting for sign-in',
+    comingSoon: 'Coming soon',
     githubTitle: 'GitHub',
     githubHint: 'Signs in with the GitHub CLI. BlinkyBot does not keep the token.',
     githubMissing: 'Install GitHub CLI (gh), then connect.',
@@ -544,10 +567,7 @@ const en: SettingsCopy = {
     gitInvalid: 'Enter a name and an email address.',
     gitFailed: 'Git could not save that identity.',
     gmailTitle: 'Gmail',
-    gmailHint: 'One Google sign-in for every Bot. Sending mail will ask you first.',
-    gmailPending: 'Google sign-in is not in this build yet. Connect only records that you want Gmail. It does not open Google and it is not connected.',
-    advanced: 'Advanced: custom MCP',
-    advancedHint: 'A custom MCP server, if you already have an endpoint. Apps above are the usual path.'
+    gmailHint: 'Google sign-in is not in this build.'
   },
   chat: {
     ready: 'Ready when you are',
@@ -591,10 +611,15 @@ const zh: SettingsCopy = {
     profile: '个人资料',
     notifications: '通知',
     permissions: '权限',
-    backends: '供应商与 CLI',
+    backends: '本地 CLI 与供应商',
     apps: '应用',
+    tools: '工具',
     updates: '更新',
     about: '关于'
+  },
+  account: {
+    menu: '设置菜单',
+    more: '其他…'
   },
   general: {
     appearance: '外观',
@@ -703,7 +728,7 @@ const zh: SettingsCopy = {
     computerEmpty: '还没有授权任何应用，所以电脑使用是关闭的。先在上面添加应用。'
   },
   backends: {
-    title: '供应商与本地 CLI',
+    title: '本地 CLI 与供应商',
     refresh: '刷新',
     empty: '还没有配置。添加供应商或本地 CLI。',
     local: '本地',
@@ -791,8 +816,6 @@ const zh: SettingsCopy = {
     title: 'MCP',
     add: '添加服务器',
     intro: '连接本地或远程 MCP 服务器。令牌保存在系统钥匙串里。',
-    addEndpoint: '添加它的 MCP 地址',
-    catalogHint: '卡片只是开始一个远程账号。请粘贴服务商公布的地址。BlinkyBot 不自带这些 URL。',
     empty: '还没有配置 MCP 服务器。',
     name: '名称',
     account: '账号标签',
@@ -819,17 +842,26 @@ const zh: SettingsCopy = {
     connected: '已连接',
     removed: '这个 MCP 服务器已被删除，编辑器已关闭且没有保存。'
   },
+  tools: {
+    intro: '每个 Bot 都能用的 MCP 服务器和技能。应用只放 GitHub、Git 和 Gmail。',
+    skillsTitle: '技能',
+    skillsIntro: '安装到共享目录后，再到每个 Bot 上选用。',
+    skillsInstall: '安装',
+    skillsLoading: '正在查找技能…',
+    skillsEmpty: '还没有安装技能。',
+    skillsShared: '共享',
+    skillsRemove: '移除'
+  },
   apps: {
     title: '应用',
-    intro: '连接一次，每个 Bot 都能用。',
-    shared: 'GitHub、Git 和 Gmail 是共用的，不用按 Bot 再选一次。',
-    confirm: '发信、推送和打开拉取请求之前，仍会请你确认。',
+    intro: 'GitHub 和 Git 由每个 Bot 共用。推送和拉取请求仍会请你确认。',
     refresh: '重新检查',
     connect: '连接',
     connected: '已连接',
     disconnected: '未连接',
     unavailable: '未安装',
     pending: '等待登录',
+    comingSoon: '即将推出',
     githubTitle: 'GitHub',
     githubHint: '用 GitHub CLI 登录。BlinkyBot 不保存令牌。',
     githubMissing: '请先安装 GitHub CLI（gh），再连接。',
@@ -843,10 +875,7 @@ const zh: SettingsCopy = {
     gitInvalid: '请填写姓名和邮箱。',
     gitFailed: 'Git 没能保存这个身份。',
     gmailTitle: 'Gmail',
-    gmailHint: '所有 Bot 共用一次 Google 登录。发信前会再请你确认。',
-    gmailPending: '这一版还没有 Google 登录。点连接只会记下你要接 Gmail，不会打开 Google，也不会当成已经连上。',
-    advanced: '高级：自定义 MCP',
-    advancedHint: '如果你已经有 MCP 地址，可以在这里添加。上面的应用才是常用入口。'
+    gmailHint: '这一版还没有 Google 登录。'
   },
   chat: {
     ready: '可以开始了',

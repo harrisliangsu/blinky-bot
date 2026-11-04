@@ -41,7 +41,20 @@ test('backends settings separate providers from local CLIs, and bots are not ass
   assert.equal('title' in zh.more, false)
   assert.equal(JSON.stringify(zh.backends).includes('OpenRouter'), false)
   assert.equal(JSON.stringify(zh).includes('助手'), false)
+  assert.equal(JSON.stringify(zh).includes('后端'), false)
   assert.equal(JSON.stringify(en).toLowerCase().includes('assistant'), false)
+  assert.equal(zh.nav.apps, '应用')
+  assert.equal(zh.nav.tools, '工具')
+  assert.equal(en.nav.tools, 'Tools')
+  assert.equal(zh.nav.backends, '本地 CLI 与供应商')
+  assert.equal(en.nav.backends, 'Local CLIs & providers')
+  assert.equal(zh.apps.comingSoon, '即将推出')
+  assert.equal(en.apps.comingSoon, 'Coming soon')
+  assert.equal(zh.account.more, '其他…')
+  assert.equal(en.account.more, 'More…')
+  assert.equal(zh.apps.intro.includes('\n'), false)
+  assert.equal('advanced' in zh.apps, false)
+  assert.equal('shared' in zh.apps, false)
 
   const sections = orderedBackendSections([
     { id: 'opencode', kind: 'agent-cli' as const },

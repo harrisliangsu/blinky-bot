@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { McpServerConfig, Settings } from '../../../shared/types'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { store, updateSettings } from '../state'
@@ -7,8 +7,6 @@ import './SettingsMcp.css'
 
 interface SettingsMcpProps {
   settings: Settings
-  /** Apps owns the primary connect path. Custom servers stay, preset cards do not. */
-  hideCatalog?: boolean
 }
 
 const blank = (): McpServerConfig => ({
@@ -24,36 +22,11 @@ const blank = (): McpServerConfig => ({
   disabledTools: []
 })
 
-/*
- * The catalogue prefills only what OpenBOT can state truthfully.
- *
- * A card used to read as a one-click connector and deliver a blank form with a
- * dead button: it set the name, `transport: 'http'` and `auth: 'oauth'` and left
- * `url` empty, which is the one field the submit button waits on. No provider's
- * remote MCP endpoint is carried anywhere in this build, and a guessed URL is
- * worse than none — it would be saved, handed to the agent CLI and fail at
- * connect time with an error that reads as the user's mistake.
- *
- * So a card now says on its face that the endpoint is the part still to supply,
- * and opens the form with the cursor already in that field.
- */
-const CONNECTORS = [
-  { id: 'github', name: 'GitHub', hint: 'Repositories, issues and pull requests' },
-  { id: 'slack', name: 'Slack', hint: 'Channels, messages and search' },
-  { id: 'google-drive', name: 'Google Drive', hint: 'Files and documents' },
-  { id: 'notion', name: 'Notion', hint: 'Pages and databases' },
-  { id: 'linear', name: 'Linear', hint: 'Issues and projects' }
-] as const
-
-/** MCP server list: enable, edit connection details, remove. */
-export function SettingsMcp({ settings, hideCatalog = false }: SettingsMcpProps): ReactNode {
+/** MCP server list: enable, edit connection details, remove. No preset catalog. */
+export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
   const copy = useSettingsCopy().mcp
   const [draft, setDraft] = useState<McpServerConfig | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
-  /* Set when a catalogue card opens the form, so the field it is waiting on
-     takes the cursor instead of the user having to hunt for it. */
-  const [focusUrl, setFocusUrl] = useState(false)
-  const urlRef = useRef<HTMLInputElement>(null)
   const servers = settings.mcpServers ?? []
 
   const write = (next: McpServerConfig[]): void => {
@@ -66,14 +39,7 @@ export function SettingsMcp({ settings, hideCatalog = false }: SettingsMcpProps)
   const closeDraft = (): void => {
     setDraft(null)
     setEditingId(null)
-    setFocusUrl(false)
   }
-
-  useEffect(() => {
-    if (!focusUrl) return
-    urlRef.current?.focus()
-    setFocusUrl(false)
-  }, [focusUrl])
 
   /*
    * Settings are broadcast to every window, so the server this form is editing
@@ -100,28 +66,6 @@ export function SettingsMcp({ settings, hideCatalog = false }: SettingsMcpProps)
       </header>
 
       <p className="ob-hint">{copy.intro}</p>
-
-      {hideCatalog ? null : <div className="ob-connector-catalog" aria-label="Connector catalogue">
-        {CONNECTORS.map((connector) => (
-          <button
-            key={connector.id}
-            type="button"
-            className="ob-connector-card"
-            disabled={draft !== null}
-            onClick={() => {
-              setEditingId(null)
-              setDraft({ ...blank(), id: `mcp-${connector.id}-${Date.now()}`, name: connector.name, provider: connector.id, transport: 'http', auth: 'oauth' })
-              setFocusUrl(true)
-            }}
-          >
-            <strong>{connector.name}</strong>
-            <span>{connector.hint}</span>
-            <em>{copy.addEndpoint}</em>
-          </button>
-        ))}
-      </div>}
-
-      {hideCatalog ? null : <p className="ob-hint">{copy.catalogHint}</p>}
 
       {servers.length === 0 && !draft ? <p className="ob-hint">{copy.empty}</p> : null}
 
@@ -198,16 +142,7 @@ export function SettingsMcp({ settings, hideCatalog = false }: SettingsMcpProps)
             <>
               <div className="ob-field">
                 <label htmlFor="ob-mcp-url">{copy.url}</label>
-                <input ref={urlRef} id="ob-mcp-url" className="ob-input" value={draft.url ?? ''} placeholder="https://…/mcp" onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
-                {/* The catalogue card cannot fill this in, so it names what it
-                    is waiting for rather than leaving a dead submit button
-                    with no explanation. */}
-                {draft.provider && !draft.url?.trim() ? (
-                  <p className="ob-hint ob-mcp-await">
-                    Paste the remote MCP endpoint published by {draft.name || 'this provider'}. It is the only field left
-                    before this account can be added.
-                  </p>
-                ) : null}
+                <input id="ob-mcp-url" className="ob-input" value={draft.url ?? ''} placeholder="https://…/mcp" onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
               </div>
               <div className="ob-field">
                 <label htmlFor="ob-mcp-auth">{copy.auth}</label>

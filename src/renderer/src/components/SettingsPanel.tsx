@@ -1,28 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { listedBackends } from '../../../shared/backendSections'
 import type { AgentMode, Settings, UpdateReport } from '../../../shared/types'
-import { takeSettingsTab } from '../lib/settingsNavigation'
+import { SETTINGS_SECTIONS, takeSettingsTab, type SettingsSection } from '../lib/settingsNavigation'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { loadSettings, store, toggleWorkspace, updateSettings, useAppState } from '../state'
 import { Modal } from './Modal'
 import { SettingsApps } from './SettingsApps'
 import { SettingsBackends } from './SettingsBackends'
 import { SettingsPermissions } from './SettingsPermissions'
+import { SettingsTools } from './SettingsTools'
 import './SettingsPanel.css'
-
-type SectionId = 'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'apps' | 'updates' | 'about'
-
-const SECTION_IDS: SectionId[] = [
-  'general',
-  'bots',
-  'profile',
-  'notifications',
-  'permissions',
-  'backends',
-  'apps',
-  'updates',
-  'about'
-]
 
 const SCALES = [80, 90, 100, 110, 125, 150] as const
 const ACCENTS: Array<{ id: Settings['accent']; color: string }> = [
@@ -504,15 +491,12 @@ function About(): ReactNode {
 export function SettingsPanel(): ReactNode {
   const copy = useSettingsCopy()
   const { settings, settingsError, backends, backendsLoading, backendsError } = useAppState()
-  const [section, setSection] = useState<SectionId>(() => {
-    const tab = takeSettingsTab()
-    return tab === 'backends' || tab === 'apps' || tab === 'permissions' || tab === 'general' ? tab : 'general'
-  })
+  const [section, setSection] = useState<SettingsSection>(() => takeSettingsTab())
   const [query, setQuery] = useState('')
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return SECTION_IDS
-    return SECTION_IDS.filter((id) => {
+    if (!q) return [...SETTINGS_SECTIONS]
+    return SETTINGS_SECTIONS.filter((id) => {
       const blob = JSON.stringify({ name: copy.nav[id], body: copy[id] }).toLowerCase()
       return blob.includes(q)
     })
@@ -567,7 +551,8 @@ export function SettingsPanel(): ReactNode {
             {current === 'backends' ? (
               <SettingsBackends settings={settings} backends={backends} loading={backendsLoading} error={backendsError} />
             ) : null}
-            {current === 'apps' ? <SettingsApps settings={settings} /> : null}
+            {current === 'apps' ? <SettingsApps /> : null}
+            {current === 'tools' ? <SettingsTools settings={settings} /> : null}
             {current === 'updates' ? <Updates settings={settings} /> : null}
             {current === 'about' ? <About /> : null}
           </div>

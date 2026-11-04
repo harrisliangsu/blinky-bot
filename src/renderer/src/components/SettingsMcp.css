@@ -58,33 +58,13 @@
   justify-content: flex-end;
   gap: var(--ob-space-1-5);
 }
-.ob-connector-catalog {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: 8px;
-  margin: 12px 0 16px;
+.ob-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ob-space-2);
 }
 
-.ob-connector-card {
-  display: grid;
-  gap: 3px;
-  padding: 10px;
-  border: 1px solid var(--ob-border);
-  border-radius: 10px;
-  background: var(--ob-bg-raised-2);
-  color: var(--ob-text-primary);
-  text-align: left;
-  cursor: pointer;
+.ob-settings-head h3 {
+  margin: 0;
 }
-
-.ob-connector-card:hover:not(:disabled) { border-color: var(--ob-accent); }
-.ob-connector-card:disabled { opacity: .45; cursor: default; }
-/* `--ob-text-muted` is not a token this app defines, so these labels rendered at
-   full body colour instead of muted. The real token is `--ob-text-tertiary`. */
-.ob-connector-card span { color: var(--ob-text-tertiary); font-size: 11px; line-height: 1.35; }
-
-/* The card says outright what it cannot fill in, so it is not read as a
-   one-click connector that then presents a dead submit button. */
-.ob-connector-card em { color: var(--ob-text-disabled); font-size: 10px; font-style: normal; }
-
-.ob-mcp-await { margin-top: var(--ob-space-1); }
