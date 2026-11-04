@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7
+
+- **The Dock and Finder icon is the Blinky sprout.** The white puppy with a mint sprout sits on a pink-to-purple gradient. 0.3.6 was tagged before that icon landed, so it still showed the black chat bubble.
+
 ## 0.3.6
 
 - **Sending a chat no longer waits on a CLI probe.** The reply caret shows up before the CLI starts. A Codex chat stays warm, so the next message skips starting it again. Kimi thinking appears as it arrives, and the answer is not held for it.
