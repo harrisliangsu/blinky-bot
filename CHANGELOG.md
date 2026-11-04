@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- **Default bots use a signed-in CLI.** BlinkyBot searches a GUI-safe PATH, including `/opt/homebrew/bin`, `~/.local/bin`, npm global bins, and nvm version bins, and points the default bots at an installed, signed-in backend. Codex, Claude Code, and OpenCode come first, then the other agent CLIs, then an API key.
+- **A missing CLI explains itself.** When nothing is signed in, the chat says so and links to Settings → Backends instead of showing `spawn opencode ENOENT`.
+
 ## 0.2.0
 
 - **BlinkyBot packages the OpenBOT desktop.** The Mac app name is BlinkyBot. The source is this OpenBOT tree.

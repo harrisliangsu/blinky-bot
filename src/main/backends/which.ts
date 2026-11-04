@@ -7,36 +7,35 @@
 
 import { access, constants } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
-import { delimiter, isAbsolute, join } from 'node:path'
+import { delimiter, isAbsolute } from 'node:path'
+import { firstExecutable, guiBinaryDirs, nvmVersionBinDirs } from './guiPath'
+import { installedNvmVersions, readUserNpmrc } from './userBins'
 import { hydratedPath } from './loginShellEnv'
 
 const isWindows = platform() === 'win32'
 
-/** Locations GUI installers use that even a login shell may not export. */
-function fallbackDirs(): string[] {
-  const home = homedir()
-  if (isWindows) {
-    const local = process.env.LOCALAPPDATA
-    return local ? [join(local, 'Programs'), join(local, 'Microsoft', 'WindowsApps')] : []
-  }
-  return [
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-    '/usr/bin',
-    '/bin',
-    '/opt/local/bin',
-    join(home, '.local', 'bin'),
-    join(home, 'bin'),
-    join(home, '.bun', 'bin'),
-    join(home, '.deno', 'bin'),
-    join(home, '.cargo', 'bin'),
-    join(home, '.volta', 'bin'),
-    join(home, '.npm-global', 'bin'),
-    join(home, '.yarn', 'bin'),
-    join(home, '.local', 'share', 'pnpm'),
-    join(home, '.claude', 'local'),
-    '/Applications/Ollama.app/Contents/Resources'
-  ]
+/**
+ * Locations a Dock launch does not put on PATH. Cached until an explicit
+ * refresh: npmrc and nvm's version list do not change mid-session unless
+ * the user asks us to look again.
+ */
+let fallbackPromise: Promise<string[]> | null = null
+
+async function fallbackDirs(): Promise<string[]> {
+  fallbackPromise ??= (async () => {
+    const home = homedir()
+    const [npmrc, nvmNames] = await Promise.all([readUserNpmrc(home), installedNvmVersions(home)])
+    const dirs = guiBinaryDirs({
+      home,
+      platform: platform(),
+      env: process.env,
+      ...(npmrc !== undefined ? { npmrc } : {}),
+      extraDirs: nvmVersionBinDirs(home, nvmNames)
+    })
+    if (!isWindows) dirs.push('/Applications/Ollama.app/Contents/Resources')
+    return dirs
+  })()
+  return fallbackPromise
 }
 
 function candidateNames(bin: string): string[] {
@@ -65,6 +64,7 @@ const TTL_MS = 30_000
 /** Forget cached lookups — called on an explicit backend refresh. */
 export function clearWhichCache(): void {
   cache.clear()
+  fallbackPromise = null
 }
 
 /** Resolve a binary name (or path) to a full path, or null. */
@@ -88,15 +88,10 @@ async function resolve(name: string): Promise<string | null> {
     return null
   }
 
-  const dirs = [...(await hydratedPath()).split(delimiter).filter(Boolean), ...fallbackDirs()]
-  const seen = new Set<string>()
-  for (const dir of dirs) {
-    if (seen.has(dir)) continue
-    seen.add(dir)
-    for (const candidate of candidateNames(name)) {
-      const full = join(dir, candidate)
-      if (await isExecutable(full)) return full
-    }
+  const dirs = [...(await hydratedPath()).split(delimiter).filter(Boolean), ...(await fallbackDirs())]
+  for (const candidate of candidateNames(name)) {
+    const found = await firstExecutable(candidate, dirs, isExecutable)
+    if (found) return found
   }
   return null
 }

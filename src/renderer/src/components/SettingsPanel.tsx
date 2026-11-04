@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { AgentMode, Settings } from '../../../shared/types'
+import { takeSettingsTab, type SettingsTab } from '../lib/settingsNavigation'
 import { loadSettings, store, updateSettings, useAppState } from '../state'
 import { Modal } from './Modal'
 import { SettingsBackends } from './SettingsBackends'
@@ -7,7 +8,7 @@ import { SettingsMcp } from './SettingsMcp'
 import { SettingsPermissions } from './SettingsPermissions'
 import './SettingsPanel.css'
 
-type Tab = 'general' | 'permissions' | 'backends' | 'mcp'
+type Tab = SettingsTab
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'general', label: 'General' },
@@ -113,7 +114,7 @@ function General({ settings }: { settings: Settings }): ReactNode {
 /** Preferences, grouped into four tabs. Every change saves immediately. */
 export function SettingsPanel(): ReactNode {
   const { settings, settingsError, backends, backendsLoading, backendsError } = useAppState()
-  const [tab, setTab] = useState<Tab>('general')
+  const [tab, setTab] = useState<Tab>(() => takeSettingsTab())
 
   return (
     <Modal title="Settings" subtitle="Stored on this machine." size="md" onClose={() => store.setModal(null)}>

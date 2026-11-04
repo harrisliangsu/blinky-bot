@@ -3,6 +3,7 @@
  * Other main-process modules import the typed CRUD from here.
  */
 
+import { adoptReadyDefaultBackend } from '../backends/adoptDefault'
 import { initSettings } from '../settings'
 import { flushAll, type FlushReport } from './jsonStore'
 import { ensureAllDirs } from './paths'
@@ -42,6 +43,17 @@ export async function initStore(): Promise<void> {
     loadGroups(),
     loadRooms()
   ])
+  /*
+   * Starter bots copy `defaultBackendId`. Choose a signed-in CLI first, and
+   * move bots that are still on an unavailable factory default, so a 0.2
+   * profile that only has Codex or Claude Code does not keep spawning
+   * `opencode`.
+   */
+  try {
+    await adoptReadyDefaultBackend()
+  } catch (error) {
+    console.warn('[openbot/store] could not choose a default backend', error)
+  }
   seedBotsIfEmpty()
   /*
    * Both collections are loaded here, which is what this needs and what makes

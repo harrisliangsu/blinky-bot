@@ -4,16 +4,16 @@ Pushing a `v*` tag builds the Mac app and publishes a GitHub Release. The app id
 
 中文：先把版本改动合并进 `main`，再给这个提交打 tag。不要直接 push `main`。私钥不要换。
 
-## Cut v0.2.0
+## Cut v0.2.2
 
-`package.json` is already `0.2.0`, and both changelogs already have `## 0.2.0`. After this packaging change is on `main`:
+`package.json` is `0.2.2`, and both changelogs have `## 0.2.2`. After this change is on `main`:
 
 ```bash
 git checkout main
 git pull origin main
-node -p "require('./package.json').version"   # 0.2.0
-git tag v0.2.0
-git push origin v0.2.0
+node -p "require('./package.json').version"   # 0.2.2
+git tag v0.2.2
+git push origin v0.2.2
 ```
 
 Tag the merge commit on `main`, not the pull request branch. The workflow refuses the tag when it does not match `package.json` `"version"`, or when `CHANGELOG.md` / `CHANGELOG.zh-CN.md` has no `##` section for that version.
@@ -22,12 +22,12 @@ Watch it:
 
 ```bash
 gh run list --workflow release.yml --limit 2
-gh release view v0.2.0 --json assets --jq '.assets[].name'
+gh release view v0.2.2 --json assets --jq '.assets[].name'
 ```
 
-A finished run has `BlinkyBot-0.2.0.dmg` and `BlinkyBot-0.2.0.zip`. It also uploads `appcast.xml`, `appcast-zh.xml`, and `appcast-en.xml` onto that release and opens a pull request `appcast-v0.2.0`. Merge that pull request. The workflow does not push to `main` and does not merge the pull request.
+A finished run has `BlinkyBot-0.2.2.dmg` and `BlinkyBot-0.2.2.zip`. It also uploads `appcast.xml`, `appcast-zh.xml`, and `appcast-en.xml` onto that release and opens a pull request `appcast-v0.2.2`. Merge that pull request. The workflow does not push to `main` and does not merge the pull request.
 
-Install `BlinkyBot-0.2.0.dmg`. The build is not notarized. If macOS blocks the first launch, open BlinkyBot, dismiss the warning, then use **System Settings → Privacy & Security → Security → Open Anyway**.
+Install `BlinkyBot-0.2.2.dmg`. The build is not notarized. If macOS blocks the first launch, open BlinkyBot, dismiss the warning, then use **System Settings → Privacy & Security → Security → Open Anyway**.
 
 `SPARKLE_PRIVATE_KEY` is already an Actions secret. It must stay the base64 Ed25519 seed for `Scripts/sparkle-public-key.txt` (`M/xUmNfKp+sEloy822L8X4lVdOLM1pv9srD7fw/bgb8=`). Do not rotate it. The private key is not a file in the repository.
 
