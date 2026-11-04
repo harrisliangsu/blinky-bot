@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                                    <item>
-            <title>0.3.8</title>
-            <pubDate>Wed, 04 Nov 2026 09:51:58 -0000</pubDate>
-            <sparkle:version>0.3.8</sparkle:version>
-            <sparkle:shortVersionString>0.3.8</sparkle:shortVersionString>
+                                                        <item>
+            <title>0.3.9</title>
+            <pubDate>Wed, 04 Nov 2026 10:46:27 -0000</pubDate>
+            <sparkle:version>0.3.9</sparkle:version>
+            <sparkle:shortVersionString>0.3.9</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.8</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.8</h2><ul><li><strong>The chat header keeps only the theme toggle.</strong> The sun or moon switches light and dark and saves that choice. The grid, activity panel, inbox, shared rooms, and settings gear are gone from the header. Those controls stay under Settings → General → Layout. Settings still opens from the sidebar or with Command-comma.</li><li><strong>The sidebar footer splits Settings, Apps, and More.</strong> The profile menu is Settings, Apps, and More…. Apps keeps GitHub, Git, and Gmail, and Gmail is marked coming soon. Tools is its own page for MCP servers and installed skills.</li><li><strong>Each Bot can pick a local CLI or a provider, a model, and a thinking depth.</strong> A Bot that still follows the default uses Settings. Unchecking that opens the source, the model, and the thinking depth when that backend can set one.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.8">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.8/BlinkyBot-0.3.8.zip"
-                       length="123986353"
+</style><h2>BlinkyBot 0.3.9</h2><ul><li><strong>The model picker lists the CLI&#x27;s real models.</strong> Codex fills the list from <code>model/list</code>, so it is no longer only the word default. Claude Code offers the aliases Opus, Sonnet, and Haiku.</li><li><strong>Paste or drop an image and it reaches the CLI.</strong> The image stays on the message. Codex receives it as a local image file. Claude Code receives it as an image block.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.9/BlinkyBot-0.3.9.zip"
+                       length="123992293"
                        type="application/octet-stream"
-                       sparkle:edSignature="hFb0bYw6JNqVGNjoqvL9+DAd+6A8Ots/lwKrf7wL+0XF9DT2g+xVirRrpzfStXR5wXBjtKfssopFdyerbBB9AQ==" />
+                       sparkle:edSignature="l0Ig8Mb6qroYZi3kd994tTpEq7JUodonaGjQgNZ3B8IWR1YfLDmIq0d/LVCdf5lV79Ijobx1GEnSwcXUwuh+Ag==" />
         </item>
     </channel>
 </rss>
