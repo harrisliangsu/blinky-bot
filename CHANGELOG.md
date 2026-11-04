@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9
+
+- **The model picker lists the CLI's real models.** Codex fills the list from `model/list`, so it is no longer only the word default. Claude Code offers the aliases Opus, Sonnet, and Haiku.
+- **Paste or drop an image and it reaches the CLI.** The image stays on the message. Codex receives it as a local image file. Claude Code receives it as an image block.
+
 ## 0.3.8
 
 - **The chat header keeps only the theme toggle.** The sun or moon switches light and dark and saves that choice. The grid, activity panel, inbox, shared rooms, and settings gear are gone from the header. Those controls stay under Settings → General → Layout. Settings still opens from the sidebar or with Command-comma.
