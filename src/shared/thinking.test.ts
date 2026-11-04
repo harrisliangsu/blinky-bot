@@ -76,3 +76,11 @@ test('model choices keep the saved id and a CLI alias', () => {
     ['default', 'opus', 'sonnet', 'haiku', 'claude-sonnet-4-5']
   )
 })
+
+test('codex model choices follow the models that CLI reported', () => {
+  const models = runtimeModels('codex', [{ id: 'gpt-5.4', label: 'GPT-5.4' }], 'default')
+  assert.deepEqual(
+    models.map((model) => model.id),
+    ['default', 'gpt-5.4']
+  )
+})

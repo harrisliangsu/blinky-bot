@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { followsSettingsDefault } from '../../../shared/botBinding'
+import { runtimeModels } from '../../../shared/botRuntime'
 import { listedBackends } from '../../../shared/backendSections'
 import { thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
 import type { AgentMode, Bot, Settings, UpdateReport } from '../../../shared/types'
@@ -234,7 +235,9 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
   const b = copy.bots
   const modes: AgentMode[] = ['agent', 'ask', 'plan']
   const chosen = backends.find((item) => item.id === settings.defaultBackendId)
-  const models = chosen?.models ?? []
+  // Catalog aliases plus whatever this CLI or provider just reported, so the
+  // list follows the selected row instead of a single hardcoded "default".
+  const models = runtimeModels(settings.defaultBackendId, chosen?.models ?? [], settings.defaultModelId)
   const showDefaultThinking = thinkingWire(settings.defaultBackendId) !== null
   return (
     <div className="ob-set-stack">
@@ -289,7 +292,7 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
         <select
           className="ob-select ob-settings-select"
           aria-label={b.model}
-          value={settings.defaultModelId}
+          value={models.some((model) => model.id === settings.defaultModelId) ? settings.defaultModelId : 'default'}
           onChange={(e) => {
             const defaultModelId = e.target.value
             const id = settings.defaultBackendId
@@ -302,14 +305,11 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             })
           }}
         >
-          <option value="default">default</option>
-          {models
-            .filter((model) => model.id !== 'default')
-            .map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.label}
-              </option>
-            ))}
+          {models.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.id === 'default' ? b.runtimeModelDefault : model.label}
+            </option>
+          ))}
         </select>
       </Row>
       {showDefaultThinking ? (

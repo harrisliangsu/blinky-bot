@@ -80,9 +80,18 @@ async function detectOne(backend: Backend, cfg: BackendConfig): Promise<BackendI
   }
 
   try {
+    /*
+     * Codex's model list is another app-server start. Running it beside
+     * detection keeps both inside the same time budget; every other backend
+     * still lists only after it is actually available.
+     */
+    const earlyModels =
+      backend.id === 'codex' ? backend.listModels(cfg).catch(() => [] as ModelInfo[]) : null
     const result = await backend.detect(cfg)
     const models =
-      result.status === 'available' ? await backend.listModels(cfg).catch(() => []) : []
+      result.status === 'available'
+        ? await (earlyModels ?? backend.listModels(cfg).catch(() => [] as ModelInfo[]))
+        : []
     return {
       ...base,
       status: result.status,

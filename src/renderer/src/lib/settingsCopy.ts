@@ -288,6 +288,7 @@ export interface SettingsCopy {
     placeholder: string
     running: string
     openProviders: string
+    imageTooBig: string
   }
   updates: {
     version: string
@@ -613,7 +614,8 @@ const en: SettingsCopy = {
     emptyBody: 'Ask a question or describe a task. Sending uses the local CLI or provider, model, and thinking depth bound to this Bot in Settings. Files stay on this machine.',
     placeholder: 'Message this Bot…',
     running: 'Running — Esc to stop',
-    openProviders: 'Open Settings → Providers'
+    openProviders: 'Open Settings → Providers',
+    imageTooBig: 'That image is too large to attach.'
   },
   updates: {
     version: 'Installed version',
@@ -940,7 +942,8 @@ const zh: SettingsCopy = {
     emptyBody: '直接提问或描述任务。发送时用这个 Bot 在设置里绑定的本地 CLI 或供应商、模型和思考深度。文件留在这台电脑上。',
     placeholder: '给这个 Bot 发消息…',
     running: '正在运行 — 按 Esc 停止',
-    openProviders: '打开设置 → 供应商'
+    openProviders: '打开设置 → 供应商',
+    imageTooBig: '这张图片太大，附不上。'
   },
   updates: {
     version: '当前版本',

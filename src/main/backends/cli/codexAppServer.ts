@@ -27,6 +27,7 @@ import {
 } from './codexEvents'
 import { type CodexPoolIdentity, codexPoolKey } from './codexPool'
 import type { CliRunContext } from './spec'
+import { codexTurnItems, materializeCodexImages, turnImages } from './cliImages'
 import { codexTurnPrompt } from './transcript'
 
 /**
@@ -273,24 +274,28 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
   bindAbort(live, run.req.signal)
 
   const prompt = codexTurnPrompt(live.primed, run.req.messages)
-  void live.peer
-    .request('turn/start', {
-      threadId: live.threadId,
-      input: [{ type: 'text', text: prompt }],
-      // Per-turn override. A project config can ignore the thread config key,
-      // and older servers ignore an effort they do not know.
-      ...(run.ctx.effort ? { effort: run.ctx.effort } : {})
-    })
-    .catch((err: unknown) => {
-      if (live.generation !== generation || live.disposed) return
-      // `turn/start` settles when the turn is over. A completion we already
-      // accepted must not tear the warm thread down.
-      if (live.turnEnded && live.primed) return
-      live.failure = err
-      live.sink?.close()
-    })
-
+  let releaseImages: () => Promise<void> = async () => undefined
   try {
+    // Warm threads already have earlier images. Only this turn's pictures go out.
+    const images = await materializeCodexImages(turnImages(run.req.messages, live.primed))
+    releaseImages = images.cleanup
+    void live.peer
+      .request('turn/start', {
+        threadId: live.threadId,
+        input: codexTurnItems(prompt, images.paths),
+        // Per-turn override. A project config can ignore the thread config key,
+        // and older servers ignore an effort they do not know.
+        ...(run.ctx.effort ? { effort: run.ctx.effort } : {})
+      })
+      .catch((err: unknown) => {
+        if (live.generation !== generation || live.disposed) return
+        // `turn/start` settles when the turn is over. A completion we already
+        // accepted must not tear the warm thread down.
+        if (live.turnEnded && live.primed) return
+        live.failure = err
+        live.sink?.close()
+      })
+
     for await (const chunk of live.sink) yield chunk
     if (live.failure) throw live.failure
     if (!live.turnEnded || run.req.signal.aborted || live.disposed) return
@@ -298,6 +303,9 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
     if (reuse) armIdle(live)
     yield { type: 'done' }
   } finally {
+    const release = releaseImages
+    releaseImages = async () => undefined
+    await release()
     live.unbind?.()
     live.unbind = undefined
     live.approve = undefined

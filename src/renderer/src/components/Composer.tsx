@@ -1,8 +1,9 @@
-import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { Attachment } from '../../../shared/types'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { sendTurn, useAppState } from '../state'
+import { sendTurn, store, useAppState } from '../state'
 import { ComposerAttachments, chooseAttachments } from './ComposerAttachments'
+import { attachmentsFromImageFiles, filesFromTransfer } from './imageAttachments'
 import { ComposerBar } from './ComposerBar'
 import { ComposerMention, type MentionState } from './ComposerMention'
 import { matchBots, mentionQuery } from './MentionPopup'
@@ -17,6 +18,7 @@ export function Composer(): ReactNode {
   const { session, bots, settings, streaming, bootError } = useAppState()
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [dragging, setDragging] = useState(false)
   const voice = useVoiceInput((spoken) =>
     setText((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${spoken.trim()} `)
   )
@@ -76,8 +78,57 @@ export function Composer(): ReactNode {
     setAttachments((prev) => [...prev, ...chosen])
   }
 
+  const takeImages = async (data: DataTransfer | null): Promise<void> => {
+    if (!data) return
+    const { attachments: next, skipped } = await attachmentsFromImageFiles(filesFromTransfer(data))
+    if (skipped > 0) store.toast(chat.imageTooBig, 'error')
+    if (next.length === 0) return
+    setAttachments((prev) => [...prev, ...next])
+  }
+
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const images = filesFromTransfer(e.clipboardData)
+    if (images.length === 0) return
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text/plain')
+    if (pasted) {
+      const el = e.currentTarget
+      const start = el.selectionStart ?? text.length
+      const end = el.selectionEnd ?? start
+      const next = `${text.slice(0, start)}${pasted}${text.slice(end)}`
+      setText(next)
+      const caret = start + pasted.length
+      const found = mentionQuery(next, caret)
+      setMention(found ? { ...found, caret } : null)
+    }
+    void takeImages(e.clipboardData)
+  }
+
+  const onDragOver = (e: DragEvent<HTMLDivElement>): void => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return
+    e.preventDefault()
+    setDragging(true)
+  }
+
+  const onDragLeave = (e: DragEvent<HTMLDivElement>): void => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setDragging(false)
+  }
+
+  const onDrop = (e: DragEvent<HTMLDivElement>): void => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return
+    e.preventDefault()
+    setDragging(false)
+    void takeImages(e.dataTransfer)
+  }
+
   return (
-    <div className="ob-composer">
+    <div
+      className={`ob-composer${dragging ? ' is-drop' : ''}`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <ComposerAttachments
         attachments={attachments}
         onRemove={(id) => setAttachments((prev) => prev.filter((x) => x.id !== id))}
@@ -117,6 +168,7 @@ export function Composer(): ReactNode {
             setMention(found ? { ...found, caret } : null)
           }}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           /* Leaving the input closes the picker: it listens for keys on the
              window, and must not claim Enter in a panel elsewhere. Choosing an
              item uses mousedown + preventDefault, so focus never leaves. */

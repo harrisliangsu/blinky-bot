@@ -46,6 +46,7 @@ import { schemasFor } from './toolGateway'
 import { skillsSection } from './skillsGateway'
 import { streamAssistantTurn } from './stream'
 import { isEmptyTurn } from './turnCarry'
+import { backendSeesImages } from '../backends/cli/cliImages'
 
 export type { TurnStatus, TurnInput, TurnResult } from './turnTypes'
 import type { TurnInput, TurnResult } from './turnTypes'
@@ -109,7 +110,7 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       schemas: mergeBuiltins(schemas, bot.tools ?? []),
       roster,
       contextWindow: model?.contextWindow,
-      supportsVision: model?.supportsVision === true,
+      supportsVision: backendSeesImages(bot.backendId, model),
       extras: skills ? [...(input.extras ?? []), skills] : input.extras
     })
 
