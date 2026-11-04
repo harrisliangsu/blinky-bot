@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                                    <item>
-            <title>0.3.8</title>
-            <pubDate>Wed, 04 Nov 2026 09:51:58 -0000</pubDate>
-            <sparkle:version>0.3.8</sparkle:version>
-            <sparkle:shortVersionString>0.3.8</sparkle:shortVersionString>
+                                                        <item>
+            <title>0.3.9</title>
+            <pubDate>Wed, 04 Nov 2026 10:46:27 -0000</pubDate>
+            <sparkle:version>0.3.9</sparkle:version>
+            <sparkle:shortVersionString>0.3.9</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.8</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.8</h2><ul><li><strong>主界面顶栏只保留主题切换。</strong> 太阳或月亮在浅色和深色之间切换，并写入主题设置。四宫格、活动面板、收件箱、共享房间和设置齿轮不再出现在顶栏。这些仍在设置 → 通用 → 布局里。设置也可以从侧边栏或 Command + 逗号打开。</li><li><strong>侧边栏底部把设置、应用和其他分开。</strong> 左下角头像菜单是设置、应用和其他…。应用只保留 GitHub、Git 和 Gmail，Gmail 标为即将推出。工具是单独一页，放 MCP 服务器和已安装的技能。</li><li><strong>每个 Bot 可以选择本地 CLI 或供应商、模型和思考深度。</strong> 仍使用默认 CLI 的 Bot 继续跟随设置。取消勾选后可以选择来源、模型，以及该后端支持时的思考深度。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.8">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.9</h2><ul><li><strong>模型列表显示 CLI 的真实模型。</strong> Codex 用 <code>model/list</code> 填充列表，不再只有「默认」这一个词。Claude Code 提供 Opus、Sonnet 和 Haiku 别名。</li><li><strong>粘贴或拖入图片会送到 CLI。</strong> 图片留在这条消息上。Codex 收到本地图片文件，Claude Code 收到图片块。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.8</h2><ul><li><strong>主界面顶栏只保留主题切换。</strong> 太阳或月亮在浅色和深色之间切换，并写入主题设置。四宫格、活动面板、收件箱、共享房间和设置齿轮不再出现在顶栏。这些仍在设置 → 通用 → 布局里。设置也可以从侧边栏或 Command + 逗号打开。</li><li><strong>侧边栏底部把设置、应用和其他分开。</strong> 左下角头像菜单是设置、应用和其他…。应用只保留 GitHub、Git 和 Gmail，Gmail 标为即将推出。工具是单独一页，放 MCP 服务器和已安装的技能。</li><li><strong>每个 Bot 可以选择本地 CLI 或供应商、模型和思考深度。</strong> 仍使用默认 CLI 的 Bot 继续跟随设置。取消勾选后可以选择来源、模型，以及该后端支持时的思考深度。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.8">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.9</h2><ul><li><strong>模型列表显示 CLI 的真实模型。</strong> Codex 用 <code>model/list</code> 填充列表，不再只有「默认」这一个词。Claude Code 提供 Opus、Sonnet 和 Haiku 别名。</li><li><strong>粘贴或拖入图片会送到 CLI。</strong> 图片留在这条消息上。Codex 收到本地图片文件，Claude Code 收到图片块。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.8</h2><ul><li><strong>The chat header keeps only the theme toggle.</strong> The sun or moon switches light and dark and saves that choice. The grid, activity panel, inbox, shared rooms, and settings gear are gone from the header. Those controls stay under Settings → General → Layout. Settings still opens from the sidebar or with Command-comma.</li><li><strong>The sidebar footer splits Settings, Apps, and More.</strong> The profile menu is Settings, Apps, and More…. Apps keeps GitHub, Git, and Gmail, and Gmail is marked coming soon. Tools is its own page for MCP servers and installed skills.</li><li><strong>Each Bot can pick a local CLI or a provider, a model, and a thinking depth.</strong> A Bot that still follows the default uses Settings. Unchecking that opens the source, the model, and the thinking depth when that backend can set one.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.8">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.8/BlinkyBot-0.3.8.zip"
-                       length="123986353"
+</style><h2>BlinkyBot 0.3.9</h2><ul><li><strong>The model picker lists the CLI&#x27;s real models.</strong> Codex fills the list from <code>model/list</code>, so it is no longer only the word default. Claude Code offers the aliases Opus, Sonnet, and Haiku.</li><li><strong>Paste or drop an image and it reaches the CLI.</strong> The image stays on the message. Codex receives it as a local image file. Claude Code receives it as an image block.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.9/BlinkyBot-0.3.9.zip"
+                       length="123992293"
                        type="application/octet-stream"
-                       sparkle:edSignature="hFb0bYw6JNqVGNjoqvL9+DAd+6A8Ots/lwKrf7wL+0XF9DT2g+xVirRrpzfStXR5wXBjtKfssopFdyerbBB9AQ==" />
+                       sparkle:edSignature="l0Ig8Mb6qroYZi3kd994tTpEq7JUodonaGjQgNZ3B8IWR1YfLDmIq0d/LVCdf5lV79Ijobx1GEnSwcXUwuh+Ag==" />
         </item>
     </channel>
 </rss>
