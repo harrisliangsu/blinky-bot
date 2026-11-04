@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                <item>
-            <title>0.3.3</title>
-            <pubDate>Wed, 04 Nov 2026 06:30:58 -0000</pubDate>
-            <sparkle:version>0.3.3</sparkle:version>
-            <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
+                                    <item>
+            <title>0.3.4</title>
+            <pubDate>Wed, 04 Nov 2026 06:59:26 -0000</pubDate>
+            <sparkle:version>0.3.4</sparkle:version>
+            <sparkle:shortVersionString>0.3.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>Backends are split into providers and local CLIs.</strong> Settings opens 供应商 (API key and base URL) above 本地 CLI (command and terminal sign-in).</li><li><strong>The default bot is Blinky.</strong> A seeded bot that is still named Assistant is renamed. A bot you renamed stays as you named it.</li><li><strong>Status lines follow the settings language.</strong> A missing key or CLI is described in Chinese by default. English says “an OpenAI key”.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.3/BlinkyBot-0.3.3.zip"
-                       length="122438284"
+</style><h2>BlinkyBot 0.3.4</h2><ul><li><strong>Each local CLI shows whether it is signed in.</strong> The row says not installed, not signed in, signed in, or unknown. Sign in opens that CLI’s own login in Terminal. BlinkyBot does not keep the token.</li><li><strong>Providers are added one at a time.</strong> The provider list starts empty. Add provider offers OpenAI, Anthropic, xAI, and OpenRouter. Removing one clears the key saved for it.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.4/BlinkyBot-0.3.4.zip"
+                       length="122451062"
                        type="application/octet-stream"
-                       sparkle:edSignature="DoWaWZ5mhw2I2PCBx40CsfexxeWrvqTyTSrOvRwyKhwlwzw2LNb9DzGdXONt6qQTIGS5d4pA5Jg0GV7hR96bCw==" />
+                       sparkle:edSignature="Wfg3Z6qF7Az7Wh/+nOMVWpwKGlzG6E8p8f2MfavZgmzy6X5NKCLhh038W83G+ZVQOTvAQn6StkrpoZTnquT/AA==" />
         </item>
     </channel>
 </rss>

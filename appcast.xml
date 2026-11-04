@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                <item>
-            <title>0.3.3</title>
-            <pubDate>Wed, 04 Nov 2026 06:30:58 -0000</pubDate>
-            <sparkle:version>0.3.3</sparkle:version>
-            <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
+                                    <item>
+            <title>0.3.4</title>
+            <pubDate>Wed, 04 Nov 2026 06:59:26 -0000</pubDate>
+            <sparkle:version>0.3.4</sparkle:version>
+            <sparkle:shortVersionString>0.3.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>后端分成供应商和本地 CLI。</strong> 设置里的「后端与模型」先显示供应商（API key 和基础 URL），再显示本地 CLI（命令和终端登录）。</li><li><strong>默认 Bot 叫 Blinky。</strong> 仍叫 Assistant 的种子 Bot 会改名。你自己改过名字的 Bot 保持原样。</li><li><strong>状态说明跟随设置语言。</strong> 缺少密钥或 CLI 时，中文界面用中文说明。英文写作 “an OpenAI key”。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.4</h2><ul><li><strong>每个本地 CLI 都会显示登录状态。</strong> 未安装、未登录、已登录或未知。「登录」会打开该 CLI 自己的登录流程。BlinkyBot 不保存它的令牌。</li><li><strong>供应商需要逐个添加。</strong> 「供应商」一开始是空的。「添加供应商」列出 OpenAI、Anthropic、xAI 和 OpenRouter。移除时会清除已保存的密钥。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>后端分成供应商和本地 CLI。</strong> 设置里的「后端与模型」先显示供应商（API key 和基础 URL），再显示本地 CLI（命令和终端登录）。</li><li><strong>默认 Bot 叫 Blinky。</strong> 仍叫 Assistant 的种子 Bot 会改名。你自己改过名字的 Bot 保持原样。</li><li><strong>状态说明跟随设置语言。</strong> 缺少密钥或 CLI 时，中文界面用中文说明。英文写作 “an OpenAI key”。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.4</h2><ul><li><strong>每个本地 CLI 都会显示登录状态。</strong> 未安装、未登录、已登录或未知。「登录」会打开该 CLI 自己的登录流程。BlinkyBot 不保存它的令牌。</li><li><strong>供应商需要逐个添加。</strong> 「供应商」一开始是空的。「添加供应商」列出 OpenAI、Anthropic、xAI 和 OpenRouter。移除时会清除已保存的密钥。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>Backends are split into providers and local CLIs.</strong> Settings opens 供应商 (API key and base URL) above 本地 CLI (command and terminal sign-in).</li><li><strong>The default bot is Blinky.</strong> A seeded bot that is still named Assistant is renamed. A bot you renamed stays as you named it.</li><li><strong>Status lines follow the settings language.</strong> A missing key or CLI is described in Chinese by default. English says “an OpenAI key”.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.3/BlinkyBot-0.3.3.zip"
-                       length="122438284"
+</style><h2>BlinkyBot 0.3.4</h2><ul><li><strong>Each local CLI shows whether it is signed in.</strong> The row says not installed, not signed in, signed in, or unknown. Sign in opens that CLI’s own login in Terminal. BlinkyBot does not keep the token.</li><li><strong>Providers are added one at a time.</strong> The provider list starts empty. Add provider offers OpenAI, Anthropic, xAI, and OpenRouter. Removing one clears the key saved for it.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.4/BlinkyBot-0.3.4.zip"
+                       length="122451062"
                        type="application/octet-stream"
-                       sparkle:edSignature="DoWaWZ5mhw2I2PCBx40CsfexxeWrvqTyTSrOvRwyKhwlwzw2LNb9DzGdXONt6qQTIGS5d4pA5Jg0GV7hR96bCw==" />
+                       sparkle:edSignature="Wfg3Z6qF7Az7Wh/+nOMVWpwKGlzG6E8p8f2MfavZgmzy6X5NKCLhh038W83G+ZVQOTvAQn6StkrpoZTnquT/AA==" />
         </item>
     </channel>
 </rss>
