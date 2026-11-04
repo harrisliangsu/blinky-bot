@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-zh.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                        <item>
-            <title>0.3.5</title>
-            <pubDate>Wed, 04 Nov 2026 07:25:52 -0000</pubDate>
-            <sparkle:version>0.3.5</sparkle:version>
-            <sparkle:shortVersionString>0.3.5</sparkle:shortVersionString>
+                                            <item>
+            <title>0.3.6</title>
+            <pubDate>Wed, 04 Nov 2026 08:15:01 -0000</pubDate>
+            <sparkle:version>0.3.6</sparkle:version>
+            <sparkle:shortVersionString>0.3.6</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.5</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.5</h2><ul><li><strong>侧边栏只列出 Bot。</strong> 项目、例程和已归档对话仍在产品里，不再出现在主侧边栏的「更多」下。</li><li><strong>本地 CLI 在已安装并登录，或你添加之后，才显示一行。</strong> 「添加」从已知 CLI 里选择，并显示检测到的状态。「登录」仍打开该 CLI 自己的登录。BlinkyBot 不保存它的令牌。「管理」把命令、密钥和重新检查留在默认行之外。</li><li><strong>供应商空状态变短了。</strong> 不再展开 OpenRouter 的长说明。仍通过「添加供应商」保存云端密钥。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.5">在 GitHub 查看更新说明</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.5/BlinkyBot-0.3.5.zip"
-                       length="122447473"
+</style><h2>BlinkyBot 0.3.6</h2><ul><li><strong>发消息不再先探测每个 CLI。</strong> 回复光标在 CLI 启动之前出现。Codex 对话会保持一会儿，下一条消息不必重新启动。Kimi 的思考过程随到随显示，回答不会等思考结束。</li><li><strong>主聊天隐藏工作目录、Agent 模式和模型。</strong> 回复也不标注是哪个模型在跑。</li><li><strong>添加供应商和本地 CLI 可以搜索。</strong> 列表只显示你添加过的，或已经安装的 CLI。</li><li><strong>应用为所有 Bot 连接 GitHub、Git 和 Gmail。</strong> GitHub 登录在终端里完成，BlinkyBot 不保存令牌。Git 修改这台 Mac 上的全局姓名和邮箱。Gmail 只记下你想连接。</li><li><strong>Bot 用绑定的 CLI 发送。</strong> 绑定关系和该 CLI 的默认模型在设置里。仍使用通用模型的 Bot 跟随设置里的默认 CLI。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6">在 GitHub 查看更新说明</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.6/BlinkyBot-0.3.6.zip"
+                       length="122465042"
                        type="application/octet-stream"
-                       sparkle:edSignature="gxPhVGGQYB+PmnFDL64EnoRzZpISes9tntLd+aY1+Owaa9lnVKTQe5CtLzC0ZdmtXczKMR1tQSugsu0pTB/uDg==" />
+                       sparkle:edSignature="AalWMN3sh7prUDIKI1GHCtp5Td04fZcZENYA6RL3Bb5tWF6+gPmg4PwMbEZOtsKfB64Go9yyfar7LCIoYeX4BQ==" />
         </item>
     </channel>
 </rss>
