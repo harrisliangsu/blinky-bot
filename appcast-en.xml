@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                <item>
-            <title>0.2.2</title>
-            <pubDate>Wed, 04 Nov 2026 04:37:10 -0000</pubDate>
-            <sparkle:version>0.2.2</sparkle:version>
-            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+                    <item>
+            <title>0.3.0</title>
+            <pubDate>Wed, 04 Nov 2026 04:50:28 -0000</pubDate>
+            <sparkle:version>0.3.0</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.2</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.0</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.2</h2><ul><li><strong>Default bots use a signed-in CLI.</strong> BlinkyBot searches a GUI-safe PATH, including <code>/opt/homebrew/bin</code>, <code>~/.local/bin</code>, <code>~/.kimi-code/bin</code>, <code>~/.grok/bin</code>, npm global bins, and nvm version bins, and points the default bots at an installed, signed-in backend. Codex, Claude Code, Kimi Code, and Grok come before OpenCode, then the other agent CLIs, then an API key.</li><li><strong>A missing CLI explains itself.</strong> When nothing is signed in, the chat says so and links to Settings → Backends instead of showing <code>spawn opencode ENOENT</code>.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.2">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.2/BlinkyBot-0.2.2.zip"
-                       length="122415398"
+</style><h2>BlinkyBot 0.3.0</h2><ul><li><strong>Settings has a sidebar.</strong> General, assistants, profile, notifications, permissions, backends, MCP, updates, and about. Search filters the list. Labels are Chinese by default and English is one menu away.</li><li><strong>The controls persist.</strong> Theme, translucent window, language, interface size, accent, send shortcut, assistant steps, external links, launch at login, and running in the background are saved on this Mac. Check now reads the Sparkle feed or a GitHub beta.</li><li><strong>The main window leads with bots.</strong> Projects, routines, and archived chats sit under More. The activity panel stays closed until you open it.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.0">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.0/BlinkyBot-0.3.0.zip"
+                       length="122432565"
                        type="application/octet-stream"
-                       sparkle:edSignature="dNVwLWjczeYqGA5bJ9dNA3gcA23F5ifdyoFht/1MMVTmJ2h/6VUeLJM3NIREjvNGfGFBuZu28l7S6rph4tOqAw==" />
+                       sparkle:edSignature="nVHOXjebevnsadkfceoO83XNqewb8Ma/xV6o2IzmrIKhGCN7NFyCYVCzThcX6Jt1oH3LeGl0sGqQkNzwZhbtCg==" />
         </item>
     </channel>
 </rss>
