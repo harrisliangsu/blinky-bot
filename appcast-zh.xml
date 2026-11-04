@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-zh.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                    <item>
-            <title>0.3.4</title>
-            <pubDate>Wed, 04 Nov 2026 06:59:26 -0000</pubDate>
-            <sparkle:version>0.3.4</sparkle:version>
-            <sparkle:shortVersionString>0.3.4</sparkle:shortVersionString>
+                                        <item>
+            <title>0.3.5</title>
+            <pubDate>Wed, 04 Nov 2026 07:25:52 -0000</pubDate>
+            <sparkle:version>0.3.5</sparkle:version>
+            <sparkle:shortVersionString>0.3.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.5</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.4</h2><ul><li><strong>每个本地 CLI 都会显示登录状态。</strong> 未安装、未登录、已登录或未知。「登录」会打开该 CLI 自己的登录流程。BlinkyBot 不保存它的令牌。</li><li><strong>供应商需要逐个添加。</strong> 「供应商」一开始是空的。「添加供应商」列出 OpenAI、Anthropic、xAI 和 OpenRouter。移除时会清除已保存的密钥。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.4">在 GitHub 查看更新说明</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.4/BlinkyBot-0.3.4.zip"
-                       length="122451062"
+</style><h2>BlinkyBot 0.3.5</h2><ul><li><strong>侧边栏只列出 Bot。</strong> 项目、例程和已归档对话仍在产品里，不再出现在主侧边栏的「更多」下。</li><li><strong>本地 CLI 在已安装并登录，或你添加之后，才显示一行。</strong> 「添加」从已知 CLI 里选择，并显示检测到的状态。「登录」仍打开该 CLI 自己的登录。BlinkyBot 不保存它的令牌。「管理」把命令、密钥和重新检查留在默认行之外。</li><li><strong>供应商空状态变短了。</strong> 不再展开 OpenRouter 的长说明。仍通过「添加供应商」保存云端密钥。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.5">在 GitHub 查看更新说明</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.5/BlinkyBot-0.3.5.zip"
+                       length="122447473"
                        type="application/octet-stream"
-                       sparkle:edSignature="Wfg3Z6qF7Az7Wh/+nOMVWpwKGlzG6E8p8f2MfavZgmzy6X5NKCLhh038W83G+ZVQOTvAQn6StkrpoZTnquT/AA==" />
+                       sparkle:edSignature="gxPhVGGQYB+PmnFDL64EnoRzZpISes9tntLd+aY1+Owaa9lnVKTQe5CtLzC0ZdmtXczKMR1tQSugsu0pTB/uDg==" />
         </item>
     </channel>
 </rss>
