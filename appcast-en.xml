@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-            <item>
-            <title>0.2.0</title>
-            <pubDate>Wed, 04 Nov 2026 03:45:53 -0000</pubDate>
-            <sparkle:version>0.2.0</sparkle:version>
-            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+                <item>
+            <title>0.2.1</title>
+            <pubDate>Wed, 04 Nov 2026 03:52:46 -0000</pubDate>
+            <sparkle:version>0.2.1</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.1</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot packages the OpenBOT desktop.</strong> The Mac app name is BlinkyBot. The source is this OpenBOT tree.</li><li><strong>Disk image and zip.</strong> The release is <code>BlinkyBot-0.2.0.dmg</code> and <code>BlinkyBot-0.2.0.zip</code> for Apple Silicon. Docker is not required.</li><li><strong>Signed update feed.</strong> The zip is signed for BlinkyBot&#x27;s existing update key. This build has no in-app updater yet, so install the disk image.</li><li><strong>MIT license.</strong> Source for this version is git tag <code>v0.2.0</code>. The license text is <code>LICENSE</code>.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.0/BlinkyBot-0.2.0.zip"
-                       length="122406356"
+</style><h2>BlinkyBot 0.2.1</h2><ul><li><strong>Kimi Code and Grok are local CLIs.</strong> Pick them with Claude and Codex. BlinkyBot looks up <code>kimi</code> and <code>grok</code> on the login-shell PATH, including <code>~/.kimi-code/bin</code> and <code>~/.grok/bin</code>.</li><li><strong>Sign-in stays on this Mac.</strong> A missing Kimi or Grok login is shown as needing a key. Grok can also use an xAI API key saved in Settings. A key on the Kimi row does not log the Kimi CLI in.</li><li><strong>0.2.0 was the packaged app.</strong> That version restored the BlinkyBot disk image on this OpenBOT tree. This build still has no in-app updater, so install the new disk image.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.1">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.1/BlinkyBot-0.2.1.zip"
+                       length="122411133"
                        type="application/octet-stream"
-                       sparkle:edSignature="rP/35/+afCSrQ2yYcRT6g/prMn266mTb+PX7GYruD5B5Q0MWj5AldgONI3i4sv1lin29lkJZWrW/T9qWVJNVBg==" />
+                       sparkle:edSignature="lisR8OWrqJqh9VoH6VhP6iTKuTdouwC9umeCGfWQZBz2Ui7YCNQjHLRNpMk0opm2B+b1SeTgXDICSr8JclDmBQ==" />
         </item>
     </channel>
 </rss>

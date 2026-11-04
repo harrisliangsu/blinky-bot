@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-            <item>
-            <title>0.2.0</title>
-            <pubDate>Wed, 04 Nov 2026 03:45:53 -0000</pubDate>
-            <sparkle:version>0.2.0</sparkle:version>
-            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+                <item>
+            <title>0.2.1</title>
+            <pubDate>Wed, 04 Nov 2026 03:52:46 -0000</pubDate>
+            <sparkle:version>0.2.1</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.1</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot 打包的是 OpenBOT 桌面应用。</strong> Mac 上的应用名是 BlinkyBot，源码是这棵 OpenBOT 树。</li><li><strong>磁盘映像和 zip。</strong> 发布物是 Apple 芯片的 <code>BlinkyBot-0.2.0.dmg</code> 和 <code>BlinkyBot-0.2.0.zip</code>。不需要 Docker。</li><li><strong>签名的更新源。</strong> zip 使用 BlinkyBot 现有的更新密钥签名。这一版还没有应用内更新，请安装磁盘映像。</li><li><strong>MIT 许可。</strong> 这一版的源代码是 git tag <code>v0.2.0</code>。协议全文是 <code>LICENSE</code>。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.2.1</h2><ul><li><strong>Kimi Code 和 Grok 是本机 CLI。</strong> 可以和 Claude、Codex 一起选。BlinkyBot 会在登录 shell 的 PATH 里找 <code>kimi</code> 和 <code>grok</code>，也包括 <code>~/.kimi-code/bin</code> 和 <code>~/.grok/bin</code>。</li><li><strong>登录留在这台 Mac 上。</strong> 没有登录时会显示需要密钥。Grok 也可以用设置里保存的 xAI API key。写在 Kimi 那一行的密钥不会让 Kimi CLI 登录。</li><li><strong>0.2.0 是打好的安装包。</strong> 那一版把 BlinkyBot 磁盘映像恢复到这棵 OpenBOT 树上。这一版仍然没有应用内更新，请安装新的磁盘映像。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.1">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot 打包的是 OpenBOT 桌面应用。</strong> Mac 上的应用名是 BlinkyBot，源码是这棵 OpenBOT 树。</li><li><strong>磁盘映像和 zip。</strong> 发布物是 Apple 芯片的 <code>BlinkyBot-0.2.0.dmg</code> 和 <code>BlinkyBot-0.2.0.zip</code>。不需要 Docker。</li><li><strong>签名的更新源。</strong> zip 使用 BlinkyBot 现有的更新密钥签名。这一版还没有应用内更新，请安装磁盘映像。</li><li><strong>MIT 许可。</strong> 这一版的源代码是 git tag <code>v0.2.0</code>。协议全文是 <code>LICENSE</code>。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.2.1</h2><ul><li><strong>Kimi Code 和 Grok 是本机 CLI。</strong> 可以和 Claude、Codex 一起选。BlinkyBot 会在登录 shell 的 PATH 里找 <code>kimi</code> 和 <code>grok</code>，也包括 <code>~/.kimi-code/bin</code> 和 <code>~/.grok/bin</code>。</li><li><strong>登录留在这台 Mac 上。</strong> 没有登录时会显示需要密钥。Grok 也可以用设置里保存的 xAI API key。写在 Kimi 那一行的密钥不会让 Kimi CLI 登录。</li><li><strong>0.2.0 是打好的安装包。</strong> 那一版把 BlinkyBot 磁盘映像恢复到这棵 OpenBOT 树上。这一版仍然没有应用内更新，请安装新的磁盘映像。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.1">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot packages the OpenBOT desktop.</strong> The Mac app name is BlinkyBot. The source is this OpenBOT tree.</li><li><strong>Disk image and zip.</strong> The release is <code>BlinkyBot-0.2.0.dmg</code> and <code>BlinkyBot-0.2.0.zip</code> for Apple Silicon. Docker is not required.</li><li><strong>Signed update feed.</strong> The zip is signed for BlinkyBot&#x27;s existing update key. This build has no in-app updater yet, so install the disk image.</li><li><strong>MIT license.</strong> Source for this version is git tag <code>v0.2.0</code>. The license text is <code>LICENSE</code>.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.0/BlinkyBot-0.2.0.zip"
-                       length="122406356"
+</style><h2>BlinkyBot 0.2.1</h2><ul><li><strong>Kimi Code and Grok are local CLIs.</strong> Pick them with Claude and Codex. BlinkyBot looks up <code>kimi</code> and <code>grok</code> on the login-shell PATH, including <code>~/.kimi-code/bin</code> and <code>~/.grok/bin</code>.</li><li><strong>Sign-in stays on this Mac.</strong> A missing Kimi or Grok login is shown as needing a key. Grok can also use an xAI API key saved in Settings. A key on the Kimi row does not log the Kimi CLI in.</li><li><strong>0.2.0 was the packaged app.</strong> That version restored the BlinkyBot disk image on this OpenBOT tree. This build still has no in-app updater, so install the new disk image.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.1">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.1/BlinkyBot-0.2.1.zip"
+                       length="122411133"
                        type="application/octet-stream"
-                       sparkle:edSignature="rP/35/+afCSrQ2yYcRT6g/prMn266mTb+PX7GYruD5B5Q0MWj5AldgONI3i4sv1lin29lkJZWrW/T9qWVJNVBg==" />
+                       sparkle:edSignature="lisR8OWrqJqh9VoH6VhP6iTKuTdouwC9umeCGfWQZBz2Ui7YCNQjHLRNpMk0opm2B+b1SeTgXDICSr8JclDmBQ==" />
         </item>
     </channel>
 </rss>
