@@ -6,7 +6,9 @@ Pushing a `v*` tag builds the Mac app and publishes a GitHub Release. The app id
 
 ## Cut v0.2.2
 
-`package.json` is `0.2.2`, and both changelogs have `## 0.2.2`. After this change is on `main`:
+`package.json` is `0.2.2`. There is no separate `VERSION` file; electron-builder reads `package.json`. Both changelogs have `## 0.2.2`: default bots follow a signed-in CLI, and a machine with none gets a chat message that opens Settings → Backends instead of `spawn opencode ENOENT`.
+
+After this change is on `main`:
 
 ```bash
 git checkout main
@@ -16,7 +18,15 @@ git tag v0.2.2
 git push origin v0.2.2
 ```
 
-Tag the merge commit on `main`, not the pull request branch. The workflow refuses the tag when it does not match `package.json` `"version"`, or when `CHANGELOG.md` / `CHANGELOG.zh-CN.md` has no `##` section for that version.
+Tag the merge commit on `main`, not the pull request branch. Then merge the `appcast-v0.2.2` pull request the workflow opens.
+
+中文：合并后再打 `v0.2.2`。这一版让默认 Bot 使用已登录的 CLI。没有可用后端时，对话会打开设置里的 Backends，而不是报 `spawn opencode ENOENT`。
+
+## v0.2.1 and v0.2.0 (already published)
+
+`v0.2.1` added Kimi Code and Grok. `v0.2.0` restored the BlinkyBot disk image on this OpenBOT tree. Do not push those tags again.
+
+The workflow refuses a tag when it does not match `package.json` `"version"`, or when `CHANGELOG.md` / `CHANGELOG.zh-CN.md` has no `##` section for that version.
 
 Watch it:
 
@@ -26,6 +36,10 @@ gh release view v0.2.2 --json assets --jq '.assets[].name'
 ```
 
 A finished run has `BlinkyBot-0.2.2.dmg` and `BlinkyBot-0.2.2.zip`. It also uploads `appcast.xml`, `appcast-zh.xml`, and `appcast-en.xml` onto that release and opens a pull request `appcast-v0.2.2`. Merge that pull request. The workflow does not push to `main` and does not merge the pull request.
+
+Actions can open that pull request only when **Settings → Actions → General → Workflow permissions** includes **Allow GitHub Actions to create and approve pull requests**. Without that checkbox, `gh pr create` is rejected. The release stays green: the disk image is already published, and the log warns that a person has to open the pull request from the pushed branch. v0.2.0 hit this; the branch was `appcast-v0.2.0`.
+
+中文：仓库 **Settings → Actions → General → Workflow permissions** 里要勾选 **Allow GitHub Actions to create and approve pull requests**，Actions 才能替 Sparkle 更新源开 Pull Request。没勾时发布不会变红，磁盘映像已经传上去了，需要人手用推上去的 `appcast-v*` 分支开 Pull Request 并合并。
 
 Install `BlinkyBot-0.2.2.dmg`. The build is not notarized. If macOS blocks the first launch, open BlinkyBot, dismiss the warning, then use **System Settings → Privacy & Security → Security → Open Anyway**.
 

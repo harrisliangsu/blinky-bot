@@ -39,6 +39,8 @@ test('gui binary dirs include Homebrew, ~/.local/bin, and the npm global bin', (
   })
   assert.ok(dirs.includes('/opt/homebrew/bin'))
   assert.ok(dirs.includes(join(home, '.local', 'bin')))
+  assert.ok(dirs.includes(join(home, '.kimi-code', 'bin')))
+  assert.ok(dirs.includes(join(home, '.grok', 'bin')))
   assert.ok(dirs.includes(join(home, '.npm-global', 'bin')))
 })
 
@@ -82,6 +84,21 @@ test('a bare name is found in a later directory when PATH is empty', async () =>
   assert.equal(await firstExecutable('codex', ['/nonexistent', root], exists), bin)
   assert.equal(await firstExecutable('missing', [root], exists), null)
   assert.equal(await firstExecutable('/abs/codex', [root], exists), null)
+})
+
+test('Kimi and Grok are chosen ahead of OpenCode and behind Claude Code', () => {
+  assert.equal(
+    pickDefaultBackend([
+      choice({ id: 'opencode' }),
+      choice({ id: 'grok' }),
+      choice({ id: 'kimi' })
+    ]),
+    'kimi'
+  )
+  assert.equal(
+    pickDefaultBackend([choice({ id: 'grok' }), choice({ id: 'claude' }), choice({ id: 'opencode' })]),
+    'claude'
+  )
 })
 
 test('signed-in CLIs are preferred in Codex, Claude Code, OpenCode order', () => {

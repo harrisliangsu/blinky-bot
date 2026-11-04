@@ -25,6 +25,11 @@ async function cliChoices(): Promise<BackendChoice[]> {
       const binary = command ? await which(command) : null
       if (binary) {
         signedIn = spec.install.paths ? await anyPathExists(spec.install.paths()) : true
+        // Grok accepts a saved xAI key when `grok login` has not been run.
+        // A key on the Kimi row does not sign that CLI in.
+        if (!signedIn && spec.id === 'grok' && (hasBackendApiKey(spec.id) || Boolean(config.apiKey?.trim()))) {
+          signedIn = true
+        }
       }
     } catch (error) {
       console.warn('[openbot] could not probe', spec.id, error)

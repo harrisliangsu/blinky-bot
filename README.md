@@ -1,6 +1,6 @@
 # BlinkyBot
 
-BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模型，也不需要注册账号。它调用你已经安装的 CLI（`claude`、`codex`，以及 `opencode`、`pi`、`droid`），或者用你在设置里保存的 API key 直接请求服务商。对话、Bot 和设置都是本机上的 JSON。
+BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模型，也不需要注册账号。它调用你已经安装的 CLI（`claude`、`codex`、`kimi`、`grok`，以及 `opencode`、`pi`、`droid`），或者用你在设置里保存的 API key 直接请求服务商。对话、Bot 和设置都是本机上的 JSON。
 
 打 tag 发布安装包见 [docs/releasing.md](docs/releasing.md)。
 
@@ -64,15 +64,19 @@ npm run dev
 
 ## 确认本机的 Codex、Claude 和 API key
 
-BlinkyBot 不会替你安装 CLI。它用登录 shell 的 `PATH` 找二进制，并对 `claude` 和 `codex` 执行 `--version`（单次探测大约最多 8 秒）。状态是 `available`、`not-installed`、`needs-key` 或 `error`。
+BlinkyBot 不会替你安装 CLI。它用登录 shell 的 `PATH` 找二进制（也看 `~/.grok/bin` 和 `~/.kimi-code/bin`），并对 `claude`、`codex`、`kimi` 执行 `--version`，对 `grok` 执行 `version`（单次探测大约最多 8 秒）。状态是 `available`、`not-installed`、`needs-key` 或 `error`。
 
 先在终端做和探测同一类的检查：
 
 ```sh
 zsh -lic 'command -v claude; claude --version'
 zsh -lic 'command -v codex; codex --version'
+zsh -lic 'command -v kimi; kimi --version'
+zsh -lic 'command -v grok; grok version'
 test -d "$HOME/.claude" && echo "claude config: ~/.claude" || echo "claude config: missing"
 test -d "$HOME/.codex" && echo "codex config: ~/.codex" || echo "codex config: missing"
+test -d "$HOME/.kimi-code/credentials" && echo "kimi login: ~/.kimi-code/credentials" || echo "kimi login: missing — run kimi login"
+test -f "$HOME/.grok/auth.json" && echo "grok login: ~/.grok/auth.json" || echo "grok login: missing — run grok login"
 ```
 
 怎么读结果：
@@ -88,6 +92,8 @@ test -d "$HOME/.codex" && echo "codex config: ~/.codex" || echo "codex config: m
 | --- | --- |
 | Claude Code | 标签 `local`，状态 `available` |
 | Codex | 标签 `local`，状态 `available` |
+| Kimi Code | 装了 `kimi` 且 `kimi login` 过：`available`。没装：`not-installed`。装了但没登录：`needs-key` |
+| Grok | 装了 `grok` 且 `~/.grok/auth.json` 有会话，或这一行保存了 xAI key：`available`。没装：`not-installed` |
 
 API key 不读环境变量。只认设置里保存的钥匙。钥匙用系统钥匙串加密（macOS Keychain），不会回到界面，也不会以明文写进 `settings.json`。密文在数据目录的 `backend-secrets.json`。
 
@@ -117,22 +123,26 @@ On Intel the app is `release/mac/BlinkyBot.app`. `npm run dist` writes `BlinkyBo
 
 The macOS app menu and About panel say BlinkyBot, with the MIT copyright line. The window title is BlinkyBot until a conversation has its own title.
 
-## Verify Codex, Claude, and API keys
+## Verify Codex, Claude, Kimi, Grok, and API keys
 
-BlinkyBot does not install a CLI. It resolves `claude` and `codex` on a login-shell `PATH` and runs `--version` (about an 8 second budget each).
+BlinkyBot does not install a CLI. It resolves each binary on a login-shell `PATH` (and `~/.grok/bin`, `~/.kimi-code/bin`) and runs a version command (about an 8 second budget each).
 
 ```sh
 zsh -lic 'command -v claude; claude --version'
 zsh -lic 'command -v codex; codex --version'
+zsh -lic 'command -v kimi; kimi --version'
+zsh -lic 'command -v grok; grok version'
 test -d "$HOME/.claude" && echo "claude config: ~/.claude" || echo "claude config: missing"
 test -d "$HOME/.codex" && echo "codex config: ~/.codex" || echo "codex config: missing"
+test -d "$HOME/.kimi-code/credentials" && echo "kimi login: ~/.kimi-code/credentials" || echo "kimi login: missing — run kimi login"
+test -f "$HOME/.grok/auth.json" && echo "grok login: ~/.grok/auth.json" || echo "grok login: missing — run grok login"
 ```
 
 Then open **BlinkyBot → Settings…** (`Command+,`) → **Backends** → **Refresh**.
 
-- Both binaries print a path and a version, and `~/.claude` / `~/.codex` exist: those rows show `available`, with the version and path in the detail line.
-- Missing binary: `not-installed`, with `npm i -g @anthropic-ai/claude-code` or `brew install claude`, and `npm i -g @openai/codex` or `brew install codex`.
-- Binary present, config directory missing: `needs-key`. Run that CLI once in a terminal and sign in, then Refresh.
+- A binary that prints a path and a version, and has a login (`~/.claude`, `~/.codex`, `~/.kimi-code/credentials`, or `~/.grok/auth.json`): that row shows `available`, with the version and path in the detail line. Grok also shows `available` when this row has an xAI API key saved.
+- Missing binary: `not-installed`. Claude Code is `npm i -g @anthropic-ai/claude-code` or `brew install claude`. Codex is `npm i -g @openai/codex` or `brew install codex`. Kimi Code is `npm i -g @moonshot-ai/kimi-code`. Grok is `npm i -g @xai-official/grok`.
+- Binary present, login missing: `needs-key`. Run `kimi login` or `grok login` (or the Claude/Codex sign-in) in a terminal, then Refresh.
 - Version probe hangs: `error`. Run the CLI once yourself; it may be waiting on first-run setup.
 
 API keys are not read from the environment. In Backends, paste a key for Anthropic, OpenAI, xAI, or OpenRouter, click **Save key**, then **Refresh**. Leave Base URL empty for the provider default. A key is stored with the OS credential store and is not written in plaintext into `settings.json`.
@@ -160,18 +170,31 @@ does it.
 
 ## What works
 
-**Agent CLI backends.** Five, detected automatically by resolving the binary on
-a hydrated login-shell `PATH` and probing `--version`:
+**Agent CLI backends.** Seven, detected automatically by resolving the binary on
+a hydrated login-shell `PATH` (plus `~/.grok/bin` and `~/.kimi-code/bin`) and
+probing a version command (`--version`, or `grok version`):
 
 | Backend    | Binary     | Notes                                                   |
 | ---------- | ---------- | ------------------------------------------------------- |
 | `opencode` | `opencode` | Default. Runs a headless local server, streams over SSE. |
 | `claude`   | `claude`   | Streaming JSON; model aliases opus / sonnet / haiku.     |
 | `codex`    | `codex`    | App-server transport, falls back to one-shot `exec`.     |
+| `kimi`     | `kimi`     | Kimi Code. `kimi -p --output-format stream-json`. Sign in with `kimi login`. |
+| `grok`     | `grok`     | xAI Grok CLI. Headless streaming JSON. `grok login`, or an API key on this row. |
 | `pi`       | `pi`       | Model list from Pi; supports VM-safe model-only mode.     |
 | `droid`    | `droid`    | Streaming JSON. Read-only tools; see the note below.      |
 
-`droid` is the most limited of the five. It accepts no per-turn MCP server — its
+`kimi -p` and `grok --prompt-file --always-approve` are how those CLIs run
+without a terminal. Print mode has no permission callback, so their own tools
+do not raise a BlinkyBot approval card. Background side calls and private-computer
+VM bots refuse these two rather than start that loop. The direct `xai` and
+`openrouter` adapters are unchanged, for a key with no CLI. Kimi's platform key
+still belongs on OpenRouter (or whatever OpenAI-compatible host you pointed it
+at); saving a key on the `kimi` row does not log the CLI in, because Kimi Code
+only reads a key when its own `config.toml` says so, and BlinkyBot does not
+write that file.
+
+`droid` is the most limited of the seven. It accepts no per-turn MCP server — its
 only MCP support is a persistent `droid mcp add`, and BlinkyBot never writes into
 a CLI's own config — so BlinkyBot's tools cannot reach it. It is therefore run
 with `--enabled-tools` restricted to droid's own read, search and fetch tools.
@@ -211,7 +234,7 @@ to a bot and to a chat, so a card can be worked on directly.
 
 **Skills.** Folders containing a `SKILL.md` with YAML frontmatter, discovered
 from the places the CLIs already look — `~/.agents/skills`, `~/.claude/skills`,
-`~/.codex/skills`, `~/.pi/agent/skills`, `${XDG_CONFIG_HOME:-~/.config}/opencode/skills`,
+`~/.codex/skills`, `~/.kimi-code/skills`, `~/.grok/skills`, `~/.pi/agent/skills`, `${XDG_CONFIG_HOME:-~/.config}/opencode/skills`,
 and the project-level equivalents under the session's working directory.
 Installing copies a folder into the shared `~/.agents/skills` through a staged
 rename, so a skill is never half-installed; uninstalling refuses to delete

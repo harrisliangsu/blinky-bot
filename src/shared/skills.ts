@@ -10,7 +10,7 @@
  * folders at prompt time, so a skill removed on disk simply drops out.
  */
 
-export type SkillOrigin = 'claude' | 'opencode' | 'codex' | 'pi' | 'agents' | 'project'
+export type SkillOrigin = 'claude' | 'opencode' | 'codex' | 'kimi' | 'grok' | 'pi' | 'agents' | 'project'
 
 export interface Skill {
   /** Stable: `${origin}:${name}`. */
@@ -53,6 +53,8 @@ export const SKILL_ORIGINS: readonly SkillOrigin[] = [
   'claude',
   'opencode',
   'codex',
+  'kimi',
+  'grok',
   'pi',
   'project'
 ]
@@ -63,6 +65,8 @@ export const SKILL_ORIGIN_LABELS: Record<SkillOrigin, string> = {
   claude: 'Claude Code',
   opencode: 'OpenCode',
   codex: 'Codex',
+  kimi: 'Kimi Code',
+  grok: 'Grok',
   pi: 'pi',
   project: 'This project'
 }
@@ -75,7 +79,9 @@ export const SKILL_PREFERENCE: Record<string, readonly SkillOrigin[]> = {
   opencode: ['opencode', 'claude', 'agents'],
   pi: ['pi', 'agents'],
   claude: ['claude', 'agents'],
-  codex: ['codex', 'agents']
+  codex: ['codex', 'agents'],
+  kimi: ['kimi', 'agents'],
+  grok: ['grok', 'agents']
 }
 
 /**
@@ -88,6 +94,8 @@ export const DEFAULT_SKILL_PREFERENCE: readonly SkillOrigin[] = [
   'claude',
   'opencode',
   'codex',
+  'kimi',
+  'grok',
   'pi'
 ]
 

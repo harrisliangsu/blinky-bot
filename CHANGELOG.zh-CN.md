@@ -2,8 +2,14 @@
 
 ## 0.2.2
 
-- **默认 Bot 使用已登录的 CLI。** BlinkyBot 会在图形界面也能看见的 PATH 里查找，包括 `/opt/homebrew/bin`、`~/.local/bin`、npm 全局目录和 nvm 的版本目录，并把默认 Bot 指到已安装且已登录的后端。顺序是 Codex、Claude Code、OpenCode，然后是其他 CLI，最后是 API key。
+- **默认 Bot 使用已登录的 CLI。** BlinkyBot 会在图形界面也能看见的 PATH 里查找，包括 `/opt/homebrew/bin`、`~/.local/bin`、`~/.kimi-code/bin`、`~/.grok/bin`、npm 全局目录和 nvm 的版本目录，并把默认 Bot 指到已安装且已登录的后端。顺序是 Codex、Claude Code、Kimi Code、Grok，然后是 OpenCode 和其他 CLI，最后是 API key。
 - **缺少 CLI 时会说明原因。** 没有任何已登录的后端时，对话会说明这一点，并打开设置里的 Backends，而不是显示 `spawn opencode ENOENT`。
+
+## 0.2.1
+
+- **Kimi Code 和 Grok 是本机 CLI。** 可以和 Claude、Codex 一起选。BlinkyBot 会在登录 shell 的 PATH 里找 `kimi` 和 `grok`，也包括 `~/.kimi-code/bin` 和 `~/.grok/bin`。
+- **登录留在这台 Mac 上。** 没有登录时会显示需要密钥。Grok 也可以用设置里保存的 xAI API key。写在 Kimi 那一行的密钥不会让 Kimi CLI 登录。
+- **0.2.0 是打好的安装包。** 那一版把 BlinkyBot 磁盘映像恢复到这棵 OpenBOT 树上。这一版仍然没有应用内更新，请安装新的磁盘映像。
 
 ## 0.2.0
 

@@ -45,6 +45,8 @@ function defaultBackends(): Record<string, BackendConfig> {
     opencode: { enabled: true, command: 'opencode', extraArgs: [] },
     claude: { enabled: true, command: 'claude', extraArgs: [] },
     codex: { enabled: true, command: 'codex', extraArgs: [] },
+    kimi: { enabled: true, command: 'kimi', extraArgs: [] },
+    grok: { enabled: true, command: 'grok', extraArgs: [] },
     pi: { enabled: true, command: 'pi', extraArgs: [] },
     droid: { enabled: true, command: 'droid', extraArgs: [] },
     // Direct API — the fallback for a bare key with no CLI installed.

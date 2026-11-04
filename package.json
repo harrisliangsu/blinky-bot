@@ -38,7 +38,8 @@
     "pack": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac --dir",
     "package:mac": "bash Scripts/package-mac.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --experimental-strip-types --test src/main/backends/defaultBackend.test.ts"
+    "test": "node --experimental-strip-types --test src/main/backends/defaultBackend.test.ts",
+    "test:cli-adapters": "node scripts/test-cli-adapters.mjs"
   },
   "build": {
     "appId": "bot.blinky.shell",

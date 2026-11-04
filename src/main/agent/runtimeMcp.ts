@@ -12,7 +12,8 @@
  *
  * A list, not a guess: the gateway's HTTP listener is only started for a
  * backend on it, so an unlisted CLI never leaves a port open for a client that
- * will never connect. The other half of this pairing — how each of those two
+ * will never connect. Kimi and Grok print mode have no per-turn MCP flag that
+ * avoids writing their own config, so they stay off this list. The other half of this pairing — how each of those two
  * CLIs is actually told — is `backends/cli/mcpConfig.ts`; the two are kept
  * apart because the agent package treats the backends package as an optional
  * peer and cannot import it statically.

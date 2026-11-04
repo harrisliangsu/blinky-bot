@@ -15,7 +15,7 @@ export const FACTORY_DEFAULT_BACKEND_ID = 'opencode'
  * product treats as the primary install path. API-key providers are not in
  * this list; they are the fallback after every CLI.
  */
-export const CLI_PICK_ORDER = ['codex', 'claude', 'opencode', 'pi', 'droid'] as const
+export const CLI_PICK_ORDER = ['codex', 'claude', 'kimi', 'grok', 'opencode', 'pi', 'droid'] as const
 
 export interface BackendChoice {
   id: string

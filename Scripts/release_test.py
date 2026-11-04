@@ -43,6 +43,20 @@ class ChangelogTest(unittest.TestCase):
         self.assertIn("BlinkyBot", chinese)
         self.assertIn("MIT", chinese)
 
+    def test_0_2_1_notes_name_kimi_grok_and_the_packaged_0_2_0(self) -> None:
+        english = changelog.entry("0.2.1")
+        chinese = changelog.entry("0.2.1", changelog.CHANGELOG_ZH)
+        self.assertIsNotNone(english)
+        self.assertIsNotNone(chinese)
+        assert english is not None and chinese is not None
+        self.assertIn("Kimi", english)
+        self.assertIn("Grok", english)
+        self.assertIn("0.2.0", english)
+        self.assertIn("Kimi", chinese)
+        self.assertIn("Grok", chinese)
+        self.assertIn("0.2.0", chinese)
+        self.assertEqual(release_notes.previous_version("0.2.1"), "0.2.0")
+
     def test_missing_version_is_none(self) -> None:
         self.assertIsNone(changelog.entry("9.9.9"))
 
@@ -102,6 +116,8 @@ class SparkleKeyTest(unittest.TestCase):
         self.assertEqual(build["productName"], "BlinkyBot")
         self.assertEqual(build["appId"], "bot.blinky.shell")
         self.assertEqual(package["version"], "0.2.2")
+        self.assertIsNotNone(changelog.entry("0.2.1"))
+        self.assertIsNotNone(changelog.entry("0.2.1", changelog.CHANGELOG_ZH))
         self.assertIsNotNone(changelog.entry(package["version"]))
         self.assertIsNotNone(changelog.entry(package["version"], changelog.CHANGELOG_ZH))
         info = build["mac"]["extendInfo"]
@@ -123,6 +139,9 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("SPARKLE_PRIVATE_KEY", text)
         self.assertIn("open-smoke.sh", text)
         self.assertIn("appcast-v", text)
+        self.assertIn("Allow GitHub Actions to create and approve pull requests", text)
+        self.assertIn("::warning::", text)
+        self.assertNotIn("::error::No pull request", text)
 
 
 if __name__ == "__main__":

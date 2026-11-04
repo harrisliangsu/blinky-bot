@@ -213,3 +213,135 @@ export function piMapper(): EventMapper {
     return []
   }
 }
+
+function textContent(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (!Array.isArray(value)) return ''
+  return value
+    .filter(isPlainObject)
+    .map((block) => str(block.text) || str(block.content))
+    .filter(Boolean)
+    .join('')
+}
+
+function usageFrom(value: Record<string, unknown>): ChatChunk[] {
+  const raw = isPlainObject(value.usage) ? value.usage : null
+  if (!raw) return []
+  const num = (item: unknown): number | undefined =>
+    typeof item === 'number' && Number.isFinite(item) ? item : undefined
+  const usage = {
+    inputTokens: num(raw.input_tokens) ?? num(raw.inputTokens),
+    outputTokens: num(raw.output_tokens) ?? num(raw.outputTokens),
+    totalTokens: num(raw.total_tokens) ?? num(raw.totalTokens),
+    cachedInputTokens: num(raw.cache_read_input_tokens) ?? num(raw.cachedInputTokens)
+  }
+  if (
+    usage.inputTokens === undefined &&
+    usage.outputTokens === undefined &&
+    usage.totalTokens === undefined
+  ) {
+    return []
+  }
+  return [{ type: 'usage', usage }]
+}
+
+function kimiToolLine(call: unknown): string {
+  if (!isPlainObject(call)) return toolLine('tool', undefined)
+  const fn = isPlainObject(call.function) ? call.function : call
+  const name = str(fn.name) || str(call.name) || 'tool'
+  let input: unknown = fn.arguments ?? fn.input ?? call.input
+  if (typeof input === 'string') {
+    try {
+      input = JSON.parse(input) as unknown
+    } catch {
+      // A non-JSON argument string is still worth showing.
+    }
+  }
+  return toolLine(name, input)
+}
+
+/**
+ * Kimi Code `kimi -p --output-format stream-json`: one JSON object per line.
+ * Assistant `content` is a string, sometimes repeated as a growing snapshot.
+ * Tool calls use the OpenAI `tool_calls` shape. The closing `meta` line carries
+ * the session id (`kimi --session`) for the next turn.
+ */
+export function kimiMapper(onSession?: (id: string) => void): EventMapper {
+  let assistant = ''
+  return (value) => {
+    if (!isPlainObject(value)) return []
+    const type = str(value.type)
+    const role = str(value.role)
+
+    if (type === 'error' || role === 'error' || value.is_error === true) {
+      throw new Error(
+        str(value.message) || str(value.error) || textContent(value.content) || 'Kimi Code reported an error'
+      )
+    }
+
+    if (role === 'meta' || type === 'session.resume_hint') {
+      const id = str(value.session_id) || str(value.sessionId)
+      if (id) onSession?.(id)
+      return []
+    }
+
+    if (role === 'tool') {
+      assistant = ''
+      return []
+    }
+
+    if (role !== 'assistant' && type !== 'assistant') return []
+
+    const out: ChatChunk[] = []
+    const calls = Array.isArray(value.tool_calls) ? value.tool_calls : []
+    for (const call of calls) out.push({ type: 'reasoning', delta: kimiToolLine(call) })
+
+    const content = textContent(value.content)
+    if (!content) return out
+    const delta = content.startsWith(assistant) ? content.slice(assistant.length) : content
+    assistant = content.startsWith(assistant) ? content : assistant + content
+    if (delta) out.push({ type: 'text', delta })
+    return out
+  }
+}
+
+/**
+ * Official `grok` headless `--output-format streaming-json`: newline-delimited
+ * events (`text`, `thought`, `tool_call`, `usage`, `end`, `error`). `end`
+ * carries the session id for `--resume`.
+ */
+export function grokMapper(onSession?: (id: string) => void): EventMapper {
+  return (value) => {
+    if (!isPlainObject(value)) return []
+    const type = str(value.type)
+
+    if (type === 'error') {
+      throw new Error(str(value.message) || str(value.error) || 'Grok reported an error')
+    }
+
+    if (type === 'end') {
+      const id = str(value.sessionId) || str(value.session_id)
+      if (id) onSession?.(id)
+      return usageFrom(value)
+    }
+
+    if (type === 'usage') return usageFrom(value)
+
+    if (type === 'text') {
+      const data = str(value.data) || str(value.text)
+      return data ? [{ type: 'text', delta: data }] : []
+    }
+
+    if (type === 'thought') {
+      const data = str(value.data) || str(value.text)
+      return data ? [{ type: 'reasoning', delta: data }] : []
+    }
+
+    if (type === 'tool_call') {
+      const name = str(value.toolName) || str(value.title) || 'tool'
+      return [{ type: 'reasoning', delta: toolLine(name, value.rawInput) }]
+    }
+
+    return []
+  }
+}
