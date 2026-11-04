@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                            <item>
-            <title>0.3.2</title>
-            <pubDate>Wed, 04 Nov 2026 06:10:13 -0000</pubDate>
-            <sparkle:version>0.3.2</sparkle:version>
-            <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
+                                <item>
+            <title>0.3.3</title>
+            <pubDate>Wed, 04 Nov 2026 06:30:58 -0000</pubDate>
+            <sparkle:version>0.3.3</sparkle:version>
+            <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.2</h2><ul><li><strong>The dated session list is hidden.</strong> Today, Yesterday, and Older no longer appear on the main sidebar.</li><li><strong>Clicking a bot opens its newest chat.</strong> If that bot has no chat yet, one is created.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.2/BlinkyBot-0.3.2.zip"
-                       length="122434525"
+</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>Backends are split into providers and local CLIs.</strong> Settings opens 供应商 (API key and base URL) above 本地 CLI (command and terminal sign-in).</li><li><strong>The default bot is Blinky.</strong> A seeded bot that is still named Assistant is renamed. A bot you renamed stays as you named it.</li><li><strong>Status lines follow the settings language.</strong> A missing key or CLI is described in Chinese by default. English says “an OpenAI key”.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.3/BlinkyBot-0.3.3.zip"
+                       length="122438284"
                        type="application/octet-stream"
-                       sparkle:edSignature="aRVBCWXzp8RDOvzU33Xr5Dpgf1Vi+RJIQF31KCx1wHfmDYQCuFutJrvYbhyercmtJZh7bx3zkDNWSfbvmEUYDQ==" />
+                       sparkle:edSignature="DoWaWZ5mhw2I2PCBx40CsfexxeWrvqTyTSrOvRwyKhwlwzw2LNb9DzGdXONt6qQTIGS5d4pA5Jg0GV7hR96bCw==" />
         </item>
     </channel>
 </rss>
