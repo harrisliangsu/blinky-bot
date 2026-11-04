@@ -9,6 +9,8 @@
  *   ~/.claude/skills            Claude Code
  *   ~/.config/opencode/skills   OpenCode  (XDG_CONFIG_HOME honoured)
  *   ~/.codex/skills             Codex
+ *   ~/.kimi-code/skills         Kimi Code
+ *   ~/.grok/skills              Grok
  *   ~/.pi/agent/skills          pi
  *   ~/.agents/skills            shared — every CLI reads this one
  *
@@ -46,6 +48,8 @@ export function userSkillRoots(): SkillRoot[] {
     { origin: 'claude', dir: join(home, '.claude', 'skills'), shared: false },
     { origin: 'opencode', dir: join(configHome(), 'opencode', 'skills'), shared: false },
     { origin: 'codex', dir: join(home, '.codex', 'skills'), shared: false },
+    { origin: 'kimi', dir: join(home, '.kimi-code', 'skills'), shared: false },
+    { origin: 'grok', dir: join(home, '.grok', 'skills'), shared: false },
     { origin: 'pi', dir: join(home, '.pi', 'agent', 'skills'), shared: false }
   ]
 }
@@ -63,6 +67,8 @@ export function projectSkillRoots(cwd: string): SkillRoot[] {
     { origin: 'project', dir: join(root, '.claude', 'skills'), shared: false },
     { origin: 'project', dir: join(root, '.opencode', 'skills'), shared: false },
     { origin: 'project', dir: join(root, '.codex', 'skills'), shared: false },
+    { origin: 'project', dir: join(root, '.kimi-code', 'skills'), shared: false },
+    { origin: 'project', dir: join(root, '.grok', 'skills'), shared: false },
     { origin: 'project', dir: join(root, '.pi', 'skills'), shared: false },
     { origin: 'project', dir: join(root, '.pi', 'agent', 'skills'), shared: false }
   ]

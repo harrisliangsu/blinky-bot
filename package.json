@@ -37,7 +37,8 @@
     "dist": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac",
     "pack": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac --dir",
     "package:mac": "bash Scripts/package-mac.sh",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:cli-adapters": "node scripts/test-cli-adapters.mjs"
   },
   "build": {
     "appId": "bot.blinky.shell",
