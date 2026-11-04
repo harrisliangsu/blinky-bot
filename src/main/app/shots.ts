@@ -71,21 +71,36 @@ async function click(window: BrowserWindow, selector: string): Promise<void> {
   if (!clicked) throw new Error(`could not click ${selector}`)
 }
 
-async function save(window: BrowserWindow, name: string): Promise<void> {
-  await delay(350)
-  const image = await window.webContents.capturePage()
-  await writeFile(join(shotsDir(), name), image.toPNG())
+/**
+ * The GitHub macOS runner's display is shorter than a settings section.
+ * Emulate a taller layout viewport and capture that, instead of the
+ * clamped on-screen window.
+ */
+async function shot(window: BrowserWindow, name: string, width: number, height: number): Promise<void> {
+  const dbg = window.webContents.debugger
+  if (!dbg.isAttached()) dbg.attach('1.3')
+  await dbg.sendCommand('Emulation.setDeviceMetricsOverride', {
+    width,
+    height,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await delay(300)
+  const result = (await dbg.sendCommand('Page.captureScreenshot', {
+    format: 'png',
+    captureBeyondViewport: true,
+    clip: { x: 0, y: 0, width, height, scale: 1 }
+  })) as { data: string }
+  await writeFile(join(shotsDir(), name), Buffer.from(result.data, 'base64'))
 }
 
-/** Let a settings section grow to its content so the shot is not a clipped card. */
-async function fitSettings(window: BrowserWindow): Promise<void> {
+async function settingsHeight(window: BrowserWindow): Promise<number> {
   const height = await evalJs<number>(
     window,
     `(() => {
       const panel = document.querySelector('.ob-set-main')
       const modal = document.querySelector('.ob-modal')
       const body = document.querySelector('.ob-modal-body')
-      const scrim = document.querySelector('.ob-modal-scrim')
       if (panel) {
         panel.style.maxHeight = 'none'
         panel.style.overflow = 'visible'
@@ -100,17 +115,11 @@ async function fitSettings(window: BrowserWindow): Promise<void> {
         modal.style.overflow = 'visible'
         modal.style.height = 'auto'
       }
-      if (scrim) {
-        scrim.style.alignItems = 'flex-start'
-        scrim.style.overflow = 'visible'
-        scrim.style.height = 'auto'
-      }
-      const needed = modal ? modal.getBoundingClientRect().top + modal.scrollHeight + 32 : 900
-      return Math.ceil(needed)
+      const needed = modal ? modal.getBoundingClientRect().top + modal.scrollHeight + 24 : 900
+      return Math.ceil(Math.min(Math.max(needed, 900), 2800))
     })()`
   )
-  window.setSize(1440, Math.min(Math.max(height, 900), 2800))
-  await delay(250)
+  return height
 }
 
 async function openSettings(window: BrowserWindow): Promise<void> {
@@ -132,8 +141,7 @@ async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): 
   for (const id of SECTIONS) {
     await click(window, `#ob-set-tab-${id}`)
     await waitFor(window, `document.querySelector('[data-settings-section="${id}"]')`, 10_000)
-    await fitSettings(window)
-    await save(window, `settings-${theme}-${id}.png`)
+    await shot(window, `settings-${theme}-${id}.png`, 1440, await settingsHeight(window))
   }
 }
 
@@ -169,29 +177,25 @@ export async function captureScreenshots(window: BrowserWindow): Promise<void> {
     await chooseTheme(window, 'light')
     await captureSections(window, 'light')
     await closeSettings(window)
-    window.setSize(1440, 900)
-    await save(window, 'main-light.png')
+    await shot(window, 'main-light.png', 1440, 900)
 
     await openSettings(window)
     await chooseTheme(window, 'dark')
     await captureSections(window, 'dark')
     await closeSettings(window)
-    window.setSize(1440, 900)
-    await save(window, 'main-dark.png')
+    await shot(window, 'main-dark.png', 1440, 900)
 
     await openSettings(window)
     await chooseTheme(window, 'light')
     await closeSettings(window)
-    window.setSize(1440, 900)
     await click(window, '.ob-side-list .ob-side-item-main')
     const text = await sendAndReadError(window)
-    await save(window, 'chat-no-backend-light.png')
+    await shot(window, 'chat-no-backend-light.png', 1440, 900)
     await openSettings(window)
     await chooseTheme(window, 'dark')
     await closeSettings(window)
-    window.setSize(1440, 900)
     await waitFor(window, `document.querySelector('.ob-msg-error')`, 10_000)
-    await save(window, 'chat-no-backend-dark.png')
+    await shot(window, 'chat-no-backend-dark.png', 1440, 900)
 
     writeFileSync(join(dir, 'chat-no-backend.txt'), `${text}\n`)
     if (!text.includes('Settings → Backends') || text.includes('ENOENT')) {
