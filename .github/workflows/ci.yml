@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release notes and Sparkle feed
+        run: |
+          python3 Scripts/release_test.py
+          python3 Scripts/appcast_test.py
+          bash -n Scripts/dmg.sh
+          bash -n Scripts/zip-app.sh
+          bash -n Scripts/package-mac.sh
+          bash -n Scripts/open-smoke.sh
+          bash -n Scripts/mac-app.sh

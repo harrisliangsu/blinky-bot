@@ -2,6 +2,8 @@
 
 BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模型，也不需要注册账号。它调用你已经安装的 CLI（`claude`、`codex`，以及 `opencode`、`pi`、`droid`），或者用你在设置里保存的 API key 直接请求服务商。对话、Bot 和设置都是本机上的 JSON。
 
+打 tag 发布安装包见 [docs/releasing.md](docs/releasing.md)。
+
 安装和日常使用都不走 Docker。可选的 Bot 虚拟机用的是 Apple 轻量虚拟化；仓库里的 Containerfile 只是客户机文件系统配方，应用不会安装或启动 Docker。
 
 BlinkyBot runs on this Mac: one window over the agent CLIs already installed, or a provider API you key yourself. No account, no telemetry. An optional bot computer is an Apple lightweight VM. The app does not install or start Docker.
@@ -10,7 +12,7 @@ This tree is an MIT fork of [OpenBOT](https://github.com/ashhart/OpenBot). The p
 
 ![BlinkyBot — a conversation, the bot roster, and the activity rail](docs/images/openbot.png)
 
-**Status: 0.1.0, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it.
+**Status: 0.2.0, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it. A tagged release publishes the disk image; see [docs/releasing.md](docs/releasing.md).
 
 ## 在 Mac 上从源码安装
 
@@ -305,6 +307,8 @@ output can render reviewable email, message and link cards.
 
 The install steps are at the top of this file: `npm install`, then `npm run pack` or `npm run dist`. `npm install` downloads Electron and blocks dependency install scripts except the `allowScripts` entries in `package.json` (Electron's binary and esbuild). Leave those entries in place.
 
+`npm run package:mac` writes the release disk image and zip for this Mac. Publishing that package is a `v*` tag. See [docs/releasing.md](docs/releasing.md).
+
 ### Working on BlinkyBot itself
 
 `npm run dev` runs the Vite dev server and Electron together with hot reload,
@@ -318,6 +322,7 @@ npm run vm-daemon    # run the built guest execution daemon (inside a VM)
 npm start            # preview a build without the dev server
 npm run pack         # build a .app into release/, host arch, no DMG
 npm run dist         # build DMGs (arm64 and x64) into release/
+npm run package:mac  # release dmg + zip for this Mac (see docs/releasing.md)
 ```
 
 For the built-in path, choose **Bot VM** in a bot editor and click **Create

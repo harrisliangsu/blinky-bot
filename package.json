@@ -1,6 +1,6 @@
 {
   "name": "openbot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "BlinkyBot: a local-first Mac app for the agent CLIs and API keys you already have. MIT fork of OpenBOT.",
   "keywords": [
     "electron",
@@ -36,11 +36,13 @@
     "vm-daemon": "node out/main/vmDaemon.js",
     "dist": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac",
     "pack": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac --dir",
+    "package:mac": "bash Scripts/package-mac.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "build": {
     "appId": "com.blinky.bot",
     "productName": "BlinkyBot",
+    "copyright": "BlinkyBot. Licensed under the MIT License.",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -63,6 +65,10 @@
       {
         "from": "node_modules/electron/dist/LICENSES.chromium.html",
         "to": "LICENSES.chromium.html"
+      },
+      {
+        "from": "Scripts/sparkle-public-key.txt",
+        "to": "sparkle-public-key.txt"
       }
     ],
     "mac": {
@@ -79,12 +85,18 @@
       ],
       "darkModeSupport": true,
       "hardenedRuntime": true,
+      "minimumSystemVersion": "14.0",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSCameraUsageDescription": "BlinkyBot needs camera access only if you attach camera input to a bot.",
         "NSMicrophoneUsageDescription": "BlinkyBot needs microphone access only if you use voice input.",
-        "NSAppleEventsUsageDescription": "BlinkyBot uses AppleScript to let bots control apps on your behalf during computer-use actions."
+        "NSAppleEventsUsageDescription": "BlinkyBot uses AppleScript to let bots control apps on your behalf during computer-use actions.",
+        "SUFeedURL": "https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml",
+        "SUPublicEDKey": "M/xUmNfKp+sEloy822L8X4lVdOLM1pv9srD7fw/bgb8=",
+        "SUEnableAutomaticChecks": true,
+        "SUScheduledCheckInterval": 43200,
+        "SUAutomaticallyUpdate": false
       }
     }
   },

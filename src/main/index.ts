@@ -10,6 +10,7 @@ import { app } from 'electron'
 import { installBackgroundMode, installLifecycle, claimSingleInstance } from './app/lifecycle'
 import { installMenu } from './app/menu'
 import { installSecurity } from './app/security'
+import { markSmokeFailed, prepareSmoke } from './app/smoke'
 import { createWindow } from './app/window'
 import { registerIpc } from './ipc'
 import { initStore } from './store'
@@ -19,6 +20,7 @@ import { vmToken } from './store/vmSecrets'
 import { cleanupOrphanedAppleVms, startAppleVm } from './vm/appleVmSupervisor'
 
 app.setName('BlinkyBot')
+prepareSmoke()
 app.setAboutPanelOptions({
   applicationName: 'BlinkyBot',
   applicationVersion: app.getVersion(),
@@ -70,6 +72,7 @@ if (!claimSingleInstance()) {
     })
     .catch((err) => {
       console.error('[openbot] startup failed', err)
+      markSmokeFailed(err)
       app.quit()
     })
 }
