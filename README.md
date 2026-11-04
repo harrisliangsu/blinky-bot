@@ -12,7 +12,7 @@ This tree is an MIT fork of [OpenBOT](https://github.com/ashhart/OpenBot). The p
 
 ![BlinkyBot — a conversation, the bot roster, and the activity rail](docs/images/openbot.png)
 
-**Status: 0.3.5, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it. A tagged release publishes the disk image; see [docs/releasing.md](docs/releasing.md).
+**Status: 0.3.6, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it. A tagged release publishes the disk image; see [docs/releasing.md](docs/releasing.md).
 
 ## 在 Mac 上从源码安装
 

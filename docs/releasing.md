@@ -4,23 +4,23 @@ Pushing a `v*` tag builds the Mac app and publishes a GitHub Release. The app id
 
 中文：先把版本改动合并进 `main`，再给这个提交打 tag。不要直接 push `main`。私钥不要换。
 
-## Cut v0.3.5
+## Cut v0.3.6
 
-`package.json` is `0.3.5`. There is no separate `VERSION` file; electron-builder reads `package.json`. Both changelogs have `## 0.3.5`: the sidebar lists bots only, a local CLI row appears when that CLI is installed and signed in or after you add it, and the empty provider card is one short line.
+`package.json` is `0.3.6`. There is no separate `VERSION` file; electron-builder reads `package.json`. Both changelogs have `## 0.3.6`: chat replies start without probing every CLI, the main chat hides the working directory, Agent mode, and the model, Add providers and CLIs is searchable, Apps connects GitHub, Git, and Gmail, and each Bot is bound to a Settings CLI.
 
 After this change is on `main`:
 
 ```bash
 git checkout main
 git pull origin main
-node -p "require('./package.json').version"   # 0.3.5
-git tag v0.3.5
-git push origin v0.3.5
+node -p "require('./package.json').version"   # 0.3.6
+git tag v0.3.6
+git push origin v0.3.6
 ```
 
-Tag the merge commit on `main`, not the pull request branch. Then merge the `appcast-v0.3.5` pull request the workflow opens.
+Tag the merge commit on `main`, not the pull request branch. Then merge the `appcast-v0.3.6` pull request the workflow opens.
 
-中文：合并后再打 `v0.3.5`。这一版侧边栏只列出 Bot，本地 CLI 在已安装并登录或添加后才出现，供应商空状态变短。0.3.4 显示每个本地 CLI 的登录状态，供应商需要逐个添加。
+中文：合并后再打 `v0.3.6`。这一版发消息不再先探测每个 CLI，主聊天隐藏工作目录、Agent 模式和模型，添加供应商和 CLI 可以搜索，应用可连接 GitHub、Git 和 Gmail，每个 Bot 绑定设置里的 CLI。0.3.5 侧边栏只列出 Bot，本地 CLI 在已安装并登录或添加后才出现。
 
 ## v0.3.1, v0.3.0, v0.2.2, v0.2.1 and v0.2.0
 
@@ -40,16 +40,16 @@ Watch it:
 
 ```bash
 gh run list --workflow release.yml --limit 2
-gh release view v0.3.5 --json assets --jq '.assets[].name'
+gh release view v0.3.6 --json assets --jq '.assets[].name'
 ```
 
-A finished run has `BlinkyBot-0.3.5.dmg` and `BlinkyBot-0.3.5.zip`. It also uploads `appcast.xml`, `appcast-zh.xml`, and `appcast-en.xml` onto that release and opens a pull request `appcast-v0.3.5`. Merge that pull request. The workflow does not push to `main` and does not merge the pull request.
+A finished run has `BlinkyBot-0.3.6.dmg` and `BlinkyBot-0.3.6.zip`. It also uploads `appcast.xml`, `appcast-zh.xml`, and `appcast-en.xml` onto that release and opens a pull request `appcast-v0.3.6`. Merge that pull request. The workflow does not push to `main` and does not merge the pull request.
 
 Actions can open that pull request only when **Settings → Actions → General → Workflow permissions** includes **Allow GitHub Actions to create and approve pull requests**. Without that checkbox, `gh pr create` is rejected. The release stays green: the disk image is already published, and the log warns that a person has to open the pull request from the pushed branch. v0.2.0 hit this; the branch was `appcast-v0.2.0`.
 
 中文：仓库 **Settings → Actions → General → Workflow permissions** 里要勾选 **Allow GitHub Actions to create and approve pull requests**，Actions 才能替 Sparkle 更新源开 Pull Request。没勾时发布不会变红，磁盘映像已经传上去了，需要人手用推上去的 `appcast-v*` 分支开 Pull Request 并合并。
 
-Install `BlinkyBot-0.3.5.dmg`. The build is not notarized. If macOS blocks the first launch, open BlinkyBot, dismiss the warning, then use **System Settings → Privacy & Security → Security → Open Anyway**.
+Install `BlinkyBot-0.3.6.dmg`. The build is not notarized. If macOS blocks the first launch, open BlinkyBot, dismiss the warning, then use **System Settings → Privacy & Security → Security → Open Anyway**.
 
 `SPARKLE_PRIVATE_KEY` is already an Actions secret. It must stay the base64 Ed25519 seed for `Scripts/sparkle-public-key.txt` (`M/xUmNfKp+sEloy822L8X4lVdOLM1pv9srD7fw/bgb8=`). Do not rotate it. The private key is not a file in the repository.
 
