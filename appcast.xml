@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                            <item>
-            <title>0.3.2</title>
-            <pubDate>Wed, 04 Nov 2026 06:10:13 -0000</pubDate>
-            <sparkle:version>0.3.2</sparkle:version>
-            <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
+                                <item>
+            <title>0.3.3</title>
+            <pubDate>Wed, 04 Nov 2026 06:30:58 -0000</pubDate>
+            <sparkle:version>0.3.3</sparkle:version>
+            <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.2</h2><ul><li><strong>主侧边栏不再按日期列出对话。</strong> Today、Yesterday、Older 不再出现。</li><li><strong>点一个 Bot 会打开它最新的对话。</strong> 还没有对话时会新建一个。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>后端分成供应商和本地 CLI。</strong> 设置里的「后端与模型」先显示供应商（API key 和基础 URL），再显示本地 CLI（命令和终端登录）。</li><li><strong>默认 Bot 叫 Blinky。</strong> 仍叫 Assistant 的种子 Bot 会改名。你自己改过名字的 Bot 保持原样。</li><li><strong>状态说明跟随设置语言。</strong> 缺少密钥或 CLI 时，中文界面用中文说明。英文写作 “an OpenAI key”。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.2</h2><ul><li><strong>主侧边栏不再按日期列出对话。</strong> Today、Yesterday、Older 不再出现。</li><li><strong>点一个 Bot 会打开它最新的对话。</strong> 还没有对话时会新建一个。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>后端分成供应商和本地 CLI。</strong> 设置里的「后端与模型」先显示供应商（API key 和基础 URL），再显示本地 CLI（命令和终端登录）。</li><li><strong>默认 Bot 叫 Blinky。</strong> 仍叫 Assistant 的种子 Bot 会改名。你自己改过名字的 Bot 保持原样。</li><li><strong>状态说明跟随设置语言。</strong> 缺少密钥或 CLI 时，中文界面用中文说明。英文写作 “an OpenAI key”。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.2</h2><ul><li><strong>The dated session list is hidden.</strong> Today, Yesterday, and Older no longer appear on the main sidebar.</li><li><strong>Clicking a bot opens its newest chat.</strong> If that bot has no chat yet, one is created.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.2/BlinkyBot-0.3.2.zip"
-                       length="122434525"
+</style><h2>BlinkyBot 0.3.3</h2><ul><li><strong>Backends are split into providers and local CLIs.</strong> Settings opens 供应商 (API key and base URL) above 本地 CLI (command and terminal sign-in).</li><li><strong>The default bot is Blinky.</strong> A seeded bot that is still named Assistant is renamed. A bot you renamed stays as you named it.</li><li><strong>Status lines follow the settings language.</strong> A missing key or CLI is described in Chinese by default. English says “an OpenAI key”.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.3">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.3/BlinkyBot-0.3.3.zip"
+                       length="122438284"
                        type="application/octet-stream"
-                       sparkle:edSignature="aRVBCWXzp8RDOvzU33Xr5Dpgf1Vi+RJIQF31KCx1wHfmDYQCuFutJrvYbhyercmtJZh7bx3zkDNWSfbvmEUYDQ==" />
+                       sparkle:edSignature="DoWaWZ5mhw2I2PCBx40CsfexxeWrvqTyTSrOvRwyKhwlwzw2LNb9DzGdXONt6qQTIGS5d4pA5Jg0GV7hR96bCw==" />
         </item>
     </channel>
 </rss>
