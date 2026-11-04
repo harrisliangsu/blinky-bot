@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { backendFieldPlan, listedBackends, orderedBackendSections, providerIsListed } from '../shared/backendSections.ts'
+import { backendFieldPlan, cliIsListed, listedBackends, orderedBackendSections, providerIsListed } from '../shared/backendSections.ts'
 import { copyLeaves, settingsCopy } from '../renderer/src/lib/settingsCopy.ts'
 import { defaultSettings, normaliseSettings } from './settingsSchema.ts'
 import { compareVersions, decideUpdate, isNewer, pickRelease, readSparkleItem } from './updates/sparkleFeed.ts'
@@ -28,7 +28,18 @@ test('backends settings separate providers from local CLIs, and bots are not ass
   assert.equal(zh.backends.localCli, '本地 CLI')
   assert.equal(zh.backends.providers, '供应商')
   assert.equal(en.backends.providers, 'Providers')
-  assert.match(zh.backends.compatibleHint, /OpenRouter/)
+  assert.equal(zh.backends.addCli, '添加')
+  assert.equal(en.backends.addCli, 'Add')
+  assert.equal(zh.backends.cliEmpty, '还没有可用的 CLI。')
+  assert.equal(zh.backends.providersEmpty, '还没有添加供应商')
+  assert.equal(zh.backends.providersEmptyHint, '添加后可使用云端 API Key / Base URL')
+  assert.equal(zh.backends.manage, '管理')
+  assert.equal(zh.more.search, '搜索 Bot')
+  assert.equal('localCliHint' in zh.backends, false)
+  assert.equal('providersHint' in zh.backends, false)
+  assert.equal('compatibleHint' in zh.backends, false)
+  assert.equal('title' in zh.more, false)
+  assert.equal(JSON.stringify(zh.backends).includes('OpenRouter'), false)
   assert.equal(JSON.stringify(zh).includes('助手'), false)
   assert.equal(JSON.stringify(en).toLowerCase().includes('assistant'), false)
 
@@ -83,10 +94,42 @@ test('cloud providers stay hidden until added, and a saved key lists them', () =
   assert.equal(removed.backends.openai?.added, false)
   const rows = [
     { id: 'openai', kind: 'cloud-api' as const },
-    { id: 'codex', kind: 'agent-cli' as const }
+    { id: 'codex', kind: 'agent-cli' as const, status: 'available' as const, cliAuth: { state: 'logged-in' as const } }
   ]
   assert.deepEqual(listedBackends(rows, settings.backends).map((row) => row.id), ['codex'])
   assert.deepEqual(listedBackends(rows, withKey.backends).map((row) => row.id), ['openai', 'codex'])
+})
+
+test('local CLIs stay off the default list until signed in or explicitly added', () => {
+  const settings = defaultSettings()
+  const rows = [
+    { id: 'codex', kind: 'agent-cli' as const, status: 'available' as const, cliAuth: { state: 'logged-in' as const } },
+    { id: 'claude', kind: 'agent-cli' as const, status: 'not-installed' as const, cliAuth: { state: 'not-installed' as const } },
+    { id: 'opencode', kind: 'agent-cli' as const, status: 'not-installed' as const },
+    { id: 'kimi', kind: 'agent-cli' as const, status: 'needs-key' as const, cliAuth: { state: 'logged-out' as const } },
+    { id: 'grok', kind: 'agent-cli' as const, status: 'error' as const, cliAuth: { state: 'unknown' as const } }
+  ]
+  assert.equal(cliIsListed(rows[1], settings.backends.claude), false)
+  assert.equal(cliIsListed(rows[3], settings.backends.kimi), false)
+  assert.deepEqual(
+    listedBackends(rows, settings.backends).map((row) => row.id),
+    ['codex']
+  )
+  const added = normaliseSettings({
+    backends: { claude: { enabled: true, added: true, command: 'claude' } }
+  })
+  assert.equal(added.backends.claude?.added, true)
+  assert.deepEqual(
+    listedBackends(rows, added.backends).map((row) => row.id),
+    ['codex', 'claude']
+  )
+  const removed = normaliseSettings({
+    backends: { claude: { enabled: true, added: false, command: 'claude' } }
+  })
+  assert.deepEqual(
+    listedBackends(rows, removed.backends).map((row) => row.id),
+    ['codex']
+  )
 })
 
 test('defaults include the settings the window actually shows', () => {

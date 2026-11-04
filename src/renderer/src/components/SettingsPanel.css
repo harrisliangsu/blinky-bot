@@ -56,6 +56,10 @@
   color: var(--ob-text-primary);
   background: var(--ob-bg-focused);
 }
+:root[data-theme='light'] .ob-set-nav-btn.is-on {
+  background: var(--ob-bg-card);
+  box-shadow: var(--ob-shadow-row);
+}
 
 .ob-set-main {
   min-width: 0;
@@ -202,15 +206,6 @@
   gap: var(--ob-space-2);
 }
 
-.ob-side-more {
-  margin-top: var(--ob-space-2);
-}
-.ob-side-more > summary {
-  cursor: pointer;
-  color: var(--ob-text-tertiary);
-  font-size: var(--ob-font-size-xs);
-  padding: var(--ob-space-2) var(--ob-space-1);
-}
 .ob-side-profile {
   display: flex;
   align-items: center;

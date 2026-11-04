@@ -12,7 +12,9 @@ export interface BackendConfig {
   enabled: boolean
   /**
    * Cloud providers stay out of Settings until the user adds one.
-   * Agent CLIs ignore this and stay auto-detected.
+   * A CLI is listed when it is installed and signed in. `added` also lists
+   * one the user picked before it is usable. BlinkyBot still does not store
+   * the CLI's own login token.
    */
   added?: boolean
   baseUrl?: string

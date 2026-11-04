@@ -6,7 +6,7 @@ import type { SessionSummary } from '../../../shared/types'
  * Navigation only: this does not create, merge, or compact anything. Summaries
  * are the same records the sidebar already holds, newest `updatedAt` wins, and
  * a chat counts when the bot is one of its participants. Archived chats are
- * left under 更多.
+ * skipped.
  */
 export function latestChatForBot(sessions: readonly SessionSummary[], botId: string): SessionSummary | null {
   let best: SessionSummary | null = null
