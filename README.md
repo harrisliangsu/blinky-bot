@@ -8,7 +8,7 @@ BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模�
 
 BlinkyBot runs on this Mac: one window over the agent CLIs already installed, or a provider API you key yourself. No account, no telemetry. An optional bot computer is an Apple lightweight VM. The app does not install or start Docker.
 
-This tree is an MIT fork of [OpenBOT](https://github.com/ashhart/OpenBot). The packaged app id is `com.blinky.bot` and the product name is BlinkyBot. The npm package name stays `openbot` so the toolchain matches upstream. Environment variables that the process already reads keep the `OPENBOT_` prefix. BlinkyBot is not affiliated with or endorsed by the OpenBOT authors.
+This tree is an MIT fork of [OpenBOT](https://github.com/ashhart/OpenBot). The packaged app id is `bot.blinky.shell` and the product name is BlinkyBot. The npm package name stays `openbot` so the toolchain matches upstream. Environment variables that the process already reads keep the `OPENBOT_` prefix. BlinkyBot is not affiliated with or endorsed by the OpenBOT authors.
 
 ![BlinkyBot — a conversation, the bot roster, and the activity rail](docs/images/openbot.png)
 

@@ -1,6 +1,6 @@
 # Releasing BlinkyBot
 
-Pushing a `v*` tag builds the Mac app and publishes a GitHub Release. The app id is `com.blinky.bot`. The product name is BlinkyBot. Source is this OpenBOT tree. The license is MIT.
+Pushing a `v*` tag builds the Mac app and publishes a GitHub Release. The app id is `bot.blinky.shell`. The product name is BlinkyBot. Source is this OpenBOT tree. The license is MIT.
 
 中文：先把版本改动合并进 `main`，再给这个提交打 tag。不要直接 push `main`。私钥不要换。
 

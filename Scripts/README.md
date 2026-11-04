@@ -1,6 +1,6 @@
 # Mac package
 
-`productName` is BlinkyBot. `appId` is `com.blinky.bot`. electron-builder writes both into the `.app`. The Sparkle public key is `Scripts/sparkle-public-key.txt` and is also `SUPublicEDKey` in `package.json`.
+`productName` is BlinkyBot. `appId` is `bot.blinky.shell`. electron-builder writes both into the `.app`. The Sparkle public key is `Scripts/sparkle-public-key.txt` and is also `SUPublicEDKey` in `package.json`.
 
 On a Mac:
 

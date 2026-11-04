@@ -100,7 +100,7 @@ class SparkleKeyTest(unittest.TestCase):
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         build = package["build"]
         self.assertEqual(build["productName"], "BlinkyBot")
-        self.assertEqual(build["appId"], "com.blinky.bot")
+        self.assertEqual(build["appId"], "bot.blinky.shell")
         self.assertEqual(package["version"], "0.2.0")
         info = build["mac"]["extendInfo"]
         self.assertEqual(info["SUPublicEDKey"], key)

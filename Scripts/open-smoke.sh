@@ -43,7 +43,7 @@ case "$feed" in
         ;;
 esac
 identifier="$(plutil -extract CFBundleIdentifier raw "$APP/Contents/Info.plist")"
-if [[ "$identifier" != "com.blinky.bot" ]]; then
+if [[ "$identifier" != "bot.blinky.shell" ]]; then
     echo "CFBundleIdentifier is '$identifier'." >&2
     exit 1
 fi

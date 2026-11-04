@@ -40,7 +40,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "build": {
-    "appId": "com.blinky.bot",
+    "appId": "bot.blinky.shell",
     "productName": "BlinkyBot",
     "copyright": "BlinkyBot. Licensed under the MIT License.",
     "directories": {
