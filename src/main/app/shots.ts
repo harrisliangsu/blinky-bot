@@ -84,11 +84,21 @@ async function fitSettings(window: BrowserWindow): Promise<void> {
     `(() => {
       const panel = document.querySelector('.ob-set-main')
       const modal = document.querySelector('.ob-modal')
+      const body = document.querySelector('.ob-modal-body')
       const scrim = document.querySelector('.ob-modal-scrim')
-      if (panel) panel.style.maxHeight = 'none'
+      if (panel) {
+        panel.style.maxHeight = 'none'
+        panel.style.overflow = 'visible'
+      }
+      if (body) {
+        body.style.overflow = 'visible'
+        body.style.maxHeight = 'none'
+        body.style.flex = 'none'
+      }
       if (modal) {
         modal.style.maxHeight = 'none'
         modal.style.overflow = 'visible'
+        modal.style.height = 'auto'
       }
       if (scrim) {
         scrim.style.alignItems = 'flex-start'
