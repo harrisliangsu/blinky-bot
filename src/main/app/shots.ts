@@ -83,14 +83,24 @@ async function fitSettings(window: BrowserWindow): Promise<void> {
     window,
     `(() => {
       const panel = document.querySelector('.ob-set-main')
-      if (panel) panel.style.maxHeight = 'none'
       const modal = document.querySelector('.ob-modal')
-      if (!modal) return 900
-      return modal.getBoundingClientRect().top + modal.scrollHeight + 48
+      const scrim = document.querySelector('.ob-modal-scrim')
+      if (panel) panel.style.maxHeight = 'none'
+      if (modal) {
+        modal.style.maxHeight = 'none'
+        modal.style.overflow = 'visible'
+      }
+      if (scrim) {
+        scrim.style.alignItems = 'flex-start'
+        scrim.style.overflow = 'visible'
+        scrim.style.height = 'auto'
+      }
+      const needed = modal ? modal.getBoundingClientRect().top + modal.scrollHeight + 32 : 900
+      return Math.ceil(needed)
     })()`
   )
-  window.setSize(1440, Math.min(Math.max(Math.ceil(height), 900), 2400))
-  await delay(200)
+  window.setSize(1440, Math.min(Math.max(height, 900), 2800))
+  await delay(250)
 }
 
 async function openSettings(window: BrowserWindow): Promise<void> {
