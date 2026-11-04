@@ -114,16 +114,18 @@ export interface SettingsCopy {
     stored: string
     keyPlaceholder: string
     localCli: string
-    localCliHint: string
     providers: string
-    providersHint: string
-    compatibleHint: string
     optionalKey: string
     optionalKeyPlaceholder: string
-    sectionEmpty: string
+    cliEmpty: string
     providersEmpty: string
+    providersEmptyHint: string
+    manage: string
+    usable: string
     addProvider: string
     addProviderDone: string
+    addCli: string
+    addCliDone: string
     removeProvider: string
     removeProviderConfirm: string
     confirmRemove: string
@@ -208,7 +210,7 @@ export interface SettingsCopy {
     source: string
     credits: string
   }
-  more: { title: string; projects: string; routines: string; archived: string; chats: string; bots: string }
+  more: { bots: string; search: string }
 }
 
 const en: SettingsCopy = {
@@ -330,17 +332,18 @@ const en: SettingsCopy = {
     stored: 'Stored securely — type to replace',
     keyPlaceholder: 'Stored in the OS credential store',
     localCli: 'Local CLIs',
-    localCliHint: 'Installed CLIs show up on their own. Sign in opens that CLI’s own login, and the CLI keeps the session.',
     providers: 'Providers',
-    providersHint: 'Add a cloud API to give it a key and a base URL. Only the ones you add are listed.',
-    compatibleHint:
-      'Other OpenAI-compatible models use OpenRouter. A provider key is sent only to that provider’s own address, so a custom base URL does not carry the key anywhere else.',
     optionalKey: 'API key (optional)',
     optionalKeyPlaceholder: 'Only if the CLI is not signed in',
-    sectionEmpty: 'Nothing in this section.',
-    providersEmpty: 'No providers yet.',
+    cliEmpty: 'No CLIs yet.',
+    providersEmpty: 'No providers yet',
+    providersEmptyHint: 'Add one to use a cloud API key and base URL.',
+    manage: 'Manage',
+    usable: 'available',
     addProvider: 'Add provider',
     addProviderDone: 'Every provider is already listed.',
+    addCli: 'Add',
+    addCliDone: 'Every CLI is already listed.',
     removeProvider: 'Remove',
     removeProviderConfirm: 'Removing this provider also clears the key saved for it.',
     confirmRemove: 'Remove provider',
@@ -440,12 +443,8 @@ const en: SettingsCopy = {
     credits: 'An MIT fork of OpenBOT. Not affiliated with or endorsed by the OpenBOT authors.'
   },
   more: {
-    title: 'More',
-    projects: 'Projects',
-    routines: 'Routines',
-    archived: 'Archived',
-    chats: 'Chats',
-    bots: 'Bots'
+    bots: 'Bots',
+    search: 'Search bots'
   }
 }
 
@@ -568,16 +567,18 @@ const zh: SettingsCopy = {
     stored: '已安全保存 — 输入新值即可替换',
     keyPlaceholder: '保存在系统凭据库中',
     localCli: '本地 CLI',
-    localCliHint: '已安装的 CLI 会自动出现。点「登录」会打开它自己的登录流程，登录状态仍由该 CLI 保存。',
     providers: '供应商',
-    providersHint: '添加需要的云端 API，再填写密钥和基础 URL。只有添加过的供应商会显示。',
-    compatibleHint: '其它 OpenAI 兼容模型用 OpenRouter。密钥只发给该供应商自己的地址，改基础 URL 不会把密钥送到别的主机。',
     optionalKey: 'API key（可选）',
     optionalKeyPlaceholder: 'CLI 未登录时才需要',
-    sectionEmpty: '这一组里还没有。',
-    providersEmpty: '还没有添加供应商。',
+    cliEmpty: '还没有可用的 CLI。',
+    providersEmpty: '还没有添加供应商',
+    providersEmptyHint: '添加后可使用云端 API Key / Base URL',
+    manage: '管理',
+    usable: '可用',
     addProvider: '添加供应商',
     addProviderDone: '供应商都已添加。',
+    addCli: '添加',
+    addCliDone: 'CLI 都已添加。',
     removeProvider: '移除',
     removeProviderConfirm: '移除后，为这个供应商保存的密钥也会清除。',
     confirmRemove: '确认移除',
@@ -675,12 +676,8 @@ const zh: SettingsCopy = {
     credits: 'OpenBOT 的 MIT 分支。与 OpenBOT 作者没有隶属或背书关系。'
   },
   more: {
-    title: '更多',
-    projects: '项目',
-    routines: '例程',
-    archived: '已归档',
-    chats: '对话',
-    bots: 'Bot'
+    bots: 'Bot',
+    search: '搜索 Bot'
   }
 }
 

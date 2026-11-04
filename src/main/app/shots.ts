@@ -170,17 +170,39 @@ async function chooseTheme(window: BrowserWindow, theme: 'light' | 'dark'): Prom
   await waitFor(window, `document.documentElement.getAttribute('data-theme') === ${JSON.stringify(theme)}`, 10_000)
 }
 
+/**
+ * Backends start with an empty provider card and a CLI card. A key field
+ * exists only after the capture path adds that provider and opens 管理.
+ * PATH is empty here, so no CLI row is signed in; the CLI card itself is
+ * the stable target.
+ */
+async function waitForBackendCards(window: BrowserWindow): Promise<void> {
+  await waitFor(
+    window,
+    `document.querySelector('[data-add-provider]') && document.querySelector('[data-backend-group="cli"]') && document.querySelector('[data-add-cli]')`,
+    15_000
+  )
+}
+
 async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): Promise<void> {
   for (const id of SECTIONS) {
     await click(window, `#ob-set-tab-${id}`)
     await waitFor(window, `document.querySelector('[data-settings-section="${id}"]')`, 10_000)
+    if (id === 'backends') await waitForBackendCards(window)
     await shot(window, `settings-${theme}-${id}.png`, 1440, await settingsHeight(window))
     if (id === 'backends' && theme === 'light') {
+      await waitFor(
+        window,
+        `document.querySelector('[data-backend-group="provider"] .ob-backend-empty')`,
+        10_000
+      )
       await shot(window, 'settings-providers-empty-light.png', 1440, await settingsHeight(window))
       await shotGroup(window, 'settings-local-cli-light.png', '[data-backend-group="cli"]')
       await click(window, '[data-add-provider]')
       await waitFor(window, `document.querySelector('[data-provider-choice="openai"]')`, 10_000)
       await click(window, '[data-provider-choice="openai"]')
+      await waitFor(window, `document.querySelector('[data-manage-backend="openai"]')`, 10_000)
+      await click(window, '[data-manage-backend="openai"]')
       await waitFor(window, `document.getElementById('ob-key-openai')`, 10_000)
       await shot(window, 'settings-providers-added-light.png', 1440, await settingsHeight(window))
     }

@@ -1,14 +1,7 @@
 .ob-settings-section {
   display: flex;
   flex-direction: column;
-  gap: var(--ob-space-2-5);
-}
-
-.ob-settings-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ob-space-2);
+  gap: var(--ob-space-4);
 }
 
 .ob-backend-groups {
@@ -17,28 +10,29 @@
   gap: var(--ob-space-4);
 }
 
-.ob-backend-group {
+.ob-backend-card {
   display: flex;
   flex-direction: column;
-  gap: var(--ob-space-2);
+  gap: var(--ob-space-3);
+  padding: var(--ob-space-4) var(--ob-space-5);
+  background: var(--ob-bg-card);
+  border: 1px solid var(--ob-border-subtle);
+  border-radius: var(--ob-card-radius);
+  box-shadow: var(--ob-shadow-row);
 }
 
-.ob-backend-group + .ob-backend-group {
-  padding-top: var(--ob-space-3);
-  border-top: 1px solid var(--ob-border-subtle);
-}
-
-.ob-backend-group-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ob-space-1);
-}
-
-.ob-backend-group-title-row {
+.ob-backend-card-head,
+.ob-backend-card-actions,
+.ob-backend-summary,
+.ob-backend-summary-actions,
+.ob-backend-titleline {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--ob-space-2);
+}
+
+.ob-backend-card-head {
+  justify-content: space-between;
 }
 
 .ob-backend-group-title {
@@ -46,6 +40,10 @@
   font-size: var(--ob-font-size-sm);
   font-weight: var(--ob-weight-semibold);
   color: var(--ob-text-primary);
+}
+
+.ob-backend-card-actions {
+  flex: none;
 }
 
 .ob-provider-picker {
@@ -57,58 +55,125 @@
   list-style: none;
 }
 
-.ob-backend-actions {
+.ob-backend-empty {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: var(--ob-space-1);
+  justify-content: center;
+  gap: var(--ob-space-2);
+  min-height: 148px;
+  padding: var(--ob-space-6) var(--ob-space-4);
+  text-align: center;
 }
 
-.ob-backend-actions > .ob-hint {
-  flex-basis: 100%;
+.ob-backend-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--ob-space-1);
+  color: var(--ob-empty-mark-fg);
+  background: var(--ob-empty-mark-bg);
+  border-radius: var(--ob-radius-xl);
+}
+
+.ob-backend-empty-title,
+.ob-backend-empty-hint,
+.ob-backend-sub {
   margin: 0;
 }
 
-.ob-backend-group > .ob-hint,
-.ob-backend-group-head > .ob-hint {
-  margin: 0;
+.ob-backend-empty-title {
+  font-size: var(--ob-font-size-sm);
+  font-weight: var(--ob-weight-medium);
+  color: var(--ob-text-secondary);
+}
+
+.ob-backend-empty-hint,
+.ob-backend-sub {
+  font-size: var(--ob-font-size-xs);
+  line-height: var(--ob-line-height-base);
+  color: var(--ob-text-tertiary);
 }
 
 .ob-backends {
   display: flex;
   flex-direction: column;
-  gap: var(--ob-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.ob-backend {
+.ob-backend-row {
   display: flex;
   flex-direction: column;
-  gap: var(--ob-space-1-5);
-  padding: var(--ob-space-2-5);
-  background: var(--ob-bg-input);
-  border: 1px solid var(--ob-border-subtle);
+  gap: var(--ob-space-2);
+  padding: var(--ob-space-3) 0;
+  border-top: 1px dashed var(--ob-border-subtle);
+}
+
+.ob-backend-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.ob-backend-summary {
+  align-items: center;
+}
+
+.ob-backend-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  font-size: var(--ob-font-size-xs);
+  font-weight: var(--ob-weight-semibold);
+  color: var(--ob-mark-fg);
+  background: var(--ob-mark-bg);
   border-radius: var(--ob-radius-lg);
 }
 
-.ob-backend-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ob-space-2);
-  flex-wrap: wrap;
+.ob-backend-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.ob-backend-titleline {
+  min-width: 0;
 }
 
 .ob-backend-name {
-  font-size: var(--ob-font-size-base);
-  font-weight: var(--ob-weight-medium);
+  font-size: var(--ob-font-size-sm);
+  font-weight: var(--ob-weight-semibold);
+  color: var(--ob-text-primary);
 }
 
-.ob-backend-tags {
+.ob-backend-summary-actions {
+  flex: none;
+  margin-left: auto;
+}
+
+.ob-backend-card-foot {
   display: flex;
+  justify-content: flex-end;
+  padding-top: var(--ob-space-3);
+  border-top: 1px dashed var(--ob-border-subtle);
+}
+
+.ob-backend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--ob-space-1);
+  padding: var(--ob-space-2);
+  background: var(--ob-bg-canvas);
+  border-radius: var(--ob-radius-xl);
+}
+
+.ob-backend-actions > .ob-hint {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .ob-backend-fields {

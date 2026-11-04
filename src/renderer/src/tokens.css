@@ -59,10 +59,10 @@
   color-scheme: light;
 
   --ob-base: #1a1a1a;
-  --ob-accent: #2b6cb8;
-  --ob-chrome: #f5f5f5;
+  --ob-accent: #3b6cf5;
+  --ob-chrome: #ffffff;
   --ob-editor: #ffffff;
-  --ob-sidebar: #ffffff;
+  --ob-sidebar: #f4f5f7;
 
   --ob-success: #2f8552;
   --ob-added: #3d8a5f;
@@ -72,7 +72,7 @@
   --ob-warn: #b57620;
   --ob-modified: #b57620;
   --ob-yellow: #b57620;
-  --ob-blue: #2b6cb8;
+  --ob-blue: #3b6cf5;
   --ob-cyan: #337f92;
   --ob-purple: #6355c9;
   --ob-magenta: #8a5f83;
@@ -236,6 +236,37 @@
   /* ── Motion ─────────────────────────────────────────────────────── */
   --ob-transition-fast: 90ms ease;
   --ob-transition-base: 140ms ease;
+
+  /* Primary buttons stay monochrome until a theme sets these. */
+  --ob-btn-primary-fg: var(--ob-chrome);
+  --ob-btn-primary-bg: var(--ob-base);
+  --ob-btn-primary-hover: color-mix(in srgb, var(--ob-base) 86%, transparent);
+  --ob-mark-bg: var(--ob-bg-active);
+  --ob-mark-fg: var(--ob-text-primary);
+  --ob-empty-mark-bg: var(--ob-accent-quaternary);
+  --ob-empty-mark-fg: var(--ob-accent);
+  --ob-bg-canvas: var(--ob-bg-raised);
+  --ob-shadow-row: none;
+}
+
+/* BoardUI light: soft gray chrome, white cards, blue actions. Dark stays as-is. */
+:root[data-theme='light'] {
+  --ob-bg-sidebar: #f4f5f7;
+  --ob-bg-chrome: #ffffff;
+  --ob-bg-editor: #ffffff;
+  --ob-bg-card: #ffffff;
+  --ob-bg-input: #ffffff;
+  --ob-bg-canvas: #f6f7f9;
+  --ob-border-subtle: color-mix(in srgb, #1a1a1a 10%, transparent);
+  --ob-border: color-mix(in srgb, #1a1a1a 14%, transparent);
+  --ob-btn-primary-fg: #ffffff;
+  --ob-btn-primary-bg: var(--ob-accent);
+  --ob-btn-primary-hover: color-mix(in srgb, var(--ob-accent) 86%, #000);
+  --ob-mark-bg: #1c2430;
+  --ob-mark-fg: #ffffff;
+  --ob-empty-mark-bg: color-mix(in srgb, var(--ob-accent) 14%, #ffffff);
+  --ob-empty-mark-fg: var(--ob-accent);
+  --ob-shadow-row: 0 1px 2px color-mix(in srgb, #101828 8%, transparent), 0 1px 3px color-mix(in srgb, #101828 6%, transparent);
 }
 
 html[data-accent='amber'] { --ob-accent: #e8a33d; }

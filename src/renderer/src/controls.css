@@ -44,12 +44,12 @@
  * correctly in light theme because both tokens flip together.
  */
 .ob-btn-primary {
-  color: var(--ob-chrome);
-  background: var(--ob-base);
+  color: var(--ob-btn-primary-fg);
+  background: var(--ob-btn-primary-bg);
   border-color: transparent;
 }
 .ob-btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ob-base) 86%, transparent);
+  background: var(--ob-btn-primary-hover);
   border-color: transparent;
 }
 .ob-btn-primary:disabled {

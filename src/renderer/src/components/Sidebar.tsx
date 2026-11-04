@@ -1,21 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { newSession, openBotChat, openProjectEditor, projectsReady, runRoutine, selectProject, store, useAppState } from '../state'
+import { newSession, openBotChat, selectProject, store, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
-import {
-  IconArchive,
-  IconBoard,
-  IconBot,
-  IconClose,
-  IconPencil,
-  IconPlay,
-  IconPlus,
-  IconRoutine,
-  IconSearch,
-  IconSettings
-} from './Icons'
-import { ProjectList } from './ProjectList'
-import { SessionList } from './SessionList'
+import { IconBot, IconClose, IconPencil, IconPlus, IconSearch, IconSettings } from './Icons'
 import './Sidebar.css'
 
 interface SectionProps {
@@ -48,15 +35,12 @@ function Section({ title, icon, action, children }: SectionProps): ReactNode {
   )
 }
 
-/** Conversations, bots and routines — the app's primary navigation. */
+/** Bots — the app's primary navigation. */
 export function Sidebar(): ReactNode {
-  const { sessions, sessionsLoading, sessionsError, currentSessionId, bots, routines, recording, projects, currentProjectId, settings } =
-    useAppState()
+  const { sessions, sessionsError, currentSessionId, bots, projects, currentProjectId, settings } = useAppState()
   const copy = useSettingsCopy()
   const [query, setQuery] = useState('')
-  const [showArchived, setShowArchived] = useState(false)
 
-  const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
   const activeBots = useMemo(() => bots.filter((b) => !b.archived), [bots])
   const visibleBots = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -69,7 +53,6 @@ export function Sidebar(): ReactNode {
     const current = sessions.find((session) => session.id === currentSessionId)
     return new Set(current?.botIds ?? [])
   }, [sessions, currentSessionId])
-  const archivedCount = sessions.filter((s) => s.archived).length
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null
 
   return (
@@ -93,8 +76,8 @@ export function Sidebar(): ReactNode {
           className="ob-side-search-input"
           type="search"
           value={query}
-          placeholder="Search bots"
-          aria-label="Search bots"
+          placeholder={copy.more.search}
+          aria-label={copy.more.search}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
@@ -121,7 +104,7 @@ export function Sidebar(): ReactNode {
           icon={<IconBot size={12} />}
           action={{ label: 'Create a bot', onClick: () => store.setModal('bots', 'new') }}
         >
-          {sessionsError && !showArchived ? (
+          {sessionsError ? (
             <p className="ob-notice ob-notice-error ob-sessions-notice" role="alert">
               {sessionsError}
             </p>
@@ -157,81 +140,6 @@ export function Sidebar(): ReactNode {
             </ul>
           )}
         </Section>
-
-        <details className="ob-side-more">
-          <summary>{copy.more.title}</summary>
-        <Section
-          title={copy.more.projects}
-          icon={<IconBoard size={12} />}
-          action={{ label: 'Create a project', onClick: () => openProjectEditor('new'), disabled: !projectsReady() }}
-        >
-          <ProjectList />
-        </Section>
-
-        <Section
-          title={copy.more.routines}
-          icon={<IconRoutine size={12} />}
-          action={{ label: 'Record a routine', onClick: () => store.setModal('routines') }}
-        >
-          {recording.state !== 'idle' ? (
-            <p className="ob-side-recording">
-              <span className="ob-side-rec-dot" aria-hidden="true" />
-              Recording · {recording.stepCount} step{recording.stepCount === 1 ? '' : 's'}
-            </p>
-          ) : null}
-          {routines.length === 0 ? (
-            <p className="ob-side-note">No routines yet. Record one to replay a task later.</p>
-          ) : (
-            <ul className="ob-side-list">
-              {routines.slice(0, 8).map((routine) => (
-                <li key={routine.id} className="ob-side-item">
-                  <button
-                    type="button"
-                    className="ob-side-item-main"
-                    onClick={() => store.setModal('routines')}
-                    title={routine.description || routine.name}
-                  >
-                    <BotAvatar bot={botMap.get(routine.botId)} size="sm" />
-                    <span className="ob-side-item-name">{routine.name}</span>
-                    <span className="ob-side-item-count">{routine.steps.length}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="ob-icon-btn ob-side-item-action"
-                    aria-label={`Run ${routine.name}`}
-                    onClick={() => void runRoutine(routine.id)}
-                  >
-                    <IconPlay size={11} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
-        <button
-          type="button"
-          className="ob-btn ob-btn-sm ob-btn-ghost"
-          aria-pressed={showArchived}
-          onClick={() => setShowArchived((v) => !v)}
-        >
-          <IconArchive size={12} />
-          {showArchived ? copy.more.chats : copy.more.archived}
-          {!showArchived && archivedCount > 0 ? <span className="ob-side-count">{archivedCount}</span> : null}
-        </button>
-        {showArchived ? (
-          <SessionList
-            sessions={sessions}
-            bots={botMap}
-            currentId={currentSessionId}
-            query={query}
-            showArchived
-            loading={sessionsLoading}
-            error={sessionsError}
-            projectId={currentProjectId}
-            projectName={currentProject?.name}
-          />
-        ) : null}
-        </details>
       </div>
 
       <footer className="ob-side-foot">
