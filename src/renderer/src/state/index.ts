@@ -63,7 +63,7 @@ export {
 } from './projects'
 export type { ProjectsBridge } from './projects'
 export { loadRoutines, removeRoutine, runRoutine, startRecording, stopRecording, updateRoutine } from './routines'
-export { editSettingsList, loadBackends, loadSettings, updateSettings } from './preferences'
+export { editSettingsList, loadBackends, loadSettings, loginBackend, recheckBackend, updateSettings } from './preferences'
 export type { ListEdit, SettingsListKey } from './preferences'
 export { pickDirectory, pickFiles } from './dialogs'
 export { cancelBackgroundTask, clearActivity, createBackgroundTask, loadActivity, markActivityRead } from './activity'

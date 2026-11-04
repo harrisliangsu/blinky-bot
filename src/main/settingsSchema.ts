@@ -62,10 +62,10 @@ function defaultBackends(): Record<string, BackendConfig> {
     pi: { enabled: true, command: 'pi', extraArgs: [] },
     droid: { enabled: true, command: 'droid', extraArgs: [] },
     // Direct API — the fallback for a bare key with no CLI installed.
-    anthropic: { enabled: true, baseUrl: 'https://api.anthropic.com', apiKey: '' },
-    openai: { enabled: true, baseUrl: 'https://api.openai.com/v1', apiKey: '' },
-    xai: { enabled: true, baseUrl: 'https://api.x.ai/v1', apiKey: '' },
-    openrouter: { enabled: true, baseUrl: 'https://openrouter.ai/api/v1', apiKey: '' }
+    anthropic: { enabled: true, added: false, baseUrl: 'https://api.anthropic.com', apiKey: '' },
+    openai: { enabled: true, added: false, baseUrl: 'https://api.openai.com/v1', apiKey: '' },
+    xai: { enabled: true, added: false, baseUrl: 'https://api.x.ai/v1', apiKey: '' },
+    openrouter: { enabled: true, added: false, baseUrl: 'https://openrouter.ai/api/v1', apiKey: '' }
   }
 }
 
@@ -170,9 +170,18 @@ function normaliseBackends(
     const extraArgs = raw['extraArgs'] ?? base.extraArgs
     if (typeof baseUrl === 'string') config.baseUrl = baseUrl
     if (typeof apiKey === 'string') config.apiKey = apiKey
-    if (raw['hasApiKey'] === true || base.hasApiKey === true) config.hasApiKey = true
+    const hasSecret =
+      (typeof apiKey === 'string' && apiKey.trim() !== '') ||
+      raw['hasApiKey'] === true ||
+      base.hasApiKey === true
+    if (hasSecret) config.hasApiKey = true
     if (typeof command === 'string') config.command = command
     if (Array.isArray(extraArgs)) config.extraArgs = stringList(extraArgs)
+    // A saved key means the provider was already in use. An explicit `added`
+    // flag wins, including `false` after the user removes the row.
+    if (typeof raw['added'] === 'boolean') config.added = raw['added']
+    else if (hasSecret) config.added = true
+    else if (typeof base.added === 'boolean') config.added = base.added
     out[id] = config
   }
   return out
@@ -296,7 +305,15 @@ export function normaliseSettings(raw: unknown): Settings {
     memoryExtraction: pickEnum(merged['memoryExtraction'], MEMORY_EXTRACTION, defaults.memoryExtraction ?? 'api'),
     runInBackground: merged['runInBackground'] === true,
     rules: typeof merged['rules'] === 'string' ? merged['rules'] : defaults.rules,
-    backends: retireUnknownBackends(normaliseBackends(merged['backends'], defaults.backends)),
+    // Use the file's own backend map, not the deep-merged one. Defaults set
+    // `added: false`, and merging them in first would hide a saved key that
+    // never had the flag.
+    backends: retireUnknownBackends(
+      normaliseBackends(
+        Object.prototype.hasOwnProperty.call(rawObj, 'backends') ? rawObj['backends'] : defaults.backends,
+        defaults.backends
+      )
+    ),
     mcpServers: normaliseMcpServers(merged['mcpServers']),
     computerUseAllowedApps: stringList(merged['computerUseAllowedApps']),
     // OpenBOT never phones home. Not user-configurable, by design.

@@ -149,6 +149,10 @@ export interface OpenBotApi {
   backends: {
     list(): Promise<BackendInfo[]>
     refresh(): Promise<BackendInfo[]>
+    /** Re-probe one CLI's install and sign-in state. */
+    recheck(id: string): Promise<BackendInfo[]>
+    /** Open Terminal with that CLI's own login. No credential is stored here. */
+    login(id: string): Promise<{ started: boolean }>
   }
   skills: {
     /** Everything installed, across every CLI's directory plus the shared one. */

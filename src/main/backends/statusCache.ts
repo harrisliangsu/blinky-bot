@@ -6,6 +6,8 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
+import type { CliAuthInfo, CliAuthState } from '../../shared/cliAuth'
+import { publicAccountLabel } from './cli/authStatus'
 import type { BackendInfo, BackendStatus, ModelInfo } from '../../shared/types'
 import { cacheFilePath } from './userDataPaths'
 
@@ -17,7 +19,22 @@ export interface StoredStatus {
   models: ModelInfo[]
   toolMode: 'native' | 'prompted'
   supportsVmOrchestration?: boolean
+  cliAuth?: CliAuthInfo
   at: number
+}
+
+const AUTH_STATES = new Set<CliAuthState>(['not-installed', 'logged-out', 'logged-in', 'unknown'])
+
+function storedAuth(value: unknown): CliAuthInfo | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const state = (value as { state?: unknown }).state
+  if (typeof state !== 'string' || !AUTH_STATES.has(state as CliAuthState)) return undefined
+  const account = publicAccountLabel(
+    typeof (value as { account?: unknown }).account === 'string'
+      ? (value as { account: string }).account
+      : undefined
+  )
+  return { state: state as CliAuthState, ...(account ? { account } : {}) }
 }
 
 let memory: Record<string, StoredStatus> | undefined
@@ -43,6 +60,7 @@ export async function rememberStatuses(infos: BackendInfo[]): Promise<void> {
       models: info.models,
       toolMode: info.toolMode,
       ...(info.supportsVmOrchestration ? { supportsVmOrchestration: true } : {}),
+      ...(info.cliAuth ? { cliAuth: storedAuth(info.cliAuth) } : {}),
       at: Date.now()
     }
   }

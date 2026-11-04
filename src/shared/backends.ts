@@ -5,6 +5,8 @@
  * The only difference is where inference runs.
  */
 
+import type { CliAuthInfo } from './cliAuth'
+
 export type BackendKind = 'local-server' | 'agent-cli' | 'cloud-api'
 
 export type BackendStatus =
@@ -37,4 +39,6 @@ export interface BackendInfo {
   toolMode: 'native' | 'prompted'
   /** The CLI can run model-only on the host while OpenBOT executes tools in a VM. */
   supportsVmOrchestration?: boolean
+  /** Present for agent CLIs. Login stays in the CLI; this is only the public state. */
+  cliAuth?: CliAuthInfo
 }

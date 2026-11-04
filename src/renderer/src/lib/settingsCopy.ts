@@ -121,6 +121,19 @@ export interface SettingsCopy {
     optionalKey: string
     optionalKeyPlaceholder: string
     sectionEmpty: string
+    providersEmpty: string
+    addProvider: string
+    addProviderDone: string
+    removeProvider: string
+    removeProviderConfirm: string
+    confirmRemove: string
+    cancelRemove: string
+    login: string
+    recheck: string
+    loginPending: string
+    loginFailed: string
+    slashLoginHint: string
+    cliAuth: Record<'not-installed' | 'logged-out' | 'logged-in' | 'unknown', string>
     detail: {
       needsKey: string
       notFound: string
@@ -142,6 +155,7 @@ export interface SettingsCopy {
       grokKey: string
       unreachable: string
       checkFailed: string
+      signInUnknown: string
     }
     status: Record<'available' | 'not-installed' | 'not-running' | 'needs-key' | 'error', string>
   }
@@ -316,14 +330,32 @@ const en: SettingsCopy = {
     stored: 'Stored securely — type to replace',
     keyPlaceholder: 'Stored in the OS credential store',
     localCli: 'Local CLIs',
-    localCliHint: 'Agent CLIs on this Mac. Set the command if it is not on PATH, then sign in from the terminal.',
+    localCliHint: 'Installed CLIs show up on their own. Sign in opens that CLI’s own login, and the CLI keeps the session.',
     providers: 'Providers',
-    providersHint: 'Cloud APIs. Save an API key here. The base URL is that provider’s own address.',
+    providersHint: 'Add a cloud API to give it a key and a base URL. Only the ones you add are listed.',
     compatibleHint:
       'Other OpenAI-compatible models use OpenRouter. A provider key is sent only to that provider’s own address, so a custom base URL does not carry the key anywhere else.',
     optionalKey: 'API key (optional)',
     optionalKeyPlaceholder: 'Only if the CLI is not signed in',
     sectionEmpty: 'Nothing in this section.',
+    providersEmpty: 'No providers yet.',
+    addProvider: 'Add provider',
+    addProviderDone: 'Every provider is already listed.',
+    removeProvider: 'Remove',
+    removeProviderConfirm: 'Removing this provider also clears the key saved for it.',
+    confirmRemove: 'Remove provider',
+    cancelRemove: 'Cancel',
+    login: 'Sign in',
+    recheck: 'Check again',
+    loginPending: 'Finish sign-in in Terminal. This row checks again when you come back.',
+    loginFailed: 'Could not open Terminal for this CLI.',
+    slashLoginHint: 'Terminal opens this CLI. Type /login there to sign in.',
+    cliAuth: {
+      'not-installed': 'not installed',
+      'logged-out': 'not signed in',
+      'logged-in': 'signed in',
+      unknown: 'unknown'
+    },
     detail: {
       needsKey:
         'API key required — add {article} {label} key in Settings ({hint}). It is stored locally, encrypted by the OS credential store, and sent only to {label}’s own API host.',
@@ -347,7 +379,8 @@ const en: SettingsCopy = {
         '{name} is installed but not signed in. Run `{command} login` in a terminal, or save an xAI API key on this row.',
       grokKey: '{name} is installed. The API key saved on this row is passed as XAI_API_KEY.',
       unreachable: 'Could not reach {host} — check your network connection.',
-      checkFailed: '{label} check failed: {error}'
+      checkFailed: '{label} check failed: {error}',
+      signInUnknown: '{name} is installed{where}, but its sign-in state could not be checked.'
     },
     status: {
       available: 'signed in',
@@ -535,13 +568,31 @@ const zh: SettingsCopy = {
     stored: '已安全保存 — 输入新值即可替换',
     keyPlaceholder: '保存在系统凭据库中',
     localCli: '本地 CLI',
-    localCliHint: '这台 Mac 上的 Agent CLI。不在 PATH 上时填写命令，然后在终端里登录。',
+    localCliHint: '已安装的 CLI 会自动出现。点「登录」会打开它自己的登录流程，登录状态仍由该 CLI 保存。',
     providers: '供应商',
-    providersHint: '云端 API。在这里保存 API key。基础 URL 是该供应商自己的地址。',
+    providersHint: '添加需要的云端 API，再填写密钥和基础 URL。只有添加过的供应商会显示。',
     compatibleHint: '其它 OpenAI 兼容模型用 OpenRouter。密钥只发给该供应商自己的地址，改基础 URL 不会把密钥送到别的主机。',
     optionalKey: 'API key（可选）',
     optionalKeyPlaceholder: 'CLI 未登录时才需要',
     sectionEmpty: '这一组里还没有。',
+    providersEmpty: '还没有添加供应商。',
+    addProvider: '添加供应商',
+    addProviderDone: '供应商都已添加。',
+    removeProvider: '移除',
+    removeProviderConfirm: '移除后，为这个供应商保存的密钥也会清除。',
+    confirmRemove: '确认移除',
+    cancelRemove: '取消',
+    login: '登录',
+    recheck: '重新检测',
+    loginPending: '请在终端里完成登录。回到这个窗口后会自动再检查。',
+    loginFailed: '无法打开终端来登录这个 CLI。',
+    slashLoginHint: '终端会打开这个 CLI。在里面输入 /login 完成登录。',
+    cliAuth: {
+      'not-installed': '未安装',
+      'logged-out': '未登录',
+      'logged-in': '已登录',
+      unknown: '未知'
+    },
     detail: {
       needsKey:
         '需要 API key — 请在设置里添加 {label} 的密钥（{hint}）。密钥保存在这台电脑上，由系统凭据库加密，并且只发给 {label} 自己的 API 地址。',
@@ -563,7 +614,8 @@ const zh: SettingsCopy = {
       grokSignIn: '{name} 已安装，但还没有登录。请在终端运行 `{command} login`，或在这一行保存 xAI API key。',
       grokKey: '{name} 已安装。这一行保存的 API key 会作为 XAI_API_KEY 传给它。',
       unreachable: '无法连接 {host} — 请检查网络。',
-      checkFailed: '{label} 检查失败：{error}'
+      checkFailed: '{label} 检查失败：{error}',
+      signInUnknown: '{name} 已安装{where}，但无法确认登录状态。'
     },
     status: {
       available: '已登录',

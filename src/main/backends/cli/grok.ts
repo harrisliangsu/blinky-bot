@@ -31,7 +31,6 @@ import { fingerprints, firstUnsent, forgetSent, rememberSent } from './resumePro
 import {
   type AgentCliSpec,
   CLI_DEFAULT_MODEL,
-  commandFor,
   modelFlag,
   readCliOptions,
   resolveBinary,
@@ -159,29 +158,13 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   }
 }
 
-async function detect(cfg: BackendConfig): Promise<DetectResult> {
-  const result = await detectAgentCli(GROK_SPEC, cfg)
-  if (result.status !== 'needs-key') return result
-  if (cfg.apiKey?.trim() || cfg.hasApiKey) {
-    return {
-      status: 'available',
-      detail: `${GROK_SPEC.displayName} is installed. The API key saved on this row is passed as XAI_API_KEY.`
-    }
-  }
-  const command = commandFor(GROK_SPEC, cfg)
-  return {
-    status: 'needs-key',
-    detail: `${GROK_SPEC.displayName} is installed but not signed in. Run \`${command} login\` in a terminal, or save an xAI API key on this row.`
-  }
-}
-
 export const grokBackend: Backend = {
   id: GROK_SPEC.id,
   label: GROK_SPEC.displayName,
   kind: 'agent-cli',
   local: true,
 
-  detect,
+  detect: (cfg: BackendConfig): Promise<DetectResult> => detectAgentCli(GROK_SPEC, cfg),
 
   async listModels(): Promise<ModelInfo[]> {
     return [CLI_DEFAULT_MODEL]

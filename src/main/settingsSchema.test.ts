@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { backendFieldPlan, orderedBackendSections } from '../shared/backendSections.ts'
+import { backendFieldPlan, listedBackends, orderedBackendSections, providerIsListed } from '../shared/backendSections.ts'
 import { copyLeaves, settingsCopy } from '../renderer/src/lib/settingsCopy.ts'
 import { defaultSettings, normaliseSettings } from './settingsSchema.ts'
 import { compareVersions, decideUpdate, isNewer, pickRelease, readSparkleItem } from './updates/sparkleFeed.ts'
@@ -65,6 +65,28 @@ test('backends settings separate providers from local CLIs, and bots are not ass
   assert.equal(provider.apiKey, true)
   assert.equal(provider.baseUrl, true)
   assert.equal(provider.command, false)
+})
+
+test('cloud providers stay hidden until added, and a saved key lists them', () => {
+  const settings = defaultSettings()
+  assert.equal(settings.backends.openai?.added, false)
+  assert.equal(settings.backends.opencode?.added, undefined)
+  assert.equal(providerIsListed(settings.backends.openai), false)
+  const withKey = normaliseSettings({
+    backends: { openai: { enabled: true, hasApiKey: true, baseUrl: 'https://api.openai.com/v1' } }
+  })
+  assert.equal(withKey.backends.openai?.added, true)
+  assert.equal(providerIsListed(withKey.backends.openai), true)
+  const removed = normaliseSettings({
+    backends: { openai: { enabled: false, added: false, hasApiKey: true, baseUrl: 'https://api.openai.com/v1' } }
+  })
+  assert.equal(removed.backends.openai?.added, false)
+  const rows = [
+    { id: 'openai', kind: 'cloud-api' as const },
+    { id: 'codex', kind: 'agent-cli' as const }
+  ]
+  assert.deepEqual(listedBackends(rows, settings.backends).map((row) => row.id), ['codex'])
+  assert.deepEqual(listedBackends(rows, withKey.backends).map((row) => row.id), ['openai', 'codex'])
 })
 
 test('defaults include the settings the window actually shows', () => {

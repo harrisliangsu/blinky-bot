@@ -14,6 +14,7 @@ import { getSettings } from '../settings'
 interface RegistryModule {
   detectAll(configs?: Record<string, BackendConfig>): Promise<BackendInfo[]> | BackendInfo[]
   cachedBackendInfos(): Promise<BackendInfo[]> | BackendInfo[]
+  redetectOne(id: string, configs?: Record<string, BackendConfig>): Promise<BackendInfo | null> | BackendInfo | null
 }
 
 let cachedModule: Promise<Partial<RegistryModule> | null> | null = null
@@ -64,6 +65,39 @@ export async function detectBackends(): Promise<BackendInfo[]> {
   } catch (err) {
     console.error('[openbot/ipc] backend detection failed', err)
     return lastDetected ?? []
+  }
+}
+
+function replaceOne(list: BackendInfo[], info: BackendInfo): BackendInfo[] {
+  return list.some((entry) => entry.id === info.id)
+    ? list.map((entry) => (entry.id === info.id ? info : entry))
+    : [...list, info]
+}
+
+let recheckChain: Promise<void> = Promise.resolve()
+
+/** Re-probe one row and fold it into the list the renderer is showing. */
+export function recheckBackend(id: string): Promise<BackendInfo[]> {
+  const run = recheckChain.then(() => recheckBackendNow(id))
+  recheckChain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+
+async function recheckBackendNow(id: string): Promise<BackendInfo[]> {
+  const current = lastDetected ?? (await listBackends())
+  const module = await loadRegistry()
+  if (!module || typeof module.redetectOne !== 'function') return current
+  try {
+    const one = await module.redetectOne(id, getSettings().backends)
+    if (!one) return current
+    lastDetected = replaceOne(current, one)
+    return lastDetected
+  } catch (err) {
+    console.error('[openbot/ipc] backend recheck failed', err)
+    return current
   }
 }
 

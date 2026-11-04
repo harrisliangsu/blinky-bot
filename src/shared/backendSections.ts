@@ -6,6 +6,7 @@
  */
 
 import type { BackendKind } from './backends'
+import type { BackendConfig } from './settings'
 
 export type BackendSectionId = 'provider' | 'cli'
 
@@ -23,6 +24,28 @@ export interface BackendFieldPlan {
  * editable so it can be replaced or cleared, and is hidden while empty.
  */
 const CLI_KEY_IDS = new Set(['grok'])
+
+/** A cloud row is listed only after the user adds it, or when a key is already saved. */
+export function providerIsListed(
+  config: Pick<BackendConfig, 'added' | 'hasApiKey' | 'apiKey'> | undefined
+): boolean {
+  if (!config) return false
+  if (config.added === true) return true
+  if (config.hasApiKey === true) return true
+  return typeof config.apiKey === 'string' && config.apiKey.trim() !== ''
+}
+
+export function listedBackends<T extends { id: string; kind: BackendKind }>(
+  backends: readonly T[],
+  configs: Record<string, Pick<BackendConfig, 'added' | 'hasApiKey' | 'apiKey'> | undefined> | undefined,
+  keepId?: string
+): T[] {
+  return backends.filter((backend) => {
+    if (backend.kind === 'agent-cli') return true
+    if (keepId && backend.id === keepId) return true
+    return providerIsListed(configs?.[backend.id])
+  })
+}
 
 export function backendSection(kind: BackendKind): BackendSectionId {
   return kind === 'agent-cli' ? 'cli' : 'provider'

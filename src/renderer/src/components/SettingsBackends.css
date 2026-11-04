@@ -34,11 +34,39 @@
   gap: var(--ob-space-1);
 }
 
+.ob-backend-group-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ob-space-2);
+}
+
 .ob-backend-group-title {
   margin: 0;
   font-size: var(--ob-font-size-sm);
   font-weight: var(--ob-weight-semibold);
   color: var(--ob-text-primary);
+}
+
+.ob-provider-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ob-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ob-backend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ob-space-1);
+}
+
+.ob-backend-actions > .ob-hint {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .ob-backend-group > .ob-hint,
