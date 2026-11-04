@@ -4,6 +4,7 @@ import { detectCloud } from './cloudDetect'
 import { LIST_TIMEOUT_MS, withTimeout } from './httpClient'
 import { errorMessage } from './httpErrors'
 import { type HostBoundKey, bindKeyToHost } from './keyHost'
+import { openaiReasoningBody } from '../../shared/thinking'
 import { isReasoningOnlyModel } from './modelMeta'
 import { type OaEndpoint, listOpenAiModels, streamOpenAiChat, toModelInfo } from './openaiCompat'
 import type { Backend, BackendConfig, ChatChunk, ChatRequest, DetectResult, ModelInfo } from './types'
@@ -68,6 +69,7 @@ export const openaiBackend: Backend = {
       temperature: req.temperature,
       // Reasoning models reject sampling knobs outright.
       allowTemperature: !isReasoningOnlyModel(req.model),
+      extraBody: openaiReasoningBody(req.thinking, req.model, 'openai'),
       signal: req.signal
     })
   }

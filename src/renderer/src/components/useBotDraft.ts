@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ThinkingDepth } from '../../../shared/thinking'
 import type { Bot, ComputerTarget } from '../../../shared/types'
+import type { RuntimeChoice } from './BotRuntimeFields'
 import {
   cancelComputerProvision,
   createBot,
@@ -42,7 +44,7 @@ export interface BotDraftForm {
   draft: BotDraft
   set: <K extends keyof BotDraft>(key: K, value: BotDraft[K]) => void
   toggleTool: (id: string) => void
-  chooseModel: (backendId: string, modelId: string) => void
+  chooseRuntime: (choice: RuntimeChoice) => void
   saving: boolean
   targetStatus: string | null
   confirmDelete: boolean
@@ -89,8 +91,14 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
   const toggleTool = (id: string): void =>
     setDraft((d) => ({ ...d, tools: d.tools.includes(id) ? d.tools.filter((t) => t !== id) : [...d.tools, id] }))
 
-  const chooseModel = (backendId: string, modelId: string): void =>
-    setDraft((d) => ({ ...d, backendId, modelId, followsDefault: false }))
+  const chooseRuntime = (choice: RuntimeChoice): void =>
+    setDraft((d) => ({
+      ...d,
+      backendId: choice.backendId,
+      modelId: choice.modelId,
+      followsDefault: false,
+      ...(choice.thinking ? { thinking: choice.thinking } : { thinking: undefined })
+    }))
 
   const save = async (): Promise<void> => {
     if (!draft.name.trim()) return
@@ -120,6 +128,7 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
       backendId: draft.backendId,
       modelId: draft.modelId,
       followsDefault: draft.followsDefault === false ? false : true,
+      thinking: (draft.followsDefault === false && draft.thinking ? draft.thinking : '') as ThinkingDepth,
       tools: draft.tools,
       skills: draft.skills ?? [],
       computerUse: draft.computerUse,
@@ -186,7 +195,7 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
     draft,
     set,
     toggleTool,
-    chooseModel,
+    chooseRuntime,
     saving,
     targetStatus,
     confirmDelete,

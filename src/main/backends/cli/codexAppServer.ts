@@ -276,7 +276,10 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
   void live.peer
     .request('turn/start', {
       threadId: live.threadId,
-      input: [{ type: 'text', text: prompt }]
+      input: [{ type: 'text', text: prompt }],
+      // Per-turn override. A project config can ignore the thread config key,
+      // and older servers ignore an effort they do not know.
+      ...(run.ctx.effort ? { effort: run.ctx.effort } : {})
     })
     .catch((err: unknown) => {
       if (live.generation !== generation || live.disposed) return
@@ -317,6 +320,7 @@ function identity(run: AppServerRun): CodexPoolIdentity {
     binaryPath: run.binaryPath,
     cwd: run.ctx.cwd,
     model: run.ctx.model,
+    effort: run.ctx.effort ?? '',
     sessionKey: run.req.sessionKey ?? '',
     args: run.mcp?.args ?? [],
     env: run.mcp?.env ?? {}

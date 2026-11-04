@@ -6,6 +6,7 @@
  * cannot preserve that approval boundary.
  */
 
+import { codexEffort } from '../../../shared/thinking'
 import { homePath } from '../detectionTable'
 import type {
   Backend,
@@ -49,7 +50,7 @@ export const CODEX_SPEC: AgentCliSpec = {
 async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<ChatChunk> {
   const opts = readCliOptions(cfg, req.cwd)
   const binaryPath = await resolveBinary(CODEX_SPEC, cfg)
-  const ctx = runContext(req.model, opts)
+  const ctx = runContext(req.model, opts, codexEffort(req.thinking))
   // Codex takes `-c` on both transports, so the same servers reach either path.
   const mcp = codexMcpConfig(req.mcpServers)
 

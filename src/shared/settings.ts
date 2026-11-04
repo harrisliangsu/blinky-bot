@@ -2,6 +2,7 @@
 
 import type { AppLinks } from './apps'
 import type { AgentMode } from './sessions'
+import type { ThinkingDepth } from './thinking'
 
 export type ApprovalPolicy =
   | 'ask-every-time'
@@ -86,6 +87,12 @@ export interface Settings {
   updateChannel: UpdateChannel
   defaultBackendId: string
   defaultModelId: string
+  /**
+   * Thinking depth for Bots that follow the defaults. Absent leaves the
+   * depth to the CLI or provider. A Bot that picks its own source stores
+   * the depth on the Bot instead.
+   */
+  defaultThinking?: ThinkingDepth
   defaultMode: AgentMode
   approvalPolicy: ApprovalPolicy
   /** Shell commands auto-approved without prompting. */

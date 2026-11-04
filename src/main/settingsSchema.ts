@@ -10,6 +10,7 @@
 import type { AppId, AppLinks } from '../shared/apps'
 import { CLI_CATALOG } from '../shared/cliCatalog'
 import { PROVIDER_CATALOG } from '../shared/providerCatalog'
+import { isThinkingDepth } from '../shared/thinking'
 import type {
   AccentColor,
   AgentMode,
@@ -315,6 +316,7 @@ export function normaliseSettings(raw: unknown): Settings {
     updateChannel: pickEnum(merged['updateChannel'], CHANNELS, defaults.updateChannel),
     defaultBackendId: backendId,
     defaultModelId: modelId,
+    ...(isThinkingDepth(merged['defaultThinking']) ? { defaultThinking: merged['defaultThinking'] } : {}),
     defaultMode: pickEnum(merged['defaultMode'], MODES, defaults.defaultMode),
     approvalPolicy: pickEnum(merged['approvalPolicy'], POLICIES, defaults.approvalPolicy),
     allowlist: stringList(merged['allowlist']),

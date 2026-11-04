@@ -5,6 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveBotBinding, type BotBinding } from '../../shared/botBinding'
+import { isThinkingDepth, type ThinkingDepth } from '../../shared/thinking'
 import type { Bot, ComputerTarget } from '../../shared/types'
 import { getSettings } from '../settings'
 import { KNOWN_BACKEND_IDS } from '../settingsSchema'
@@ -44,23 +45,38 @@ function resolveBackend(
 }
 
 /** Settings wins for unpinned Bots. A mismatch is written back on the next load. */
-function alignBinding(rawBackendId: unknown, rawModelId: unknown, rawFollows: unknown): BotBinding {
+function alignBinding(
+  rawBackendId: unknown,
+  rawModelId: unknown,
+  rawFollows: unknown,
+  rawThinking: unknown
+): BotBinding {
   const resolved = resolveBackend(rawBackendId, rawModelId)
   const followsDefault = rawFollows === false ? false : rawFollows === true ? true : undefined
+  const storedThinking = isThinkingDepth(rawThinking) ? rawThinking : undefined
   const binding = resolveBotBinding(
     {
       backendId: resolved.backendId,
       modelId: resolved.modelId,
-      ...(followsDefault === undefined ? {} : { followsDefault })
+      ...(followsDefault === undefined ? {} : { followsDefault }),
+      ...(storedThinking ? { thinking: storedThinking } : {})
     },
     getSettings()
   )
+  // A Bot that follows Settings does not keep its own depth on disk. The turn
+  // reads the default again, so a later change in Settings still applies.
+  const persistedThinking = binding.followsDefault ? undefined : binding.thinking
   const storedBackend = typeof rawBackendId === 'string' ? rawBackendId : ''
   const storedModel = typeof rawModelId === 'string' ? rawModelId : ''
-  if (binding.backendId !== storedBackend || binding.modelId !== storedModel || rawFollows !== binding.followsDefault) {
+  if (
+    binding.backendId !== storedBackend ||
+    binding.modelId !== storedModel ||
+    rawFollows !== binding.followsDefault ||
+    storedThinking !== persistedThinking
+  ) {
     bindingAligned = true
   }
-  return binding
+  return persistedThinking ? { ...binding, thinking: persistedThinking } : { ...binding, thinking: undefined }
 }
 
 /** Set during load when any bot referenced a backend this build dropped. */
@@ -137,7 +153,7 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
     systemPrompt: typeof value['systemPrompt'] === 'string' ? value['systemPrompt'] : '',
     emoji: typeof value['emoji'] === 'string' && value['emoji'] ? value['emoji'] : '🤖',
     color: typeof value['color'] === 'string' && value['color'] ? value['color'] : '#7c9cff',
-    ...alignBinding(value['backendId'], value['modelId'], value['followsDefault']),
+    ...bindingFields(alignBinding(value['backendId'], value['modelId'], value['followsDefault'], value['thinking'])),
     tools: stringList(value['tools']),
     skills: stringList(value['skills']),
     computerUse: value['computerUse'] === true,
@@ -223,16 +239,41 @@ export async function loadBots(): Promise<void> {
  * Make the stored CLI and model match Settings, and return the Bot the turn
  * should run. A no-op when they already agree.
  */
+/** Disk fields for a binding. Thinking is omitted when this Bot follows Settings. */
+function bindingFields(binding: BotBinding): Pick<Bot, 'backendId' | 'modelId' | 'followsDefault' | 'thinking'> {
+  return {
+    backendId: binding.backendId,
+    modelId: binding.modelId,
+    followsDefault: binding.followsDefault,
+    ...(binding.thinking ? { thinking: binding.thinking } : {})
+  }
+}
+
+/** The Bot a turn should run. Settings fills in a Bot that follows the defaults. */
 export function applyBotBinding(bot: Bot): Bot {
   const binding = resolveBotBinding(bot, getSettings())
-  if (
+  const persistedThinking = binding.followsDefault ? undefined : binding.thinking
+  const same =
     bot.backendId === binding.backendId &&
     bot.modelId === binding.modelId &&
-    bot.followsDefault === binding.followsDefault
-  ) {
-    return bot
-  }
-  return updateBot(bot.id, binding) ?? { ...bot, ...binding }
+    bot.followsDefault === binding.followsDefault &&
+    (bot.thinking ?? undefined) === persistedThinking
+  const live = liveBot(bot, binding)
+  if (same) return live
+  // Empty string clears a depth. `undefined` is dropped by the merge, so a
+  // Bot that starts following Settings would otherwise keep the old depth.
+  const saved = updateBot(bot.id, {
+    ...bindingFields({ ...binding, thinking: persistedThinking }),
+    ...(!persistedThinking ? { thinking: '' as ThinkingDepth } : {})
+  })
+  return saved ? liveBot(saved, binding) : live
+}
+
+function liveBot(bot: Bot, binding: BotBinding): Bot {
+  const live: Bot = { ...bot, ...bindingFields(binding.followsDefault ? { ...binding, thinking: undefined } : binding) }
+  if (binding.thinking) live.thinking = binding.thinking
+  else delete live.thinking
+  return live
 }
 
 /** Point every Bot that follows Settings at the current default CLI and model. */
@@ -276,14 +317,17 @@ export function defaultBotId(): string {
 function pinnedBinding(partial: Partial<Bot>, settings: ReturnType<typeof getSettings>): BotBinding {
   const followsDefault =
     partial.followsDefault === false ? false : partial.followsDefault === true ? true : !partial.backendId
-  return resolveBotBinding(
+  const thinking = isThinkingDepth(partial.thinking) ? partial.thinking : undefined
+  const binding = resolveBotBinding(
     {
       backendId: partial.backendId || settings.defaultBackendId,
       modelId: partial.modelId || settings.defaultModelId,
-      followsDefault
+      followsDefault,
+      ...(thinking ? { thinking } : {})
     },
     settings
   )
+  return binding.followsDefault ? { ...binding, thinking: undefined } : binding
 }
 
 export function createBot(partial: Partial<Bot> = {}): Bot {
@@ -306,7 +350,7 @@ export function createBot(partial: Partial<Bot> = {}): Bot {
      * `resolveBackend` repaired it on the next launch, which made it look
      * intermittent. An empty choice is no choice, so it takes the default.
      */
-    ...pinnedBinding(partial, settings),
+    ...bindingFields(pinnedBinding(partial, settings)),
     tools: partial.tools ? stringList(partial.tools) : [...DEFAULT_BOT_TOOLS],
     skills: stringList(partial.skills),
     computerUse: partial.computerUse === true,

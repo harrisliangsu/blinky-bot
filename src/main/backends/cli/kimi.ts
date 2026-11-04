@@ -9,6 +9,7 @@
  * are refused in `refuseUngovernedSideCall`.
  */
 
+import { kimiThinkingEnv } from '../../../shared/thinking'
 import { homePath } from '../detectionTable'
 import type {
   Backend,
@@ -98,6 +99,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
 
     let captured: string | undefined
     let answered = false
+    const thinkingEnv = kimiThinkingEnv(req.thinking)
     try {
       for await (const chunk of runStdioJson({
         spec: KIMI_SPEC,
@@ -109,7 +111,8 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
         mapper: kimiMapper((id) => {
           captured = id
         }),
-        signal: req.signal
+        signal: req.signal,
+        ...(thinkingEnv ? { extraEnv: thinkingEnv } : {})
       })) {
         if ((chunk.type === 'text' || chunk.type === 'reasoning') && chunk.delta) answered = true
         yield chunk

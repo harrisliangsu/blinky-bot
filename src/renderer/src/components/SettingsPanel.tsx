@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { followsSettingsDefault } from '../../../shared/botBinding'
 import { listedBackends } from '../../../shared/backendSections'
-import type { AgentMode, Settings, UpdateReport } from '../../../shared/types'
+import { thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
+import type { AgentMode, Bot, Settings, UpdateReport } from '../../../shared/types'
 import { SETTINGS_SECTIONS, takeSettingsTab, type SettingsSection } from '../lib/settingsNavigation'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { loadSettings, store, toggleWorkspace, updateSettings, useAppState } from '../state'
+import { loadSettings, store, toggleWorkspace, updateBot, updateSettings, useAppState } from '../state'
+import { BotRuntimeFields, type RuntimeChoice } from './BotRuntimeFields'
 import { Modal } from './Modal'
 import { SettingsApps } from './SettingsApps'
 import { SettingsBackends } from './SettingsBackends'
@@ -221,14 +224,20 @@ function LayoutCard(): ReactNode {
   )
 }
 
+function saveDefaultThinking(value: string): void {
+  void updateSettings({ defaultThinking: (value || '') as ThinkingDepth })
+}
+
 function Bots({ settings }: { settings: Settings }): ReactNode {
   const copy = useSettingsCopy()
-  const { backends } = useAppState()
+  const { backends, bots } = useAppState()
   const b = copy.bots
   const modes: AgentMode[] = ['agent', 'ask', 'plan']
   const chosen = backends.find((item) => item.id === settings.defaultBackendId)
   const models = chosen?.models ?? []
+  const showDefaultThinking = thinkingWire(settings.defaultBackendId) !== null
   return (
+    <div className="ob-set-stack">
     <Card title={copy.nav.bots}>
       <Row title={b.mode} hint={b.modeHint}>
         <select
@@ -255,6 +264,7 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             void updateSettings({
               defaultBackendId,
               defaultModelId,
+              defaultThinking: thinkingWire(defaultBackendId) ? settings.defaultThinking : ('' as ThinkingDepth),
               backends: {
                 ...settings.backends,
                 [defaultBackendId]: { ...(settings.backends[defaultBackendId] ?? { enabled: true }), defaultModelId }
@@ -302,6 +312,23 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             ))}
         </select>
       </Row>
+      {showDefaultThinking ? (
+        <Row title={b.thinking} hint={b.thinkingHint}>
+          <select
+            className="ob-select ob-settings-select"
+            aria-label={b.thinking}
+            value={settings.defaultThinking ?? ''}
+            onChange={(e) => saveDefaultThinking(e.target.value)}
+          >
+            <option value="">{b.thinkingDefault}</option>
+            <option value="off">{b.thinkingOff}</option>
+            <option value="low">{b.thinkingLow}</option>
+            <option value="medium">{b.thinkingMedium}</option>
+            <option value="high">{b.thinkingHigh}</option>
+            <option value="xhigh">{b.thinkingXHigh}</option>
+          </select>
+        </Row>
+      ) : null}
       <Row title={b.memory} hint={b.memoryHint}>
         <select
           className="ob-select ob-settings-select"
@@ -317,6 +344,65 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
         </select>
       </Row>
     </Card>
+    <Card title={b.eachBot}>
+      <p className="ob-hint">{b.eachBotHint}</p>
+      {bots.map((bot) => (
+        <BotRuntimeRow key={bot.id} bot={bot} settings={settings} />
+      ))}
+    </Card>
+    </div>
+  )
+}
+
+function BotRuntimeRow({ bot, settings }: { bot: Bot; settings: Settings }): ReactNode {
+  const copy = useSettingsCopy().bots
+  const { backends } = useAppState()
+  const follows = followsSettingsDefault(bot)
+  const pin = (choice: RuntimeChoice): void => {
+    void updateBot(bot.id, {
+      followsDefault: false,
+      backendId: choice.backendId,
+      modelId: choice.modelId,
+      thinking: (choice.thinking ?? '') as ThinkingDepth
+    })
+  }
+  return (
+    <div className="ob-bot-runtime" data-bot-runtime={bot.id}>
+      <div className="ob-bot-runtime-head">
+        <strong>
+          {bot.emoji} {bot.name}
+        </strong>
+        <label className="ob-check">
+          <input
+            type="checkbox"
+            checked={follows}
+            onChange={(e) => {
+              if (e.target.checked) {
+                void updateBot(bot.id, { followsDefault: true, modelId: 'default', thinking: '' as ThinkingDepth })
+                return
+              }
+              void updateBot(bot.id, {
+                followsDefault: false,
+                backendId: bot.backendId || settings.defaultBackendId,
+                modelId: bot.modelId || 'default',
+                ...(bot.thinking ? { thinking: bot.thinking } : {})
+              })
+            }}
+          />
+          <span>{copy.follow}</span>
+        </label>
+      </div>
+      {follows ? null : (
+        <BotRuntimeFields
+          backends={backends}
+          configs={settings.backends}
+          backendId={bot.backendId}
+          modelId={bot.modelId}
+          thinking={bot.thinking}
+          onChange={pin}
+        />
+      )}
+    </div>
   )
 }
 

@@ -1,0 +1,32 @@
+.ob-bot-runtime {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ob-space-2);
+  padding: var(--ob-space-3) 0;
+  border-top: 1px solid var(--ob-border-subtle);
+}
+.ob-bot-runtime-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ob-space-3);
+}
+.ob-bot-runtime-head strong {
+  font-size: var(--ob-font-size-sm);
+}
+.ob-bot-runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ob-space-2) var(--ob-space-3);
+}
+.ob-bot-runtime-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--ob-font-size-xs);
+  color: var(--ob-text-tertiary);
+}
+.ob-bot-runtime-grid .ob-settings-select {
+  width: 100%;
+}

@@ -10,6 +10,15 @@ import { copyLeaves, settingsCopy } from '../renderer/src/lib/settingsCopy.ts'
 import { defaultSettings, normaliseSettings } from './settingsSchema.ts'
 import { compareVersions, decideUpdate, isNewer, pickRelease, readSparkleItem } from './updates/sparkleFeed.ts'
 
+test('default thinking depth is kept only when it is one of the five steps', () => {
+  const kept = normaliseSettings({ defaultThinking: 'high', defaultBackendId: 'codex' })
+  assert.equal(kept.defaultThinking, 'high')
+  const dropped = normaliseSettings({ defaultThinking: 'max', defaultBackendId: 'codex' })
+  assert.equal(dropped.defaultThinking, undefined)
+  const cleared = normaliseSettings({ defaultThinking: '' })
+  assert.equal(cleared.defaultThinking, undefined)
+})
+
 test('Chinese and English settings describe the same controls', () => {
   const english = copyLeaves(settingsCopy('en')).sort()
   const chinese = copyLeaves(settingsCopy('zh-CN')).sort()

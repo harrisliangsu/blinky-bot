@@ -30,6 +30,8 @@ export interface CliRunContext {
   model: string
   cwd: string
   extraArgs: string[]
+  /** Codex reasoning effort for this thread, when the Bot picked a depth. */
+  effort?: string
 }
 
 export interface CliOptions {
@@ -81,8 +83,8 @@ export async function resolveBinary(spec: AgentCliSpec, cfg: BackendConfig): Pro
   return (await which(command)) ?? command
 }
 
-export function runContext(model: string, opts: CliOptions): CliRunContext {
-  return { model: model || 'default', cwd: opts.cwd, extraArgs: opts.extraArgs }
+export function runContext(model: string, opts: CliOptions, effort?: string): CliRunContext {
+  return { model: model || 'default', cwd: opts.cwd, extraArgs: opts.extraArgs, ...(effort ? { effort } : {}) }
 }
 
 /** Only pass a model flag when the user picked something concrete. */
