@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                            <item>
-            <title>0.3.6</title>
-            <pubDate>Wed, 04 Nov 2026 08:15:01 -0000</pubDate>
-            <sparkle:version>0.3.6</sparkle:version>
-            <sparkle:shortVersionString>0.3.6</sparkle:shortVersionString>
+                                                <item>
+            <title>0.3.7</title>
+            <pubDate>Wed, 04 Nov 2026 08:37:10 -0000</pubDate>
+            <sparkle:version>0.3.7</sparkle:version>
+            <sparkle:shortVersionString>0.3.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.7</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.6</h2><ul><li><strong>Sending a chat no longer waits on a CLI probe.</strong> The reply caret shows up before the CLI starts. A Codex chat stays warm, so the next message skips starting it again. Kimi thinking appears as it arrives, and the answer is not held for it.</li><li><strong>The main chat hides the working directory, Agent mode, and the model.</strong> Replies do not label which model ran.</li><li><strong>Add providers and Add CLIs are searchable.</strong> The lists show only what you added, or a CLI that is already installed.</li><li><strong>Apps connects GitHub, Git, and Gmail for every Bot.</strong> GitHub sign-in opens in Terminal and BlinkyBot does not keep the token. Git edits the global name and email on this Mac. Gmail records that you want it connected.</li><li><strong>A Bot sends with the CLI it is bound to.</strong> The binding and that CLI’s default model live in Settings. A Bot left on the generic model follows the Settings default CLI.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.6/BlinkyBot-0.3.6.zip"
-                       length="122465042"
+</style><h2>BlinkyBot 0.3.7</h2><ul><li><strong>The Dock and Finder icon is the Blinky sprout.</strong> The white puppy with a mint sprout sits on a pink-to-purple gradient. 0.3.6 was tagged before that icon landed, so it still showed the black chat bubble.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.7">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.7/BlinkyBot-0.3.7.zip"
+                       length="123983104"
                        type="application/octet-stream"
-                       sparkle:edSignature="AalWMN3sh7prUDIKI1GHCtp5Td04fZcZENYA6RL3Bb5tWF6+gPmg4PwMbEZOtsKfB64Go9yyfar7LCIoYeX4BQ==" />
+                       sparkle:edSignature="PlgV5iTkXVY5x1zG2JGcYR536LOBgjyd4PtM8RlCmu66QzFmOgnXK8ZKPsWsrg5gLn0hrqHz16OnhrRDrbUQCQ==" />
         </item>
     </channel>
 </rss>

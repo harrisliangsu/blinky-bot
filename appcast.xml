@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                            <item>
-            <title>0.3.6</title>
-            <pubDate>Wed, 04 Nov 2026 08:15:01 -0000</pubDate>
-            <sparkle:version>0.3.6</sparkle:version>
-            <sparkle:shortVersionString>0.3.6</sparkle:shortVersionString>
+                                                <item>
+            <title>0.3.7</title>
+            <pubDate>Wed, 04 Nov 2026 08:37:10 -0000</pubDate>
+            <sparkle:version>0.3.7</sparkle:version>
+            <sparkle:shortVersionString>0.3.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.7</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.6</h2><ul><li><strong>发消息不再先探测每个 CLI。</strong> 回复光标在 CLI 启动之前出现。Codex 对话会保持一会儿，下一条消息不必重新启动。Kimi 的思考过程随到随显示，回答不会等思考结束。</li><li><strong>主聊天隐藏工作目录、Agent 模式和模型。</strong> 回复也不标注是哪个模型在跑。</li><li><strong>添加供应商和本地 CLI 可以搜索。</strong> 列表只显示你添加过的，或已经安装的 CLI。</li><li><strong>应用为所有 Bot 连接 GitHub、Git 和 Gmail。</strong> GitHub 登录在终端里完成，BlinkyBot 不保存令牌。Git 修改这台 Mac 上的全局姓名和邮箱。Gmail 只记下你想连接。</li><li><strong>Bot 用绑定的 CLI 发送。</strong> 绑定关系和该 CLI 的默认模型在设置里。仍使用通用模型的 Bot 跟随设置里的默认 CLI。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.7</h2><ul><li><strong>Dock 和 Finder 的图标是发芽小狗 Blinky。</strong> 白小狗顶着薄荷绿的芽，背景是粉到紫的渐变。0.3.6 在这枚图标合入之前打了 tag，所以仍显示黑色聊天气泡。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.7">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.6</h2><ul><li><strong>发消息不再先探测每个 CLI。</strong> 回复光标在 CLI 启动之前出现。Codex 对话会保持一会儿，下一条消息不必重新启动。Kimi 的思考过程随到随显示，回答不会等思考结束。</li><li><strong>主聊天隐藏工作目录、Agent 模式和模型。</strong> 回复也不标注是哪个模型在跑。</li><li><strong>添加供应商和本地 CLI 可以搜索。</strong> 列表只显示你添加过的，或已经安装的 CLI。</li><li><strong>应用为所有 Bot 连接 GitHub、Git 和 Gmail。</strong> GitHub 登录在终端里完成，BlinkyBot 不保存令牌。Git 修改这台 Mac 上的全局姓名和邮箱。Gmail 只记下你想连接。</li><li><strong>Bot 用绑定的 CLI 发送。</strong> 绑定关系和该 CLI 的默认模型在设置里。仍使用通用模型的 Bot 跟随设置里的默认 CLI。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.7</h2><ul><li><strong>Dock 和 Finder 的图标是发芽小狗 Blinky。</strong> 白小狗顶着薄荷绿的芽，背景是粉到紫的渐变。0.3.6 在这枚图标合入之前打了 tag，所以仍显示黑色聊天气泡。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.7">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.6</h2><ul><li><strong>Sending a chat no longer waits on a CLI probe.</strong> The reply caret shows up before the CLI starts. A Codex chat stays warm, so the next message skips starting it again. Kimi thinking appears as it arrives, and the answer is not held for it.</li><li><strong>The main chat hides the working directory, Agent mode, and the model.</strong> Replies do not label which model ran.</li><li><strong>Add providers and Add CLIs are searchable.</strong> The lists show only what you added, or a CLI that is already installed.</li><li><strong>Apps connects GitHub, Git, and Gmail for every Bot.</strong> GitHub sign-in opens in Terminal and BlinkyBot does not keep the token. Git edits the global name and email on this Mac. Gmail records that you want it connected.</li><li><strong>A Bot sends with the CLI it is bound to.</strong> The binding and that CLI’s default model live in Settings. A Bot left on the generic model follows the Settings default CLI.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.6">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.6/BlinkyBot-0.3.6.zip"
-                       length="122465042"
+</style><h2>BlinkyBot 0.3.7</h2><ul><li><strong>The Dock and Finder icon is the Blinky sprout.</strong> The white puppy with a mint sprout sits on a pink-to-purple gradient. 0.3.6 was tagged before that icon landed, so it still showed the black chat bubble.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.7">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.7/BlinkyBot-0.3.7.zip"
+                       length="123983104"
                        type="application/octet-stream"
-                       sparkle:edSignature="AalWMN3sh7prUDIKI1GHCtp5Td04fZcZENYA6RL3Bb5tWF6+gPmg4PwMbEZOtsKfB64Go9yyfar7LCIoYeX4BQ==" />
+                       sparkle:edSignature="PlgV5iTkXVY5x1zG2JGcYR536LOBgjyd4PtM8RlCmu66QzFmOgnXK8ZKPsWsrg5gLn0hrqHz16OnhrRDrbUQCQ==" />
         </item>
     </channel>
 </rss>
