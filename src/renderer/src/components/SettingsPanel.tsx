@@ -3,7 +3,7 @@ import { listedBackends } from '../../../shared/backendSections'
 import type { AgentMode, Settings, UpdateReport } from '../../../shared/types'
 import { takeSettingsTab } from '../lib/settingsNavigation'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { loadSettings, store, updateSettings, useAppState } from '../state'
+import { loadSettings, store, toggleWorkspace, updateSettings, useAppState } from '../state'
 import { Modal } from './Modal'
 import { SettingsApps } from './SettingsApps'
 import { SettingsBackends } from './SettingsBackends'
@@ -187,8 +187,50 @@ function General({ settings }: { settings: Settings }): ReactNode {
           />
         </Row>
       </Card>
+      <LayoutCard />
       <p className="ob-settings-privacy">{g.privacy}</p>
     </div>
+  )
+}
+
+/**
+ * Workspace, the activity panel, inbox, and shared rooms. They used to sit in
+ * the chat header; Settings is where they stay reachable.
+ */
+function LayoutCard(): ReactNode {
+  const g = useSettingsCopy().general.layout
+  const { railOpen, workspace, activity, tasks } = useAppState()
+  const waiting = activity.filter((item) => !item.read).length + tasks.filter((task) => task.status === 'queued' || task.status === 'running').length
+
+  return (
+    <Card title={g.title}>
+      <Row title={g.chats} hint={g.chatsHint}>
+        <button
+          type="button"
+          className="ob-btn ob-btn-sm"
+          aria-label={`${g.chats}: ${workspace.open ? g.chatsClose : g.chatsOpen}`}
+          onClick={() => {
+            toggleWorkspace()
+            store.setModal(null)
+          }}
+        >
+          {workspace.open ? g.chatsClose : g.chatsOpen}
+        </button>
+      </Row>
+      <Row title={g.side} hint={g.sideHint}>
+        <Switch on={railOpen} label={g.side} onChange={() => store.toggleRail()} />
+      </Row>
+      <Row title={g.inbox} hint={waiting > 0 ? `${g.inboxHint} (${waiting})` : g.inboxHint}>
+        <button type="button" className="ob-btn ob-btn-sm" aria-label={`${g.inbox}: ${g.inboxOpen}`} onClick={() => store.setModal('activity')}>
+          {g.inboxOpen}
+        </button>
+      </Row>
+      <Row title={g.rooms} hint={g.roomsHint}>
+        <button type="button" className="ob-btn ob-btn-sm" aria-label={`${g.rooms}: ${g.roomsOpen}`} onClick={() => store.setModal('rooms')}>
+          {g.roomsOpen}
+        </button>
+      </Row>
+    </Card>
   )
 }
 

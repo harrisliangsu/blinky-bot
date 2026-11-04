@@ -249,6 +249,19 @@ export const IconGrip = (p: IconProps): ReactNode => (
   </Icon>
 )
 
+export const IconSun = (p: IconProps): ReactNode => (
+  <Icon {...p}>
+    <circle cx="8" cy="8" r="2.3" />
+    <path d="M8 1.7v1.6M8 12.7v1.6M1.7 8h1.6M12.7 8h1.6M3.4 3.4l1.2 1.2M11.4 11.4l1.2 1.2M12.6 3.4l-1.2 1.2M4.6 11.4l-1.2 1.2" />
+  </Icon>
+)
+
+export const IconMoon = (p: IconProps): ReactNode => (
+  <Icon {...p}>
+    <path d="M10 2.3a5.3 5.3 0 1 0 3.7 9.1A4.3 4.3 0 0 1 10 2.3z" />
+  </Icon>
+)
+
 export const IconWarning = (p: IconProps): ReactNode => (
   <Icon {...p}>
     <path d="M8 2.6 14 12.4H2z" />

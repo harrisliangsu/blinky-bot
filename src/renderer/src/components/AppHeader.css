@@ -41,28 +41,12 @@
   flex: none;
 }
 
-.ob-header-inbox { position: relative; }
-.ob-header-badge {
-  position: absolute;
-  top: -5px;
-  right: -6px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--ob-accent);
-  color: white;
-  font-size: 9px;
-  line-height: 15px;
-  text-align: center;
-}
-
 .ob-header-bots {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--ob-space-1-5);
-  margin-right: var(--ob-space-2);
+  flex: none;
 }
 
 .ob-header-bot {

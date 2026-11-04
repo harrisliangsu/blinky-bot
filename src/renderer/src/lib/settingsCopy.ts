@@ -45,6 +45,23 @@ export interface SettingsCopy {
     background: string
     backgroundHint: string
     privacy: string
+    themeUseLight: string
+    themeUseDark: string
+    layout: {
+      title: string
+      chats: string
+      chatsHint: string
+      chatsOpen: string
+      chatsClose: string
+      side: string
+      sideHint: string
+      inbox: string
+      inboxHint: string
+      inboxOpen: string
+      rooms: string
+      roomsHint: string
+      roomsOpen: string
+    }
   }
   bots: {
     mode: string
@@ -311,7 +328,24 @@ const en: SettingsCopy = {
     loginHint: 'Opens BlinkyBot when you sign in to this Mac. Applies to the installed app.',
     background: 'Run in background',
     backgroundHint: 'Keep scheduled routines alive after the window closes.',
-    privacy: 'No account. No telemetry. Nothing leaves this machine except calls to the CLI or provider you configure.'
+    privacy: 'No account. No telemetry. Nothing leaves this machine except calls to the CLI or provider you configure.',
+    themeUseLight: 'Use light theme',
+    themeUseDark: 'Use dark theme',
+    layout: {
+      title: 'Layout',
+      chats: 'Several chats',
+      chatsHint: 'Tile more than one conversation. Alt+G does the same.',
+      chatsOpen: 'Open',
+      chatsClose: 'Close',
+      side: 'Activity panel',
+      sideHint: 'The screen, and what this Bot still has to do.',
+      inbox: 'Inbox',
+      inboxHint: 'Background tasks, and work that finished while you were elsewhere.',
+      inboxOpen: 'Open',
+      rooms: 'Shared rooms',
+      roomsHint: 'Invite someone on this network into a conversation.',
+      roomsOpen: 'Open'
+    }
   },
   bots: {
     mode: 'Default mode for new chats',
@@ -595,7 +629,24 @@ const zh: SettingsCopy = {
     loginHint: '登录这台 Mac 时打开 BlinkyBot。对已安装的应用生效。',
     background: '后台运行',
     backgroundHint: '窗口关闭后，定时例程仍然继续。',
-    privacy: '没有账号，没有遥测。除了你配置的 CLI 或供应商，不会有数据离开这台电脑。'
+    privacy: '没有账号，没有遥测。除了你配置的 CLI 或供应商，不会有数据离开这台电脑。',
+    themeUseLight: '改用浅色',
+    themeUseDark: '改用深色',
+    layout: {
+      title: '布局',
+      chats: '多个对话',
+      chatsHint: '并排看好几段对话。Alt+G 同样可以。',
+      chatsOpen: '打开',
+      chatsClose: '关闭',
+      side: '活动面板',
+      sideHint: '这个 Bot 的屏幕，以及还没做完的事。',
+      inbox: '收件箱',
+      inboxHint: '后台任务，以及你不在时已经做完的事。',
+      inboxOpen: '打开',
+      rooms: '共享房间',
+      roomsHint: '邀请同一局域网上的人加入一段对话。',
+      roomsOpen: '打开'
+    }
   },
   bots: {
     mode: '新对话的默认模式',
