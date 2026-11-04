@@ -19,7 +19,7 @@ export function TodoList({ todos }: TodoListProps): ReactNode {
     return (
       <section className="ob-todos" aria-label="Task list">
         <h3 className="ob-rail-title">Tasks</h3>
-        <p className="ob-todos-empty">No tasks yet. The agent adds them as it plans work.</p>
+        <p className="ob-todos-empty">No tasks yet. The bot adds them as it plans work.</p>
       </section>
     )
   }

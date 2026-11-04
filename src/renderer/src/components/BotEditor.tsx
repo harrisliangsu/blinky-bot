@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { BackendInfo, Bot } from '../../../shared/types'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { cancelComputerProvision, computerProvisionStatus } from '../state'
 import { BotEditorIdentity } from './BotEditorIdentity'
 import { BotEditorModel, BotEditorTools } from './BotEditorTools'
@@ -36,6 +37,7 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
     close,
     remove
   } = useBotDraft(bot, onClose, onSaved)
+  const follow = useSettingsCopy().bots
 
   return (
     <div className="ob-bot-editor">
@@ -60,14 +62,35 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
           onSystemPrompt={(systemPrompt) => set('systemPrompt', systemPrompt)}
         />
 
-        <BotEditorModel
-          backends={backends}
-          backendsLoading={backendsLoading}
-          backendsError={backendsError}
-          backendId={draft.backendId}
-          modelId={draft.modelId}
-          onSelect={chooseModel}
-        />
+        <label className="ob-check">
+          <input
+            type="checkbox"
+            checked={draft.followsDefault !== false}
+            onChange={(e) => {
+              const followsDefault = e.target.checked
+              set('followsDefault', followsDefault)
+              if (followsDefault) {
+                set('backendId', '')
+                set('modelId', 'default')
+              }
+            }}
+          />
+          <span>
+            {follow.follow}
+            <span className="ob-hint"> — {follow.followHint}</span>
+          </span>
+        </label>
+
+        {draft.followsDefault === false ? (
+          <BotEditorModel
+            backends={backends}
+            backendsLoading={backendsLoading}
+            backendsError={backendsError}
+            backendId={draft.backendId}
+            modelId={draft.modelId}
+            onSelect={chooseModel}
+          />
+        ) : null}
 
         <BotEditorTools tools={draft.tools} onToggle={toggleTool} />
 

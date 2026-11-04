@@ -21,7 +21,7 @@ const TOOL_GROUPS: Array<{ label: string; ids: ToolId[] }> = [
    * nothing, so it belongs beside the other presentation-only work.
    */
   { label: 'Presentation', ids: ['visualize'] },
-  { label: 'Agent', ids: ['todo_write', 'remember', 'handoff', 'delegate_task', 'request_help'] }
+  { label: 'Bot', ids: ['todo_write', 'remember', 'handoff', 'delegate_task', 'request_help'] }
 ]
 
 /*
@@ -40,7 +40,7 @@ interface ModelProps {
   onSelect: (backendId: string, modelId: string) => void
 }
 
-/** Which agent and model this bot thinks with. */
+/** Which CLI this Bot is bound to. The model is that CLI’s default in Settings. */
 export function BotEditorModel({
   backends,
   backendsLoading,
@@ -51,7 +51,7 @@ export function BotEditorModel({
 }: ModelProps): ReactNode {
   return (
     <div className="ob-field">
-      <span className="ob-label">Model</span>
+      <span className="ob-label">CLI</span>
       <ModelPicker
         backends={backends}
         backendId={backendId}

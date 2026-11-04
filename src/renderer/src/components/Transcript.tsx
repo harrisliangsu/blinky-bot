@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
 import { showsJump, useStickyScroll } from '../lib/stickyScroll'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { store, useAppState } from '../state'
 import { BackendSetupLink } from './BackendSetupLink'
 import { EarlierMessages } from './EarlierMessages'
@@ -10,12 +11,11 @@ import { WorkingPill } from './WorkingPill'
 import './Transcript.css'
 
 function EmptyTranscript({ hasSession }: { hasSession: boolean }): ReactNode {
+  const chat = useSettingsCopy().chat
   return (
     <div className="ob-transcript-empty">
-      <h2 className="ob-empty-title">{hasSession ? 'Ready when you are' : 'What should we work on?'}</h2>
-      <p className="ob-empty-body">
-        Ask a question, describe a task, or point a bot at a folder. Everything runs on this machine.
-      </p>
+      <h2 className="ob-empty-title">{hasSession ? chat.ready : chat.emptyTitle}</h2>
+      <p className="ob-empty-body">{chat.emptyBody}</p>
     </div>
   )
 }

@@ -63,7 +63,6 @@ export function PaneChat({ sessionId, index, focused }: PaneChatProps): ReactNod
   const activeBotId = meta?.activeBotId ?? botIds[0]
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
   const participants = botIds.map((id) => botMap.get(id)).filter((b) => b !== undefined)
-  const model = bots.find((b) => b.id === activeBotId)?.modelId
   const multiBot = botIds.length > 1
 
   const { scrollerRef, contentRef, onScroll, pin } = useStickyScroll()
@@ -98,8 +97,6 @@ export function PaneChat({ sessionId, index, focused }: PaneChatProps): ReactNod
         <span className="ob-pane-title" title={title}>
           {title}
         </span>
-
-        {model ? <span className="ob-pane-model">{model}</span> : null}
 
         {focused ? (
           <span className="ob-pane-flag" title="This pane is live: the composer and the stream follow it">

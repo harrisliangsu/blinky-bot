@@ -5,12 +5,12 @@ import { takeSettingsTab } from '../lib/settingsNavigation'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { loadSettings, store, updateSettings, useAppState } from '../state'
 import { Modal } from './Modal'
+import { SettingsApps } from './SettingsApps'
 import { SettingsBackends } from './SettingsBackends'
-import { SettingsMcp } from './SettingsMcp'
 import { SettingsPermissions } from './SettingsPermissions'
 import './SettingsPanel.css'
 
-type SectionId = 'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'mcp' | 'updates' | 'about'
+type SectionId = 'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'apps' | 'updates' | 'about'
 
 const SECTION_IDS: SectionId[] = [
   'general',
@@ -19,7 +19,7 @@ const SECTION_IDS: SectionId[] = [
   'notifications',
   'permissions',
   'backends',
-  'mcp',
+  'apps',
   'updates',
   'about'
 ]
@@ -210,7 +210,7 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
         >
           {modes.map((mode) => (
             <option key={mode} value={mode}>
-              {mode}
+              {mode === 'agent' ? b.modeAgent : mode === 'ask' ? b.modeAsk : b.modePlan}
             </option>
           ))}
         </select>
@@ -220,7 +220,18 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
           className="ob-select ob-settings-select"
           aria-label={b.backend}
           value={settings.defaultBackendId}
-          onChange={(e) => void updateSettings({ defaultBackendId: e.target.value, defaultModelId: 'default' })}
+          onChange={(e) => {
+            const defaultBackendId = e.target.value
+            const defaultModelId = settings.backends[defaultBackendId]?.defaultModelId || 'default'
+            void updateSettings({
+              defaultBackendId,
+              defaultModelId,
+              backends: {
+                ...settings.backends,
+                [defaultBackendId]: { ...(settings.backends[defaultBackendId] ?? { enabled: true }), defaultModelId }
+              }
+            })
+          }}
         >
           {(backends.length > 0
             ? listedBackends(backends, settings.backends, settings.defaultBackendId).map((item) => ({
@@ -240,7 +251,17 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
           className="ob-select ob-settings-select"
           aria-label={b.model}
           value={settings.defaultModelId}
-          onChange={(e) => void updateSettings({ defaultModelId: e.target.value })}
+          onChange={(e) => {
+            const defaultModelId = e.target.value
+            const id = settings.defaultBackendId
+            void updateSettings({
+              defaultModelId,
+              backends: {
+                ...settings.backends,
+                [id]: { ...(settings.backends[id] ?? { enabled: true }), defaultModelId }
+              }
+            })
+          }}
         >
           <option value="default">default</option>
           {models
@@ -443,7 +464,7 @@ export function SettingsPanel(): ReactNode {
   const { settings, settingsError, backends, backendsLoading, backendsError } = useAppState()
   const [section, setSection] = useState<SectionId>(() => {
     const tab = takeSettingsTab()
-    return tab === 'backends' || tab === 'mcp' || tab === 'permissions' || tab === 'general' ? tab : 'general'
+    return tab === 'backends' || tab === 'apps' || tab === 'permissions' || tab === 'general' ? tab : 'general'
   })
   const [query, setQuery] = useState('')
   const visible = useMemo(() => {
@@ -504,7 +525,7 @@ export function SettingsPanel(): ReactNode {
             {current === 'backends' ? (
               <SettingsBackends settings={settings} backends={backends} loading={backendsLoading} error={backendsError} />
             ) : null}
-            {current === 'mcp' ? <SettingsMcp settings={settings} /> : null}
+            {current === 'apps' ? <SettingsApps settings={settings} /> : null}
             {current === 'updates' ? <Updates settings={settings} /> : null}
             {current === 'about' ? <About /> : null}
           </div>

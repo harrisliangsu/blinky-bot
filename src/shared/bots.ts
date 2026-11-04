@@ -21,6 +21,11 @@ export interface Bot {
   color: string
   backendId: string
   modelId: string
+  /**
+   * When true, this Bot follows Settings' default CLI and that CLI's default
+   * model. Absent on older files: a generic `default` model still follows.
+   */
+  followsDefault?: boolean
   /** Enabled tool ids; see TOOL_IDS. */
   tools: string[]
   /** Assigned skill ids (`origin:name`), resolved at prompt time. */

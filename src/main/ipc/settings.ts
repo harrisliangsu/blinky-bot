@@ -7,6 +7,7 @@ import {
   rendererSettings,
   updateSettingsFromRenderer
 } from '../settings'
+import { syncBotBindings } from '../store/bots'
 import { broadcast } from './broadcast'
 import { CHANNELS } from './channels'
 import { handle } from './handler'
@@ -16,7 +17,11 @@ export function registerSettingsIpc(): void {
   handle<Settings>(CHANNELS.settingsGet, () => rendererSettings(), () => rendererSettings(getSettings()))
   handle<Settings>(
     CHANNELS.settingsUpdate,
-    ([patch]) => rendererSettings(updateSettingsFromRenderer(asPatch<Settings>(patch))),
+    ([patch]) => {
+      const settings = updateSettingsFromRenderer(asPatch<Settings>(patch))
+      syncBotBindings()
+      return rendererSettings(settings)
+    },
     () => rendererSettings(getSettings())
   )
 

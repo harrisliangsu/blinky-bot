@@ -1,29 +1,13 @@
 import { useState, type ReactNode } from 'react'
-import type { AgentMode, BackendInfo } from '../../../shared/types'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { loadBackends, setMode, stopTurn, useAppState } from '../state'
+import { stopTurn, useAppState } from '../state'
 import { ContextMeter } from './ContextMeter'
 import { IconMic, IconPaperclip, IconSend, IconStop } from './Icons'
-import { ModelPicker } from './ModelPicker'
-
-const MODES: Array<{ id: AgentMode; label: string; hint: string }> = [
-  { id: 'agent', label: 'Agent', hint: 'Runs tools and edits files' },
-  { id: 'ask', label: 'Ask', hint: 'Answers without touching anything' },
-  { id: 'plan', label: 'Plan', hint: 'Drafts a plan before acting' }
-]
 
 interface BarProps {
   onAttach: () => void
   listening: boolean
   onToggleVoice: () => void
-  mode: AgentMode
-  hasSession: boolean
-  backends: BackendInfo[]
-  backendId: string
-  modelId: string
-  backendsLoading: boolean
-  backendsError: string | null
-  onChooseModel: (backendId: string, modelId: string) => void
   streaming: boolean
   /** The app failed to boot — nothing here can usefully be pressed. */
   blocked: boolean
@@ -36,14 +20,6 @@ export function ComposerBar({
   onAttach,
   listening,
   onToggleVoice,
-  mode,
-  hasSession,
-  backends,
-  backendId,
-  modelId,
-  backendsLoading,
-  backendsError,
-  onChooseModel,
   streaming,
   blocked,
   canSend,
@@ -64,34 +40,6 @@ export function ComposerBar({
         <button type="button" className={`ob-icon-btn${listening ? ' is-active' : ''}`} onClick={onToggleVoice} aria-pressed={listening} aria-label={listening ? 'Stop voice input' : 'Start voice input'} disabled={streaming || blocked}>
           <IconMic size={13} />
         </button>
-
-        <div className="ob-mode" role="group" aria-label="Agent mode">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className={`ob-mode-btn${mode === m.id ? ' is-active' : ''}`}
-              aria-pressed={mode === m.id}
-              title={m.hint}
-              disabled={!hasSession}
-              onClick={() => void setMode(m.id)}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <ModelPicker
-          backends={backends}
-          backendId={backendId}
-          modelId={modelId}
-          onSelect={onChooseModel}
-          onRefresh={() => void loadBackends(true)}
-          loading={backendsLoading}
-          error={backendsError}
-          dropUp
-          disabled={blocked}
-        />
       </div>
 
       <div className="ob-composer-right">

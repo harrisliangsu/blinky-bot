@@ -18,6 +18,7 @@ import type {
   AgentMode,
   ApprovalDecision,
   Attachment,
+  AppStatus,
   BackendInfo,
   Board,
   Bot,
@@ -168,6 +169,13 @@ const api: OpenBotApi = {
     refresh: () => invoke<BackendInfo[]>('openbot:backends:refresh'),
     recheck: (id: string) => invoke<BackendInfo[]>('openbot:backends:recheck', id),
     login: (id: string) => invoke<{ started: boolean }>('openbot:backends:login', id)
+  },
+
+  apps: {
+    status: () => invoke<AppStatus[]>('openbot:apps:status'),
+    connectGitHub: () => invoke<{ started: boolean }>('openbot:apps:connectGitHub'),
+    connectGit: (name, email) => invoke<AppStatus>('openbot:apps:connectGit', name, email),
+    requestGmail: () => invoke<AppStatus>('openbot:apps:requestGmail')
   },
 
   skills: {

@@ -38,7 +38,7 @@
     "pack": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac --dir",
     "package:mac": "bash Scripts/package-mac.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts src/main/backends/cli/codexEvents.test.ts src/main/backends/cli/authStatus.test.ts src/main/backends/cli/kimiEvents.test.ts src/main/gateway/tokens.test.ts src/renderer/src/lib/botChat.test.ts src/main/store/starterBots.test.ts src/renderer/src/lib/backendDetail.test.ts",
+    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts src/main/backends/cli/codexEvents.test.ts src/main/backends/cli/authStatus.test.ts src/main/backends/cli/kimiEvents.test.ts src/main/gateway/tokens.test.ts src/renderer/src/lib/botChat.test.ts src/main/store/starterBots.test.ts src/renderer/src/lib/backendDetail.test.ts src/shared/botBinding.test.ts src/main/backends/providerCatalog.test.ts",
     "test:cli-adapters": "node scripts/test-cli-adapters.mjs"
   },
   "build": {

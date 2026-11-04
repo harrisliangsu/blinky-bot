@@ -98,6 +98,13 @@ test('cloud providers stay hidden until added, and a saved key lists them', () =
   ]
   assert.deepEqual(listedBackends(rows, settings.backends).map((row) => row.id), ['codex'])
   assert.deepEqual(listedBackends(rows, withKey.backends).map((row) => row.id), ['openai', 'codex'])
+  const hidden = [{ id: 'kimi', kind: 'agent-cli' as const, status: 'not-installed' }]
+  assert.equal(cliIsListed(hidden[0], settings.backends.kimi), false)
+  assert.deepEqual(listedBackends(hidden, settings.backends).map((row) => row.id), [])
+  assert.deepEqual(
+    listedBackends(hidden, { kimi: { added: true } }).map((row) => row.id),
+    ['kimi']
+  )
 })
 
 test('local CLIs stay off the default list until signed in or explicitly added', () => {

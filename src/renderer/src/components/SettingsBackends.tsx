@@ -6,7 +6,9 @@ import {
   orderedBackendSections,
   type BackendSectionId
 } from '../../../shared/backendSections'
+import { CLI_CATALOG, cliById } from '../../../shared/cliCatalog'
 import { CLI_SLASH_LOGIN_IDS, type CliAuthState } from '../../../shared/cliAuth'
+import { filterCatalog, PROVIDER_CATALOG } from '../../../shared/providerCatalog'
 import type { BackendConfig, BackendInfo, Settings } from '../../../shared/types'
 import { localizeBackendDetail } from '../lib/backendDetail'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
@@ -61,7 +63,8 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
    */
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string | undefined>>({})
   const [commandDrafts, setCommandDrafts] = useState<Record<string, string | undefined>>({})
-  const [picking, setPicking] = useState<BackendSectionId | null>(null)
+  const [sheet, setSheet] = useState<BackendSectionId | null>(null)
+  const [catalogQuery, setCatalogQuery] = useState('')
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
   const [loginOpen, setLoginOpen] = useState<Record<string, boolean>>({})
   const [rowBusy, setRowBusy] = useState<Record<string, boolean>>({})
@@ -99,12 +102,28 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
   }
 
   const listed = listedBackends(backends, settings.backends)
-  const availableProviders = backends.filter(
-    (backend) => backend.kind !== 'agent-cli' && !listed.some((row) => row.id === backend.id)
+  const listedIds = new Set(listed.map((row) => row.id))
+  const providerChoices = filterCatalog(PROVIDER_CATALOG, sheet === 'provider' ? catalogQuery : '').filter(
+    (item) => !listedIds.has(item.id)
   )
-  const availableClis = backends.filter(
-    (backend) => backend.kind === 'agent-cli' && !listed.some((row) => row.id === backend.id)
-  )
+  const cliChoices = filterCatalog(CLI_CATALOG, sheet === 'cli' ? catalogQuery : '').filter((item) => !listedIds.has(item.id))
+  const openSheet = (next: BackendSectionId): void => {
+    setCatalogQuery('')
+    setSheet((current) => (current === next ? null : next))
+  }
+  const modelChoices = (backend: BackendInfo): Array<{ id: string; label: string }> => {
+    const seen = new Set<string>()
+    const out: Array<{ id: string; label: string }> = []
+    const push = (id: string, label: string): void => {
+      if (!id || seen.has(id)) return
+      seen.add(id)
+      out.push({ id, label: id === 'default' ? copy.cliDefaultModel : label })
+    }
+    push('default', copy.cliDefaultModel)
+    for (const model of cliById(backend.id)?.models ?? []) push(model.id, model.label)
+    for (const model of backend.models) push(model.id, model.label || model.id)
+    return out
+  }
   const sections = orderedBackendSections(listed)
   const heading: Record<BackendSectionId, string> = {
     provider: copy.providers,
@@ -139,6 +158,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
             <div className="ob-backend-titleline">
               <span className="ob-backend-name">{backend.label}</span>
               <span className={`ob-pill ${authTone}`}>{pill}</span>
+              {settings.defaultBackendId === backend.id ? <span className="ob-pill">{copy.isDefault}</span> : null}
             </div>
             <p className="ob-backend-sub">{subtitle}</p>
           </div>
@@ -275,6 +295,28 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
           </label>
           {backend.kind === 'agent-cli' ? (
             <>
+            <label className="ob-cli-model">
+              <span>{copy.defaultModel}</span>
+              <select
+                className="ob-select"
+                aria-label={`${backend.label} ${copy.defaultModel}`}
+                data-cli-model={backend.id}
+                value={config.defaultModelId || 'default'}
+                onChange={(e) => {
+                  const defaultModelId = e.target.value
+                  void updateSettings({
+                    backends: { ...settings.backends, [backend.id]: { ...config, defaultModelId } },
+                    ...(settings.defaultBackendId === backend.id ? { defaultModelId } : {})
+                  })
+                }}
+              >
+                {modelChoices(backend).map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className="ob-btn ob-btn-sm"
@@ -376,35 +418,51 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                         type="button"
                         className="ob-btn ob-btn-sm ob-btn-primary"
                         data-add-provider=""
-                        aria-expanded={picking === 'provider'}
-                        disabled={availableProviders.length === 0}
-                        title={availableProviders.length === 0 ? copy.addProviderDone : undefined}
-                        onClick={() => setPicking((current) => (current === 'provider' ? null : 'provider'))}
+                        aria-expanded={sheet === 'provider'}
+                        disabled={providerChoices.length === 0 && sheet !== 'provider'}
+                        title={providerChoices.length === 0 ? copy.addProviderDone : undefined}
+                        onClick={() => openSheet('provider')}
                       >
                         {copy.addProvider}
                       </button>
                     ) : null}
                   </div>
                 </div>
-                {section.id === 'provider' && picking === 'provider' && availableProviders.length > 0 ? (
-                  <ul className="ob-provider-picker" role="listbox" aria-label={copy.addProvider}>
-                    {availableProviders.map((provider) => (
-                      <li key={provider.id}>
-                        <button
-                          type="button"
-                          className="ob-btn ob-btn-sm"
-                          data-provider-choice={provider.id}
-                          onClick={() => {
-                            write(provider.id, { added: true, enabled: true })
-                            setPicking(null)
-                            void recheckBackend(provider.id)
-                          }}
-                        >
-                          {provider.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                {sheet === section.id ? (
+                  <div className="ob-catalog" data-catalog={section.id}>
+                    <input
+                      type="search"
+                      className="ob-input"
+                      data-catalog-search={section.id}
+                      value={catalogQuery}
+                      placeholder={copy.searchCatalog}
+                      aria-label={copy.searchCatalog}
+                      onChange={(e) => setCatalogQuery(e.target.value)}
+                    />
+                    {(section.id === 'provider' ? providerChoices : cliChoices).length === 0 ? (
+                      <p className="ob-hint">{copy.catalogEmpty}</p>
+                    ) : (
+                      <ul className="ob-catalog-list" role="listbox" aria-label={section.id === 'provider' ? copy.addProvider : copy.addCli}>
+                        {(section.id === 'provider' ? providerChoices : cliChoices).map((item) => (
+                          <li key={item.id}>
+                            <button
+                              type="button"
+                              className="ob-catalog-choice"
+                              data-provider-choice={section.id === 'provider' ? item.id : undefined}
+                              data-cli-choice={section.id === 'cli' ? item.id : undefined}
+                              onClick={() => {
+                                write(item.id, { added: true, enabled: true })
+                                setSheet(null)
+                                void recheckBackend(item.id)
+                              }}
+                            >
+                              <strong>{item.label}</strong>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ) : null}
                 {section.items.length === 0 ? (
                   <div className="ob-backend-empty">
@@ -417,40 +475,16 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                 ) : (
                   <ul className="ob-backends">{section.items.map(renderRow)}</ul>
                 )}
-                {section.id === 'cli' && picking === 'cli' && availableClis.length > 0 ? (
-                  <ul className="ob-provider-picker" role="listbox" aria-label={copy.addCli}>
-                    {availableClis.map((cli) => {
-                      const detected =
-                        cli.cliAuth && cli.cliAuth.state !== 'logged-in' ? copy.cliAuth[cli.cliAuth.state] : ''
-                      return (
-                        <li key={cli.id}>
-                          <button
-                            type="button"
-                            className="ob-btn ob-btn-sm"
-                            data-cli-choice={cli.id}
-                            onClick={() => {
-                              write(cli.id, { added: true, enabled: true })
-                              setPicking(null)
-                              void recheckBackend(cli.id)
-                            }}
-                          >
-                            {detected ? `${cli.label} · ${detected}` : cli.label}
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                ) : null}
                 {section.id === 'cli' ? (
                   <div className="ob-backend-card-foot">
                     <button
                       type="button"
                       className="ob-btn ob-btn-sm ob-btn-primary"
                       data-add-cli=""
-                      aria-expanded={picking === 'cli'}
-                      disabled={availableClis.length === 0}
-                      title={availableClis.length === 0 ? copy.addCliDone : undefined}
-                      onClick={() => setPicking((current) => (current === 'cli' ? null : 'cli'))}
+                      aria-expanded={sheet === 'cli'}
+                      disabled={cliChoices.length === 0 && sheet !== 'cli'}
+                      title={cliChoices.length === 0 ? copy.addCliDone : undefined}
+                      onClick={() => openSheet('cli')}
                     >
                       {copy.addCli}
                     </button>

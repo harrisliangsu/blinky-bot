@@ -143,14 +143,14 @@ export function ModelPicker({
       {/* The menu carries no key handler: Escape is caught on the document,
           because focus is on the trigger beside it. See the effect above. */}
       {open ? (
-        <div className={`ob-menu${dropUp ? ' ob-menu-up' : ''}`} role="menu" aria-label="Choose an agent and model">
+        <div className={`ob-menu${dropUp ? ' ob-menu-up' : ''}`} role="menu" aria-label="Choose a CLI and model">
           <div className="ob-menu-head">
-            <span>Agent</span>
+            <span>CLI</span>
             <button
               type="button"
               className="ob-icon-btn"
               onClick={onRefresh}
-              aria-label="Re-detect agents"
+              aria-label="Re-detect CLIs"
               disabled={loading}
             >
               {loading ? <IconSpinner size={11} /> : <IconRefresh size={11} />}

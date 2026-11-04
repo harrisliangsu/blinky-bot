@@ -4,6 +4,7 @@
  */
 
 import { registerAgentIpc } from './agent'
+import { registerAppIpc } from './apps'
 import { registerBackendIpc } from './backends'
 import { registerBotIpc } from './bots'
 import { registerDialogIpc } from './dialog'
@@ -30,6 +31,7 @@ export function registerIpc(): void {
   registerRoutineIpc()
   registerAgentIpc()
   registerBackendIpc()
+  registerAppIpc()
   registerSettingsIpc()
   registerSkillIpc()
   registerDialogIpc()
