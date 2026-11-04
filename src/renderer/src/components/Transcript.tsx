@@ -27,7 +27,7 @@ function EmptyTranscript({ hasSession }: { hasSession: boolean }): ReactNode {
  * Only the newest turns are rendered; see `lib/messageWindow` for why.
  */
 export function Transcript(): ReactNode {
-  const { messageIds, bots, session, sessionLoading, runError, streaming } = useAppState()
+  const { messageIds, bots, session, sessionLoading, runError, streaming, settings } = useAppState()
   const [showJump, setShowJump] = useState(false)
   const [limit, setLimit] = useState(TRANSCRIPT_WINDOW)
 
@@ -80,7 +80,7 @@ export function Transcript(): ReactNode {
           <EarlierMessages hidden={hidden} onShow={() => setLimit((n) => n + TRANSCRIPT_WINDOW)} />
 
           {visible.map((id) => (
-            <MessageView key={id} id={id} bots={botMap} multiBot={multiBot} />
+            <MessageView key={id} id={id} bots={botMap} multiBot={multiBot} expandSteps={settings?.expandSteps === true} />
           ))}
 
           {streaming && messageIds.length > 0 ? (

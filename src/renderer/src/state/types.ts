@@ -175,7 +175,7 @@ export const initialState: AppState = {
   lastClick: null,
   modal: null,
   botDraftId: null,
-  railOpen: true,
+  railOpen: false,
   toast: null,
   // The stored preset is read when the workspace opens, not at module load.
   workspace: { open: false, preset: 'single', panes: [null], focused: 0 }

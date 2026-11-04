@@ -18,6 +18,7 @@ import type { Board, BoardCard, Project, ProjectSummary } from './projects'
 import type { Routine } from './routines'
 import type { AgentMode, Session, SessionSummary } from './sessions'
 import type { Settings } from './settings'
+import type { UpdateReport } from './updates'
 import type { Skill, SkillInstallOptions, SkillInstallResult, SkillUninstallResult } from './skills'
 import type { ApprovalDecision } from './tools'
 import type { SearchResult } from './search'
@@ -171,6 +172,11 @@ export interface OpenBotApi {
     /** Enter or leave native OS full screen and report the resulting state. */
     setFullScreen(active: boolean): Promise<boolean>
     isFullScreen(): Promise<boolean>
+  }
+  updates: {
+    version(): Promise<string>
+    check(channel: 'stable' | 'beta'): Promise<UpdateReport>
+    openRelease(url: string): Promise<boolean>
   }
   /** Subscribe to the event stream. Returns an unsubscribe function. */
   on(handler: (event: AgentEvent) => void): () => void

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import type { AgentMode, BackendInfo } from '../../../shared/types'
-import { loadBackends, setMode, stopTurn } from '../state'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
+import { loadBackends, setMode, stopTurn, useAppState } from '../state'
 import { ContextMeter } from './ContextMeter'
 import { IconMic, IconPaperclip, IconSend, IconStop } from './Icons'
 import { ModelPicker } from './ModelPicker'
@@ -48,6 +49,8 @@ export function ComposerBar({
   canSend,
   onSend
 }: BarProps): ReactNode {
+  const sendHint = useSettingsCopy().general
+  const shortcut = useAppState().settings?.sendShortcut ?? 'enter'
   // Stop is one request per run: a second click while the first is in flight
   // issued a second `agent.stop` for a session that is already being torn down.
   const [stopping, setStopping] = useState(false)
@@ -93,7 +96,9 @@ export function ComposerBar({
 
       <div className="ob-composer-right">
         <ContextMeter />
-        <span className="ob-composer-hint">Enter sends · Shift+Enter newline</span>
+        <span className="ob-composer-hint">
+          {shortcut === 'mod-enter' ? sendHint.sendMod : sendHint.sendEnter}
+        </span>
         {streaming ? (
           <button
             type="button"

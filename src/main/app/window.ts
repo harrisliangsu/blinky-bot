@@ -1,8 +1,10 @@
 /** The main window: creation, first paint, and how it loads the renderer. */
 
 import { BrowserWindow } from 'electron'
+import { getSettings, onSettingsChanged } from '../settings'
 import { devServerUrl, preloadScript, rendererHtml } from './bundlePaths'
 import { hardenWebContents } from './security'
+import { captureScreenshots } from './shots'
 import { markSmokeFailed, markSmokeReady } from './smoke'
 
 const WIDTH = 1200
@@ -12,7 +14,17 @@ const MIN_HEIGHT = 520
 /** Matches the renderer's dark canvas, so launch never flashes white. */
 const BACKGROUND = '#0b0b0c'
 
+/** Translucency is chosen in Settings. macOS also gets native vibrancy. */
+export function applyWindowChrome(window: BrowserWindow, vibrant: boolean): void {
+  if (window.isDestroyed()) return
+  if (process.platform === 'darwin') {
+    window.setVibrancy(vibrant ? 'under-window' : null)
+  }
+  window.setBackgroundColor(vibrant ? '#00000000' : BACKGROUND)
+}
+
 export function createWindow(): BrowserWindow {
+  const vibrant = getSettings().vibrant === true
   const window = new BrowserWindow({
     width: WIDTH,
     height: HEIGHT,
@@ -20,7 +32,9 @@ export function createWindow(): BrowserWindow {
     minHeight: MIN_HEIGHT,
     show: false,
     title: 'BlinkyBot',
-    backgroundColor: BACKGROUND,
+    transparent: true,
+    backgroundColor: vibrant ? '#00000000' : BACKGROUND,
+    vibrancy: vibrant && process.platform === 'darwin' ? 'under-window' : undefined,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
     webPreferences: {
@@ -43,6 +57,11 @@ export function createWindow(): BrowserWindow {
   window.once('ready-to-show', () => {
     markSmokeReady()
     window.show()
+    if (process.env.BLINKY_SHOTS === '1') {
+      void captureScreenshots(window).catch((err) => {
+        console.error('[blinky-shots] failed', err)
+      })
+    }
   })
 
   const dev = devServerUrl()
@@ -53,6 +72,16 @@ export function createWindow(): BrowserWindow {
   })
 
   return window
+}
+
+/** Keep every open window in step with the translucent-window preference. */
+export function installWindowChrome(): void {
+  const apply = (): void => {
+    const vibrant = getSettings().vibrant === true
+    for (const window of BrowserWindow.getAllWindows()) applyWindowChrome(window, vibrant)
+  }
+  apply()
+  onSettingsChanged(() => apply())
 }
 
 /** The window to act on, creating one if the app has none. */

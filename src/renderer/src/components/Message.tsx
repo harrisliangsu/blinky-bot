@@ -16,6 +16,7 @@ interface MessageProps {
   bots: Map<string, Bot>
   /** True when more than one bot is present, so authorship needs labelling. */
   multiBot: boolean
+  expandSteps?: boolean
 }
 
 /**
@@ -110,7 +111,7 @@ function CopyButton({ text }: { text: string }): ReactNode {
  * One turn. Subscribes to its own message only, so a streaming token repaints
  * this bubble and nothing else.
  */
-export const MessageView = memo(function MessageView({ id, bots, multiBot }: MessageProps): ReactNode {
+export const MessageView = memo(function MessageView({ id, bots, multiBot, expandSteps = false }: MessageProps): ReactNode {
   const message = useMessage(id)
   const [showAttachments, setShowAttachments] = useState(false)
 
@@ -172,7 +173,7 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot }: Mes
         {toolCalls.length > 0 ? (
           <div className="ob-msg-tools">
             {toolCalls.map((call) => (
-              <ToolCallView key={call.id} call={call} result={store.getToolResult(call.id)} />
+              <ToolCallView key={call.id} call={call} result={store.getToolResult(call.id)} defaultOpen={expandSteps} />
             ))}
           </div>
         ) : null}

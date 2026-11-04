@@ -123,6 +123,10 @@ let pending: Promise<NodeJS.ProcessEnv> | undefined
 
 async function hydrate(): Promise<NodeJS.ProcessEnv> {
   const base: NodeJS.ProcessEnv = { ...process.env }
+  if (process.env.BLINKY_SHOTS === '1') {
+    base.PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+    return base
+  }
   if (platform() === 'win32') return base
 
   const shell = loginShell()

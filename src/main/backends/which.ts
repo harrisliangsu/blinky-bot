@@ -22,6 +22,9 @@ const isWindows = platform() === 'win32'
 let fallbackPromise: Promise<string[]> | null = null
 
 async function fallbackDirs(): Promise<string[]> {
+  // Screenshot runs must not discover a CLI on the runner and skip the
+  // empty-backend chat the job is there to capture.
+  if (process.env.BLINKY_SHOTS === '1') return []
   fallbackPromise ??= (async () => {
     const home = homedir()
     const [npmrc, nvmNames] = await Promise.all([readUserNpmrc(home), installedNvmVersions(home)])

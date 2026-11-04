@@ -9,7 +9,8 @@
  */
 
 import { dirname, sep } from 'node:path'
-import { app, shell, type WebContents } from 'electron'
+import { app, BrowserWindow, shell, type WebContents } from 'electron'
+import { getSettings } from '../settings'
 import { devServerUrl, rendererHtml } from './bundlePaths'
 import { installCrashGuards } from './crashGuards'
 import { canonical, isInternalUrl, type RendererLocation } from './internalUrl'
@@ -58,6 +59,23 @@ function openExternal(url: string): void {
   }
   if (!EXTERNAL_PROTOCOLS.has(protocol)) {
     console.warn('[openbot/security] blocked link with unsupported protocol:', protocol)
+    return
+  }
+  if (getSettings().linkOpen === 'window' && (protocol === 'http:' || protocol === 'https:')) {
+    const child = new BrowserWindow({
+      width: 960,
+      height: 720,
+      title: 'BlinkyBot',
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true
+      }
+    })
+    void child.loadURL(url).catch((err) => {
+      console.error('[openbot/security] could not open the link in a window', err)
+    })
     return
   }
   void shell.openExternal(url).catch((err) => {

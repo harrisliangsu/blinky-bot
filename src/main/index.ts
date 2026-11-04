@@ -10,8 +10,9 @@ import { app } from 'electron'
 import { installBackgroundMode, installLifecycle, claimSingleInstance } from './app/lifecycle'
 import { installMenu } from './app/menu'
 import { installSecurity } from './app/security'
+import { prepareShots } from './app/shots'
 import { markSmokeFailed, prepareSmoke } from './app/smoke'
-import { createWindow } from './app/window'
+import { createWindow, installWindowChrome } from './app/window'
 import { registerIpc } from './ipc'
 import { initStore } from './store'
 import { startRoutineScheduler } from './routines/scheduler'
@@ -20,6 +21,7 @@ import { vmToken } from './store/vmSecrets'
 import { cleanupOrphanedAppleVms, startAppleVm } from './vm/appleVmSupervisor'
 
 app.setName('BlinkyBot')
+prepareShots()
 prepareSmoke()
 app.setAboutPanelOptions({
   applicationName: 'BlinkyBot',
@@ -40,6 +42,7 @@ if (!claimSingleInstance()) {
     .then(async () => {
       await initStore()
       installBackgroundMode()
+      installWindowChrome()
       registerIpc()
       installMenu()
       if (!app.getLoginItemSettings().wasOpenedAsHidden) createWindow()

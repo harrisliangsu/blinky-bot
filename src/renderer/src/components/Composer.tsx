@@ -65,6 +65,9 @@ export function Composer(): ReactNode {
     // While the @ picker is open it owns Enter/Tab/arrows for choosing a bot.
     if (picking && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) return
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      const modified = e.metaKey || e.ctrlKey
+      const shortcut = settings?.sendShortcut ?? 'enter'
+      if (shortcut === 'mod-enter' ? !modified : modified) return
       e.preventDefault()
       submit()
     }

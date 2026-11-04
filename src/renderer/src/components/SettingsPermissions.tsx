@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { ApprovalPolicy, Settings } from '../../../shared/types'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { editSettingsList, updateSettings } from '../state'
 import { StringListEditor } from './StringListEditor'
 import './SettingsPermissions.css'
@@ -8,12 +9,7 @@ interface SettingsPermissionsProps {
   settings: Settings
 }
 
-const POLICIES: Array<{ id: ApprovalPolicy; label: string; hint: string }> = [
-  { id: 'ask-every-time', label: 'Ask every time', hint: 'Every mutating action waits for you.' },
-  { id: 'ask-first-time', label: 'Ask once per action', hint: 'Approve an action once, then it repeats freely.' },
-  { id: 'allowlist', label: 'Allowlist', hint: 'Run listed commands without asking; ask for everything else.' },
-  { id: 'auto-run', label: 'Auto-run', hint: 'Never ask, except for destructive actions and anything outside the working folder.' }
-]
+const POLICY_IDS: ApprovalPolicy[] = ['ask-every-time', 'ask-first-time', 'allowlist', 'auto-run']
 
 /**
  * Where a bot may run the short side call that extracts memories from a turn.
@@ -23,15 +19,16 @@ const POLICIES: Array<{ id: ApprovalPolicy; label: string; hint: string }> = [
  * its own tool loop — which is not something to do behind someone's back, so it
  * is off for CLIs unless asked for.
  */
-const MEMORY_EXTRACTION: Array<{ id: NonNullable<Settings['memoryExtraction']>; label: string; hint: string }> = [
-  { id: 'api', label: 'Direct APIs only', hint: 'One cheap completion after a turn. Agent CLIs are skipped.' },
-  { id: 'all', label: 'Every backend', hint: 'Also spawns a second agent CLI process after each turn it runs on.' },
-  { id: 'off', label: 'Off', hint: 'Bots only remember what you or they save explicitly.' }
-]
-
-/** Approval policy, command lists, sandbox and the global rules prompt. */
+/** Approval policy, command lists, and computer-use apps. */
 export function SettingsPermissions({ settings }: SettingsPermissionsProps): ReactNode {
-  const policy = POLICIES.find((p) => p.id === settings.approvalPolicy)
+  const copy = useSettingsCopy().permissions
+  const policyLabel: Record<ApprovalPolicy, { label: string; hint: string }> = {
+    'ask-every-time': { label: copy.askEvery, hint: copy.askEveryHint },
+    'ask-first-time': { label: copy.askOnce, hint: copy.askOnceHint },
+    allowlist: { label: copy.allowlist, hint: copy.allowlistHint },
+    'auto-run': { label: copy.auto, hint: copy.autoHint }
+  }
+  const policy = policyLabel[settings.approvalPolicy]
   /*
    * The rules box is typed into a draft and written on blur.
    *
@@ -51,7 +48,7 @@ export function SettingsPermissions({ settings }: SettingsPermissionsProps): Rea
     <section className="ob-settings-section">
       <div className="ob-field">
         <label htmlFor="ob-policy" className="ob-label">
-          Approval policy
+          {copy.policy}
         </label>
         <select
           id="ob-policy"
@@ -59,38 +56,13 @@ export function SettingsPermissions({ settings }: SettingsPermissionsProps): Rea
           value={settings.approvalPolicy}
           onChange={(e) => void updateSettings({ approvalPolicy: e.target.value as ApprovalPolicy })}
         >
-          {POLICIES.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
+          {POLICY_IDS.map((id) => (
+            <option key={id} value={id}>
+              {policyLabel[id].label}
             </option>
           ))}
         </select>
         <p className="ob-hint">{policy?.hint}</p>
-      </div>
-
-      <div className="ob-field">
-        <label htmlFor="ob-memory-extraction" className="ob-label">
-          Learn from conversations
-        </label>
-        <select
-          id="ob-memory-extraction"
-          className="ob-select"
-          value={settings.memoryExtraction ?? 'api'}
-          onChange={(e) =>
-            void updateSettings({
-              memoryExtraction: e.target.value as NonNullable<Settings['memoryExtraction']>
-            })
-          }
-        >
-          {MEMORY_EXTRACTION.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <p className="ob-hint">
-          {MEMORY_EXTRACTION.find((m) => m.id === (settings.memoryExtraction ?? 'api'))?.hint}
-        </p>
       </div>
 
       {/*
@@ -103,8 +75,7 @@ export function SettingsPermissions({ settings }: SettingsPermissionsProps): Rea
       */}
       {settings.approvalPolicy === 'auto-run' ? (
         <p className="ob-notice ob-notice-error" role="status">
-          Auto-run answers approvals for you. Work outside the working folder and anything
-          destructive still asks, but everything else runs unattended.
+          {copy.autoWarn}
         </p>
       ) : null}
 
@@ -115,16 +86,16 @@ export function SettingsPermissions({ settings }: SettingsPermissionsProps): Rea
         posting the whole array back would have wiped it.
       */}
       <StringListEditor
-        label="Allowlist"
-        hint="Commands that never need approval."
+        label={copy.allow}
+        hint={copy.allowHint}
         items={settings.allowlist}
         placeholder="Command or prefix"
         onEdit={(edit) => void editSettingsList('allowlist', edit)}
       />
 
       <StringListEditor
-        label="Denylist"
-        hint="Never run these, whatever the policy says."
+        label={copy.deny}
+        hint={copy.denyHint}
         items={settings.denylist}
         placeholder="Command or prefix"
         tone="danger"
@@ -133,23 +104,23 @@ export function SettingsPermissions({ settings }: SettingsPermissionsProps): Rea
 
       <div className="ob-field">
         <label htmlFor="ob-rules" className="ob-label">
-          Global rules
+          {copy.rules}
         </label>
-        <p className="ob-hint">Prepended to every bot's system prompt.</p>
+        <p className="ob-hint">{copy.rulesHint}</p>
         <textarea
           id="ob-rules"
           className="ob-textarea"
           rows={6}
           value={rulesDraft ?? settings.rules}
-          placeholder="House rules that apply to every bot"
+          placeholder={copy.rulesPlaceholder}
           onChange={(e) => setRulesDraft(e.target.value)}
           onBlur={commitRules}
         />
       </div>
 
       <StringListEditor
-        label="Computer use"
-        hint='Apps a bot may see and control. Use "*" to allow all of them.'
+        label={copy.computer}
+        hint={copy.computerHint}
         items={settings.computerUseAllowedApps}
         placeholder="App name, e.g. Safari"
         onEdit={(edit) => void editSettingsList('computerUseAllowedApps', edit)}
@@ -157,8 +128,7 @@ export function SettingsPermissions({ settings }: SettingsPermissionsProps): Rea
 
       {settings.computerUseAllowedApps.length === 0 ? (
         <p className="ob-notice" role="status">
-          No apps are granted yet, so computer use is off. Add an app above before asking a bot to
-          drive one.
+          {copy.computerEmpty}
         </p>
       ) : null}
     </section>

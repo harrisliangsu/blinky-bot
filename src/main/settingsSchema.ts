@@ -8,14 +8,26 @@
  */
 
 import type {
+  AccentColor,
   AgentMode,
   ApprovalPolicy,
   BackendConfig,
+  LinkOpen,
   McpServerConfig,
-  Settings
+  SendShortcut,
+  Settings,
+  UiLanguage,
+  UiScale,
+  UpdateChannel
 } from '../shared/types'
 
 const THEMES: ReadonlyArray<Settings['theme']> = ['system', 'light', 'dark']
+const LANGUAGES: ReadonlyArray<UiLanguage> = ['system', 'en', 'zh-CN']
+const SHORTCUTS: ReadonlyArray<SendShortcut> = ['enter', 'mod-enter']
+const LINK_OPENS: ReadonlyArray<LinkOpen> = ['browser', 'window']
+const ACCENTS: ReadonlyArray<AccentColor> = ['theme', 'amber', 'blue', 'purple', 'pink', 'green', 'slate', 'orange', 'red']
+const CHANNELS: ReadonlyArray<UpdateChannel> = ['stable', 'beta']
+export const UI_SCALES: readonly UiScale[] = [80, 90, 100, 110, 125, 150]
 const MODES: ReadonlyArray<AgentMode> = ['agent', 'ask', 'plan']
 /**
  * Where a memory-extraction side call may run. `api` keeps it on direct HTTP
@@ -71,6 +83,20 @@ export function defaultSettings(): Settings {
   return {
     theme: 'system',
     fontSize: 14,
+    uiScale: 100,
+    vibrant: false,
+    language: 'zh-CN',
+    accent: 'theme',
+    sendShortcut: 'enter',
+    expandSteps: false,
+    linkOpen: 'browser',
+    launchAtLogin: false,
+    profileName: '',
+    profileEmoji: '🙂',
+    profileColor: '#7c9cff',
+    notifications: true,
+    notifyOnTurn: false,
+    updateChannel: 'stable',
     defaultBackendId: DEFAULT_BACKEND_ID,
     defaultModelId: DEFAULT_MODEL_ID,
     defaultMode: 'agent',
@@ -205,11 +231,26 @@ function retireUnknownBackends(
 }
 
 /** Coerce anything into a valid `Settings`, filling gaps from the defaults. */
+function pickScale(value: unknown): UiScale {
+  const n = Number(value)
+  return UI_SCALES.includes(n as UiScale) ? (n as UiScale) : 100
+}
+
+function shortText(value: unknown, max: number, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, max) : fallback
+}
+
 export function normaliseSettings(raw: unknown): Settings {
   const defaults = defaultSettings()
+  const rawObj = isPlainObject(raw) ? raw : {}
+  // Older files used one switch for "start at login" and "keep running".
+  // Keep that login behavior until the user sets the new field themselves.
+  const hadLaunchAtLogin = Object.prototype.hasOwnProperty.call(rawObj, 'launchAtLogin')
   const merged = deepMerge<Record<string, unknown>>(
     defaults as unknown as Record<string, unknown>,
-    isPlainObject(raw) ? raw : {}
+    rawObj
   )
   const fontSize = Number(merged['fontSize'])
 
@@ -230,6 +271,22 @@ export function normaliseSettings(raw: unknown): Settings {
     fontSize: Number.isFinite(fontSize)
       ? Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(fontSize)))
       : defaults.fontSize,
+    uiScale: pickScale(merged['uiScale']),
+    vibrant: merged['vibrant'] === true,
+    language: pickEnum(merged['language'], LANGUAGES, defaults.language),
+    accent: pickEnum(merged['accent'], ACCENTS, defaults.accent),
+    sendShortcut: pickEnum(merged['sendShortcut'], SHORTCUTS, defaults.sendShortcut),
+    expandSteps: merged['expandSteps'] === true,
+    linkOpen: pickEnum(merged['linkOpen'], LINK_OPENS, defaults.linkOpen),
+    launchAtLogin: hadLaunchAtLogin ? merged['launchAtLogin'] === true : merged['runInBackground'] === true,
+    profileName: typeof merged['profileName'] === 'string' ? merged['profileName'].trim().slice(0, 80) : '',
+    profileEmoji: shortText(merged['profileEmoji'], 8, defaults.profileEmoji),
+    profileColor: /^#[0-9a-fA-F]{6}$/.test(String(merged['profileColor'] ?? ''))
+      ? String(merged['profileColor'])
+      : defaults.profileColor,
+    notifications: merged['notifications'] !== false,
+    notifyOnTurn: merged['notifyOnTurn'] === true,
+    updateChannel: pickEnum(merged['updateChannel'], CHANNELS, defaults.updateChannel),
     defaultBackendId: backendId,
     defaultModelId: modelId,
     defaultMode: pickEnum(merged['defaultMode'], MODES, defaults.defaultMode),

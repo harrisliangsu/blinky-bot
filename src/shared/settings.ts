@@ -44,9 +44,36 @@ export interface McpServerConfig {
   disabledTools?: string[]
 }
 
+export type UiLanguage = 'system' | 'en' | 'zh-CN'
+export type SendShortcut = 'enter' | 'mod-enter'
+export type LinkOpen = 'browser' | 'window'
+export type AccentColor = 'theme' | 'amber' | 'blue' | 'purple' | 'pink' | 'green' | 'slate' | 'orange' | 'red'
+export type UpdateChannel = 'stable' | 'beta'
+export type UiScale = 80 | 90 | 100 | 110 | 125 | 150
+
 export interface Settings {
   theme: 'system' | 'light' | 'dark'
   fontSize: number
+  /** Whole-interface percentage. 100 keeps the current size. */
+  uiScale: UiScale
+  /** Window translucency. On macOS this is also native vibrancy. */
+  vibrant: boolean
+  language: UiLanguage
+  accent: AccentColor
+  sendShortcut: SendShortcut
+  /** Tool rows start expanded. */
+  expandSteps: boolean
+  linkOpen: LinkOpen
+  /** Start the packaged app when the user logs in. Separate from background running. */
+  launchAtLogin: boolean
+  profileName: string
+  profileEmoji: string
+  profileColor: string
+  /** Desktop notifications for approvals, help, and failures. */
+  notifications: boolean
+  /** Also notify when a turn finishes while the window is in the background. */
+  notifyOnTurn: boolean
+  updateChannel: UpdateChannel
   defaultBackendId: string
   defaultModelId: string
   defaultMode: AgentMode
