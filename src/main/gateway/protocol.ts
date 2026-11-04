@@ -36,7 +36,7 @@ export const SUPPORTED_PROTOCOL_VERSIONS = [
 ] as const
 
 const INSTRUCTIONS =
-  'OpenBOT exposes this bot\'s own tools: durable memory (remember), bot-to-bot handoff, ' +
+  'BlinkyBot exposes this bot\'s own tools: durable memory (remember), bot-to-bot handoff, ' +
   'filesystem and shell access scoped to the session directory, and computer use — screenshot, ' +
   'click, type_text, key_press, scroll, drag, open_app, navigate. Take a screenshot before and ' +
   'after any computer-use action; all coordinates are in the pixel space of the most recent ' +
@@ -70,7 +70,7 @@ function initializeResult(grant: Grant, params: Record<string, unknown>): unknow
   return {
     protocolVersion: negotiateVersion(params['protocolVersion']),
     capabilities: { tools: { listChanged: true } },
-    serverInfo: { name: SERVER_NAME, title: 'OpenBOT', version: IMPLEMENTATION_VERSION },
+    serverInfo: { name: SERVER_NAME, title: 'BlinkyBot', version: IMPLEMENTATION_VERSION },
     instructions: INSTRUCTIONS
   }
 }

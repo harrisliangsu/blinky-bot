@@ -69,7 +69,7 @@ export class BrowserComputerProvider implements ComputerProvider {
         ok: false,
         detail:
           `This bot's browser profile is locked by another process (pid ${lock.pid}). ` +
-          'Close the other OpenBOT window driving this bot, then try again.'
+          'Close the other BlinkyBot window driving this bot, then try again.'
       }
     }
 

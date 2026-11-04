@@ -205,7 +205,7 @@ export function BotTargetFields({
               value={target.token ?? ''}
               placeholder={
                 target.managed === 'apple-vm'
-                  ? 'Credential managed by OpenBOT'
+                  ? 'Credential managed by BlinkyBot'
                   : target.hasToken
                     ? 'Stored securely — leave blank to keep'
                     : 'Required — stored in the OS keychain'

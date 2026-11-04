@@ -1,7 +1,7 @@
 {
   "name": "openbot",
   "version": "0.1.0",
-  "description": "Open-source, local-first multi-bot desktop agent. No account, no telemetry.",
+  "description": "BlinkyBot: a local-first Mac app for the agent CLIs and API keys you already have. MIT fork of OpenBOT.",
   "keywords": [
     "electron",
     "desktop",
@@ -16,13 +16,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ashhart/OpenBot.git"
+    "url": "git+https://github.com/harrisliangsu/blinky-bot.git"
   },
-  "homepage": "https://github.com/ashhart/OpenBot#readme",
+  "homepage": "https://github.com/harrisliangsu/blinky-bot#readme",
   "bugs": {
-    "url": "https://github.com/ashhart/OpenBot/issues"
+    "url": "https://github.com/harrisliangsu/blinky-bot/issues"
   },
-  "author": "OpenBOT contributors",
+  "author": "BlinkyBot contributors",
   "private": true,
   "main": "out/main/index.js",
   "type": "module",
@@ -39,8 +39,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "build": {
-    "appId": "com.openbot.app",
-    "productName": "OpenBOT",
+    "appId": "com.blinky.bot",
+    "productName": "BlinkyBot",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -82,9 +82,9 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
-        "NSCameraUsageDescription": "OpenBOT needs camera access only if you attach camera input to a bot.",
-        "NSMicrophoneUsageDescription": "OpenBOT needs microphone access only if you use voice input.",
-        "NSAppleEventsUsageDescription": "OpenBOT uses AppleScript to let bots control apps on your behalf during computer-use actions."
+        "NSCameraUsageDescription": "BlinkyBot needs camera access only if you attach camera input to a bot.",
+        "NSMicrophoneUsageDescription": "BlinkyBot needs microphone access only if you use voice input.",
+        "NSAppleEventsUsageDescription": "BlinkyBot uses AppleScript to let bots control apps on your behalf during computer-use actions."
       }
     }
   },

@@ -119,7 +119,7 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
 
       <p className="ob-hint">
         A card sets up a remote OAuth account for that provider and waits for one thing: the MCP endpoint the
-        provider publishes. OpenBOT ships no endpoint URLs of its own.
+        provider publishes. BlinkyBot ships no endpoint URLs of its own.
       </p>
 
       {servers.length === 0 && !draft ? <p className="ob-hint">No MCP servers configured.</p> : null}

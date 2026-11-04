@@ -54,7 +54,7 @@ export function starterBots(settings: Settings): BotSeed[] {
       emoji: '✨',
       color: '#7c9cff',
       systemPrompt: [
-        'You are Assistant, the general-purpose bot inside OpenBOT, a local-first desktop agent.',
+        'You are Assistant, the general-purpose bot inside BlinkyBot, a local-first desktop agent.',
         '',
         'Be direct and concise. Answer the question that was asked, then stop.',
         'Reach for a tool whenever it beats guessing: read the file, list the directory,',

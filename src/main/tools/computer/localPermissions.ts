@@ -64,7 +64,7 @@ export function detectPermissionFailure(stderr: string, code: number | null): Ma
 export function permissionError(permission: MacPermission, context?: string): ToolError {
   const app = hostAppLabel()
   return new ToolError(
-    `${context ? `${context} ` : ''}macOS blocked this: OpenBOT does not have ${PANE_LABEL[permission]} permission, ` +
+    `${context ? `${context} ` : ''}macOS blocked this: BlinkyBot does not have ${PANE_LABEL[permission]} permission, ` +
       `which is what allows ${WHAT_IT_UNLOCKS[permission]}.`,
     [
       `Fix it: open System Settings → ${PANE_LABEL[permission]}, then switch on "${app}".`,
@@ -85,7 +85,7 @@ export function hostAppLabel(): string {
   const execPath = process.execPath ?? ''
   const bundleMatch = /\/([^/]+)\.app\//.exec(execPath)
   if (bundleMatch) return bundleMatch[1]
-  return 'OpenBOT (in development, this appears as "Electron")'
+  return 'BlinkyBot (in development, this appears as "Electron")'
 }
 
 /** Wrap a non-permission failure so the model still gets something actionable. */

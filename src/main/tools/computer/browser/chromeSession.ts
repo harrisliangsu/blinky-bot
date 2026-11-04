@@ -88,7 +88,7 @@ export class ChromeSession {
       this.lastError = `profile is locked by process ${lock.pid}`
       throw new ToolError(
         `This bot's browser profile is already open in another process (pid ${lock.pid}).`,
-        'Each bot has one browser. Close the other OpenBOT window driving this bot, or wait for it to finish.'
+        'Each bot has one browser. Close the other BlinkyBot window driving this bot, or wait for it to finish.'
       )
     }
 

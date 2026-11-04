@@ -15,8 +15,8 @@ function protocol(tools: ToolSchema[]): string {
     parameters: tool.parameters
   }))
   return [
-    '# OpenBOT tool-call protocol',
-    'OpenBOT, not this model client, executes tools and applies approvals.',
+    '# BlinkyBot tool-call protocol',
+    'BlinkyBot, not this model client, executes tools and applies approvals.',
     'When a tool is needed, answer with one call and no prose in exactly this form:',
     `${OPEN}{"name":"tool_name","arguments":{}}${CLOSE}`,
     'Use only a listed tool and valid JSON arguments. After execution, its result will appear in the conversation.',

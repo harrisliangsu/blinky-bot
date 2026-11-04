@@ -66,7 +66,7 @@ export async function probeTarget(
   if (!controlToken()) {
     return {
       ok: false,
-      detail: 'A per-VM control token is required. OpenBOT will store it in the OS credential store.'
+      detail: 'A per-VM control token is required. BlinkyBot will store it in the OS credential store.'
     }
   }
   if (target.managed === 'apple-vm') {

@@ -74,7 +74,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 function roomPage(res: ServerResponse, token: string): void {
   const room = sharedRoomByToken(token)
   if (!room) return reply(res, 404, { error: 'This invite is not active.' })
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(room.name)}</title><style>body{margin:0;background:#111;color:#eee;font:14px system-ui}main{max-width:760px;margin:auto;padding:24px}.messages{display:grid;gap:10px;margin:20px 0}.msg{padding:12px;border-radius:12px;background:#222;white-space:pre-wrap}.user{margin-left:18%;background:#29344c}.meta{font-size:11px;color:#999;margin-bottom:5px}form{display:grid;grid-template-columns:130px 1fr auto;gap:8px;position:sticky;bottom:0;background:#111;padding:12px 0}input,button{border:1px solid #444;border-radius:8px;background:#222;color:#eee;padding:10px}button{cursor:pointer}</style></head><body><main><h1>${escape(room.name)}</h1><p>Shared from OpenBOT on the local network.</p><div id="messages" class="messages"></div><form id="send"><input id="name" placeholder="Your name" maxlength="80"><input id="text" placeholder="Message the room" maxlength="10000" required><button>Send</button></form></main><script src="/room.js" defer></script></body></html>`
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(room.name)}</title><style>body{margin:0;background:#111;color:#eee;font:14px system-ui}main{max-width:760px;margin:auto;padding:24px}.messages{display:grid;gap:10px;margin:20px 0}.msg{padding:12px;border-radius:12px;background:#222;white-space:pre-wrap}.user{margin-left:18%;background:#29344c}.meta{font-size:11px;color:#999;margin-bottom:5px}form{display:grid;grid-template-columns:130px 1fr auto;gap:8px;position:sticky;bottom:0;background:#111;padding:12px 0}input,button{border:1px solid #444;border-radius:8px;background:#222;color:#eee;padding:10px}button{cursor:pointer}</style></head><body><main><h1>${escape(room.name)}</h1><p>Shared from BlinkyBot on the local network.</p><div id="messages" class="messages"></div><form id="send"><input id="name" placeholder="Your name" maxlength="80"><input id="text" placeholder="Message the room" maxlength="10000" required><button>Send</button></form></main><script src="/room.js" defer></script></body></html>`
   res.writeHead(200, headers('text/html; charset=utf-8', Buffer.byteLength(html)))
   res.end(html)
 }
@@ -99,7 +99,7 @@ function roomState(res: ServerResponse, token: string): void {
   const session = room ? getSession(room.sessionId) : null
   if (!room || !session) return reply(res, 404, { error: 'This room is unavailable.' })
   const shared = session.messages.filter((message) => (message.role === 'user' || message.role === 'assistant') && message.createdAt >= room.sharedFrom)
-  const messages = shared.slice(-200).map((message) => ({ role: message.role, author: message.role === 'user' ? 'Participant' : 'OpenBOT', content: message.content, createdAt: message.createdAt }))
+  const messages = shared.slice(-200).map((message) => ({ role: message.role, author: message.role === 'user' ? 'Participant' : 'BlinkyBot', content: message.content, createdAt: message.createdAt }))
   reply(res, 200, { name: room.name, messages })
 }
 

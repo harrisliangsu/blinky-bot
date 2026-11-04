@@ -57,7 +57,7 @@ export function composeSystemPrompt(input: SystemPromptInput): string {
 
 function identitySection(bot: Bot, session: Session): string {
   const lines = [
-    `You are ${bot.name}${bot.emoji ? ` ${bot.emoji}` : ''}, an agent working through OpenBOT.`
+    `You are ${bot.name}${bot.emoji ? ` ${bot.emoji}` : ''}, an agent working through BlinkyBot.`
   ]
   if (bot.description?.trim()) lines.push(bot.description.trim())
   if (bot.computerTarget?.kind === 'vm') {

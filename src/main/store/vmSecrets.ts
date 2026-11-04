@@ -29,7 +29,7 @@ function safeStorageApi(): SafeStorage | null {
 function requireStorage(): SafeStorage {
   const storage = safeStorageApi()
   if (!storage?.isEncryptionAvailable()) {
-    throw new Error('The OS credential store is unavailable, so OpenBOT refused to save the VM token in plaintext.')
+    throw new Error('The OS credential store is unavailable, so BlinkyBot refused to save the VM token in plaintext.')
   }
   return storage
 }
@@ -71,7 +71,7 @@ export function hasVmToken(botId: string): boolean {
 
 export function setVmToken(botId: string, token: string): void {
   if (!loaded) throw new Error('VM secret storage has not been loaded yet.')
-  if (!writable) throw new Error('The VM secret store could not be read, so OpenBOT refused to overwrite it.')
+  if (!writable) throw new Error('The VM secret store could not be read, so BlinkyBot refused to overwrite it.')
   const clean = token.trim()
   if (!clean) {
     clearVmToken(botId)

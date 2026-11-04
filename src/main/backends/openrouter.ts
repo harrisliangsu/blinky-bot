@@ -30,7 +30,7 @@ function endpoint(cfg: BackendConfig): OaEndpoint {
     baseUrl,
     apiKey,
     // Attribution header only; no identifying information about the machine.
-    headers: { 'x-title': 'OpenBOT' }
+    headers: { 'x-title': 'BlinkyBot' }
   }
 }
 

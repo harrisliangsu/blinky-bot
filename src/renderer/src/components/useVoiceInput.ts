@@ -42,7 +42,7 @@ export function useVoiceInput(onSpoken: (spoken: string) => void): VoiceInput {
      * and stays on the machine, instead of a Web Speech error code.
      */
     if (!session) {
-      store.toast('Voice input is off — OpenBOT will not stream your audio to a speech service. You can still use macOS Dictation in the message field.', 'error')
+      store.toast('Voice input is off — BlinkyBot will not stream your audio to a speech service. You can still use macOS Dictation in the message field.', 'error')
       return
     }
     voice.current = session

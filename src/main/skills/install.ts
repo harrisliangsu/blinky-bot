@@ -173,7 +173,7 @@ export async function uninstallSkill(id: string): Promise<SkillUninstallResult> 
       ok: false,
       error:
         `"${parsed.name}" lives in the ${parsed.origin} skills directory, which that tool manages. ` +
-        `OpenBOT only removes skills it installed in ${sharedSkillsDir()}.`
+        `BlinkyBot only removes skills it installed in ${sharedSkillsDir()}.`
     }
   }
 

@@ -62,7 +62,7 @@ export function Sidebar(): ReactNode {
   return (
     <aside className="ob-sidebar" aria-label="Navigation">
       <div className="ob-side-head">
-        <span className="ob-side-brand">OpenBOT</span>
+        <span className="ob-side-brand">BlinkyBot</span>
         <button
           type="button"
           className="ob-icon-btn ob-no-drag"

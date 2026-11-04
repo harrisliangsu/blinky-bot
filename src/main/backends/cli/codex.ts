@@ -61,7 +61,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
     if (req.signal.aborted) throw err
     const reason = err instanceof Error ? err.message : String(err)
     throw new Error(
-      `Codex's governed app-server was unavailable, so OpenBOT refused to fall back to an ` +
+      `Codex's governed app-server was unavailable, so BlinkyBot refused to fall back to an ` +
         `ungoverned one-shot run. ${reason}`,
       { cause: err }
     )

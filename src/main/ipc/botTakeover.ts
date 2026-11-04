@@ -175,7 +175,7 @@ export function registerTakeoverIpc(): void {
     const bot = getBot(botId)
     if (!bot) throw new TypeError(`Unknown bot: ${botId}`)
     if (bot.computerTarget.kind !== 'vm' || bot.computerTarget.managed !== 'apple-vm') {
-      throw new TypeError('Only an OpenBOT-managed VM can be restarted here.')
+      throw new TypeError('Only a BlinkyBot-managed VM can be restarted here.')
     }
     const token = vmToken(botId)
     if (!token) throw new Error('The VM credential could not be unlocked from the OS credential store.')
@@ -193,7 +193,7 @@ export function registerTakeoverIpc(): void {
     const bot = getBot(botId)
     if (!bot) throw new TypeError(`Unknown bot: ${botId}`)
     if (bot.computerTarget.kind !== 'vm' || bot.computerTarget.managed !== 'apple-vm') {
-      throw new TypeError('The administrative terminal is available only for an OpenBOT-managed VM.')
+      throw new TypeError('The administrative terminal is available only for a BlinkyBot-managed VM.')
     }
     const token = vmToken(botId)
     if (!token) throw new Error('The VM credential could not be unlocked from the OS credential store.')

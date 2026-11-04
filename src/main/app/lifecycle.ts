@@ -50,8 +50,8 @@ function warnUnsaved(files: string[]): void {
   const more = files.length > MAX_LISTED_FILES ? `\n…and ${files.length - MAX_LISTED_FILES} more` : ''
   try {
     dialog.showErrorBox(
-      'OpenBOT could not save your latest changes',
-      `Some data could not be written to disk and will be missing when you reopen OpenBOT.` +
+      'BlinkyBot could not save your latest changes',
+      `Some data could not be written to disk and will be missing when you reopen BlinkyBot.` +
         `\n\nCheck that the data folder is writable and that the disk is not full.` +
         (named ? `\n\n${named}${more}` : '')
     )

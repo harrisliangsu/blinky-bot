@@ -18,7 +18,7 @@ function storage(): SafeStorage {
       cachedStorage = typeof electron === 'object' && electron.safeStorage ? electron.safeStorage : null
     } catch { cachedStorage = null }
   }
-  if (!cachedStorage?.isEncryptionAvailable()) throw new Error('The OS credential store is unavailable, so OpenBOT refused to save a connector token in plaintext.')
+  if (!cachedStorage?.isEncryptionAvailable()) throw new Error('The OS credential store is unavailable, so BlinkyBot refused to save a connector token in plaintext.')
   return cachedStorage
 }
 

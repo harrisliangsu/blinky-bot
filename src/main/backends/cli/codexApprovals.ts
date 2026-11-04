@@ -15,7 +15,7 @@ import { fileUpdates, joinCommand, str, type CodexItems, type FileUpdate } from 
 
 /* ── answering an approval request ───────────────────────────────── */
 
-const REJECTION = 'Rejected in OpenBOT.'
+const REJECTION = 'Rejected in BlinkyBot.'
 
 /**
  * The response each approval method actually accepts.

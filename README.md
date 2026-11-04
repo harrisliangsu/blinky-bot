@@ -1,24 +1,151 @@
-# OpenBOT
+# BlinkyBot
 
-A local-first, open-source desktop agent chat app. It drives the agent CLIs you
-already have installed — `claude`, `codex`, `opencode`, `pi`, `droid` — from one
-window, and lets several of them work on the same conversation together.
+BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模型，也不需要注册账号。它调用你已经安装的 CLI（`claude`、`codex`，以及 `opencode`、`pi`、`droid`），或者用你在设置里保存的 API key 直接请求服务商。对话、Bot 和设置都是本机上的 JSON。
 
-No account, no sign-up, no telemetry. Everything lives in a folder on your disk.
+安装和日常使用都不走 Docker。可选的 Bot 虚拟机用的是 Apple 轻量虚拟化；仓库里的 Containerfile 只是客户机文件系统配方，应用不会安装或启动 Docker。
 
-OpenBOT is a re-implementation of GrokBot — the same idea, rebuilt from scratch
-as an open, local-first app you own and can read end to end.
+BlinkyBot runs on this Mac: one window over the agent CLIs already installed, or a provider API you key yourself. No account, no telemetry. An optional bot computer is an Apple lightweight VM. The app does not install or start Docker.
 
-![OpenBOT — a conversation, the bot roster, and the activity rail](docs/images/openbot.png)
+This tree is an MIT fork of [OpenBOT](https://github.com/ashhart/OpenBot). The packaged app id is `com.blinky.bot` and the product name is BlinkyBot. The npm package name stays `openbot` so the toolchain matches upstream. Environment variables that the process already reads keep the `OPENBOT_` prefix. BlinkyBot is not affiliated with or endorsed by the OpenBOT authors.
 
-**Status: 0.1.0, early.** It runs, and the parts described under "What works"
-are real. Read "Current limitations" before you rely on it.
+![BlinkyBot — a conversation, the bot roster, and the activity rail](docs/images/openbot.png)
+
+**Status: 0.1.0, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it.
+
+## 在 Mac 上从源码安装
+
+需要 macOS、[Node.js](https://nodejs.org) `^20.19.0` 或 `>=22.12.0`（终端里 `node --version`）、`git`，以及 Xcode Command Line Tools（`xcode-select --install`）。
+
+```sh
+git clone https://github.com/harrisliangsu/blinky-bot.git
+cd blinky-bot
+npm install
+npm run pack
+```
+
+`npm install` 会下载 Electron，是最慢的一步。`package.json` 里的 `allowScripts` 只放行 Electron 和 esbuild 的安装脚本，不要删掉，否则构建会缺二进制。
+
+当前架构的应用在：
+
+- Apple 芯片：`release/mac-arm64/BlinkyBot.app`
+- Intel：`release/mac/BlinkyBot.app`
+
+打开（Apple 芯片）：
+
+```sh
+open release/mac-arm64/BlinkyBot.app
+```
+
+Intel 把路径换成 `release/mac/BlinkyBot.app`。应用没有装进系统目录。要固定放在「应用程序」里，把 BlinkyBot.app 拖进去再打开。
+
+第一次若被系统拦住：在 Finder 里对 BlinkyBot.app 按住 Control 点按，选「打开」，再确认。只需这一次。也可以到「系统设置 → 隐私与安全性 → 仍要打开」。构建没有公证。
+
+要同时打出 arm64 和 x64 的磁盘映像：
+
+```sh
+npm run dist
+```
+
+DMG 在 `release/`，文件名是 `BlinkyBot-<version>-arm64.dmg` 和 `BlinkyBot-<version>-x64.dmg`。打开映像，把 BlinkyBot 拖进「应用程序」。这不是双击安装的 `.pkg`。
+
+改代码时用热重载，不必每次打包：
+
+```sh
+npm run dev
+```
+
+其它命令：`npm run typecheck`、`npm run build`、`npm start`。`npm run pack` 只出当前架构的 `.app`。`npm run dist` 出 DMG。
+
+数据在 `~/Library/Application Support/BlinkyBot/`。要用别的目录，启动前设置 `OPENBOT_DATA_DIR`。删掉数据目录等于重置。
+
+菜单栏应用名和「关于」面板显示 **BlinkyBot**，版权行是 MIT。窗口标题也是 BlinkyBot；某段对话有标题时，窗口里的标题栏显示那段对话的名字。
+
+## 确认本机的 Codex、Claude 和 API key
+
+BlinkyBot 不会替你安装 CLI。它用登录 shell 的 `PATH` 找二进制，并对 `claude` 和 `codex` 执行 `--version`（单次探测大约最多 8 秒）。状态是 `available`、`not-installed`、`needs-key` 或 `error`。
+
+先在终端做和探测同一类的检查：
+
+```sh
+zsh -lic 'command -v claude; claude --version'
+zsh -lic 'command -v codex; codex --version'
+test -d "$HOME/.claude" && echo "claude config: ~/.claude" || echo "claude config: missing"
+test -d "$HOME/.codex" && echo "codex config: ~/.codex" || echo "codex config: missing"
+```
+
+怎么读结果：
+
+- 两条命令都打印出绝对路径和版本号，并且对应的配置目录存在：应用里这一行应当是 `available`，说明里带版本和路径。
+- 找不到二进制：`not-installed`。说明里会给出安装命令。Claude Code 是 `npm i -g @anthropic-ai/claude-code` 或 `brew install claude`。Codex 是 `npm i -g @openai/codex` 或 `brew install codex`。装好后在终端再跑一次该 CLI 并登录。
+- 有二进制，但没有 `~/.claude` 或 `~/.codex`：`needs-key`。在终端运行一次 `claude` 或 `codex` 完成登录，然后在应用里刷新。
+- `--version` 超时：`error`。CLI 可能卡在首次设置。在终端单独运行一次。
+
+然后打开 BlinkyBot。macOS 菜单 **BlinkyBot → Settings…**，或按 `Command+,`。打开 **Backends**，点 **Refresh**。
+
+| 行 | 期望 |
+| --- | --- |
+| Claude Code | 标签 `local`，状态 `available` |
+| Codex | 标签 `local`，状态 `available` |
+
+API key 不读环境变量。只认设置里保存的钥匙。钥匙用系统钥匙串加密（macOS Keychain），不会回到界面，也不会以明文写进 `settings.json`。密文在数据目录的 `backend-secrets.json`。
+
+在同一页给云后端填写钥匙：Anthropic、OpenAI、xAI、OpenRouter。输入后点 **Save key**，再点 **Refresh**。Base URL 留空就是官方地址。改成别的主机时，钥匙不会被发出去。
+
+| 状态 | 含义 |
+| --- | --- |
+| `needs-key` | 还没保存钥匙，或服务商拒绝了这把钥匙 |
+| `available`，说明是 `Key accepted` | 钥匙可用。若写了模型数量，列表探测也成功了 |
+| `error` | 网络不通，或探测失败。看说明里的主机名 |
+
+选一个 `available` 的后端，新建对话，发一句短消息。CLI 后端走你本机已经登录的账号。云后端走刚保存的钥匙。
+
+## Install from source on a Mac
+
+You need macOS, Node.js `^20.19.0` or `>=22.12.0`, `git`, and Xcode Command Line Tools (`xcode-select --install`).
+
+```sh
+git clone https://github.com/harrisliangsu/blinky-bot.git
+cd blinky-bot
+npm install
+npm run pack
+open release/mac-arm64/BlinkyBot.app
+```
+
+On Intel the app is `release/mac/BlinkyBot.app`. `npm run dist` writes `BlinkyBot-<version>-arm64.dmg` and `BlinkyBot-<version>-x64.dmg` under `release/`. Drag BlinkyBot to Applications. The build is unsigned: Control-click the app, choose Open, and confirm once. `npm run dev` is the hot-reload loop. Data lives in `~/Library/Application Support/BlinkyBot/` (`OPENBOT_DATA_DIR` overrides it).
+
+The macOS app menu and About panel say BlinkyBot, with the MIT copyright line. The window title is BlinkyBot until a conversation has its own title.
+
+## Verify Codex, Claude, and API keys
+
+BlinkyBot does not install a CLI. It resolves `claude` and `codex` on a login-shell `PATH` and runs `--version` (about an 8 second budget each).
+
+```sh
+zsh -lic 'command -v claude; claude --version'
+zsh -lic 'command -v codex; codex --version'
+test -d "$HOME/.claude" && echo "claude config: ~/.claude" || echo "claude config: missing"
+test -d "$HOME/.codex" && echo "codex config: ~/.codex" || echo "codex config: missing"
+```
+
+Then open **BlinkyBot → Settings…** (`Command+,`) → **Backends** → **Refresh**.
+
+- Both binaries print a path and a version, and `~/.claude` / `~/.codex` exist: those rows show `available`, with the version and path in the detail line.
+- Missing binary: `not-installed`, with `npm i -g @anthropic-ai/claude-code` or `brew install claude`, and `npm i -g @openai/codex` or `brew install codex`.
+- Binary present, config directory missing: `needs-key`. Run that CLI once in a terminal and sign in, then Refresh.
+- Version probe hangs: `error`. Run the CLI once yourself; it may be waiting on first-run setup.
+
+API keys are not read from the environment. In Backends, paste a key for Anthropic, OpenAI, xAI, or OpenRouter, click **Save key**, then **Refresh**. Leave Base URL empty for the provider default. A key is stored with the OS credential store and is not written in plaintext into `settings.json`.
+
+- `needs-key`: nothing saved yet, or the provider rejected the key.
+- `available` with `Key accepted`: the key works. A model count means the list probe succeeded too.
+- `error`: the host was unreachable, or the probe failed. The detail names the host.
+
+Pick an `available` backend, start a chat, and send a short message. A CLI backend uses the login already on this Mac. A cloud backend uses the key you just saved.
 
 ---
 
 ## What it is
 
-OpenBOT is an Electron desktop app. It does not ship a model and it is not a
+BlinkyBot is an Electron desktop app. It does not ship a model and it is not a
 service: it either shells out to an agent CLI that is already on your `PATH`, or
 talks directly to a provider API with a key you supply. Chats, projects, bots
 and settings are plain JSON files under the app's data directory.
@@ -43,13 +170,13 @@ a hydrated login-shell `PATH` and probing `--version`:
 | `droid`    | `droid`    | Streaming JSON. Read-only tools; see the note below.      |
 
 `droid` is the most limited of the five. It accepts no per-turn MCP server — its
-only MCP support is a persistent `droid mcp add`, and OpenBOT never writes into
-a CLI's own config — so OpenBOT's tools cannot reach it. It is therefore run
+only MCP support is a persistent `droid mcp add`, and BlinkyBot never writes into
+a CLI's own config — so BlinkyBot's tools cannot reach it. It is therefore run
 with `--enabled-tools` restricted to droid's own read, search and fetch tools.
 That is narrower than droid's default, which allows `Execute`: a droid bot would
 otherwise have run shell commands with no approval card, since `droid exec`
 offers no permission callback to route them through. A droid bot can read and
-search; it cannot write, run commands, or use any OpenBOT tool. Choose another
+search; it cannot write, run commands, or use any BlinkyBot tool. Choose another
 backend for a bot that needs to change anything.
 
 Detection never blocks the UI: each backend gets an 8-second budget, failures
@@ -112,7 +239,7 @@ so both cannot drive the screen at once. A bot can explicitly request help for
 SSO, 2FA, passkeys or CAPTCHAs; in that case its turn pauses, takeover opens,
 and the same turn resumes after control is handed back. Takeover expands into a
 full-screen-capable remote view that accepts direct clicks, typing, shortcuts,
-scrolling, right-click and drag. For an OpenBOT-managed VM it also includes a
+scrolling, right-click and drag. For a BlinkyBot-managed VM it also includes a
 human-only administrator terminal that can install CLI, background and
 graphical Linux packages. The VM can be restarted without deleting its files.
 The bot daemon still runs as an
@@ -163,11 +290,11 @@ output can render reviewable email, message and link cards.
   platform-neutral, but nothing else is built or tested.
 - **Node.js** `^20.19.0 || >=22.12.0`.
 - At least one agent CLI on your `PATH`, or an API key for one of the direct
-  backends. OpenBOT will not install a CLI for you; it detects what you have and
+  backends. BlinkyBot will not install a CLI for you; it detects what you have and
   shows install commands for what you do not.
 - **Apple silicon and macOS 26 or newer** for one-click managed VMs. On first
-  use OpenBOT downloads the pinned, signed Apple `container` runtime, verifies
-  its checksum and installer signature, and stores it under OpenBOT's data
+  use BlinkyBot downloads the pinned, signed Apple `container` runtime, verifies
+  its checksum and installer signature, and stores it under BlinkyBot's data
   directory. Apple's VM kernel bundle and the Chromium image are also fetched
   once, so the first VM takes longer. Allow at least 6 GB of free space for the
   initial image build; steady-state use depends on the bot's workspace.
@@ -176,58 +303,9 @@ output can render reviewable email, message and link cards.
 
 ## Build it from source
 
-There are no downloads. You build OpenBOT on the Mac that will run it, which
-takes about five minutes, most of it waiting for `npm install`.
+The install steps are at the top of this file: `npm install`, then `npm run pack` or `npm run dist`. `npm install` downloads Electron and blocks dependency install scripts except the `allowScripts` entries in `package.json` (Electron's binary and esbuild). Leave those entries in place.
 
-**Before you start** you need [Node.js](https://nodejs.org) `^20.19.0` or
-`>=22.12.0` (`node --version` to check), `git`, and Xcode Command Line Tools
-(`xcode-select --install` — macOS will usually have prompted for these already).
-
-**1. Get the source and install the toolchain.**
-
-```sh
-git clone https://github.com/ashhart/OpenBot.git openbot
-cd openbot
-npm install
-```
-
-This also downloads the Electron runtime for your Mac, so it is the slow step.
-`npm install` deliberately blocks dependency install scripts; the `allowScripts`
-field in `package.json` lists the two that are reviewed and required (Electron's
-binary download and esbuild's platform binary). Do not remove it — without those
-entries the app cannot build.
-
-**2. Build the app.**
-
-```sh
-npm run pack
-```
-
-The finished app is written to `release/` — `release/mac-arm64/OpenBOT.app` on
-Apple silicon, `release/mac/OpenBOT.app` on Intel. Nothing is installed
-system-wide; drag it to `/Applications` if you want it there, or run it where it
-is.
-
-**3. Open it.**
-
-```sh
-open release/mac-arm64/OpenBOT.app
-```
-
-The build is unsigned, so the first time you open it macOS may refuse. Right-click
-the app and choose **Open**, then confirm — see "Unsigned by design" below for
-why. You only do this once.
-
-**4. Point it at a model.** OpenBOT detects the agent CLIs already on your
-`PATH` on first launch and shows what it found. If you have none, open Settings
-and add an API key for Anthropic, OpenAI, xAI or OpenRouter instead. You need
-one or the other before a bot can answer.
-
-Your chats, bots and settings are plain JSON under
-`~/Library/Application Support/OpenBOT/` — see "Where your data lives" below.
-Deleting that folder resets the app completely.
-
-### Working on OpenBOT itself
+### Working on BlinkyBot itself
 
 `npm run dev` runs the Vite dev server and Electron together with hot reload,
 which is what you want if you are changing the code rather than just using it.
@@ -243,12 +321,12 @@ npm run dist         # build DMGs (arm64 and x64) into release/
 ```
 
 For the built-in path, choose **Bot VM** in a bot editor and click **Create
-VM**. OpenBOT builds the audited [`vm-image/Containerfile`](vm-image/Containerfile)
+VM**. BlinkyBot builds the audited [`vm-image/Containerfile`](vm-image/Containerfile)
 as an OCI filesystem, then boots it as a dedicated lightweight VM through
 Apple's Virtualization.framework. **Docker is not installed, started, or used
 as the bot runtime**; the Containerfile is only the reproducible guest
 filesystem recipe. Each bot receives its own VM and persistent workspace, and
-the VM is destroyed when the bot is deleted. An OpenBOT-owned TCP bridge
+the VM is destroyed when the bot is deleted. A BlinkyBot-owned TCP bridge
 exposes only a random high loopback port.
 
 To run the execution daemon inside an existing VM, copy the built `out/main/`
@@ -310,7 +388,7 @@ the bot editor under **Execution target**:
 
 ### Creating a managed VM
 
-Choose **Bot VM**, then **Create VM**. The first one takes a while: OpenBOT
+Choose **Bot VM**, then **Create VM**. The first one takes a while: BlinkyBot
 downloads Apple's pinned, signed `container` runtime, verifies its checksum and
 installer signature, fetches the VM kernel and Chromium image, and builds
 [`vm-image/Containerfile`](vm-image/Containerfile) into a filesystem. Allow at
@@ -335,7 +413,7 @@ cannot complete. Its turn *pauses* rather than failing, takeover opens, and the
 same turn resumes once you hand control back. Type the password yourself; it
 never passes through the model.
 
-For an OpenBOT-managed VM the expanded view also has a **human-only terminal**
+For a BlinkyBot-managed VM the expanded view also has a **human-only terminal**
 for installing packages inside the guest. The bot's daemon runs as an ordinary
 user and cannot reach that terminal. **Restart VM** reboots the guest without
 deleting its files.
@@ -400,20 +478,20 @@ Honest list. These are structural gaps, not bugs hidden behind a switch.
   keeps routines running while the window is closed and can start at login, but
   closing or suspending the Mac stops local work. Use an always-on external VM
   endpoint for that deployment model.
-- **OpenBOT's own tools reach only some supervised CLIs.** Runtime MCP is passed
+- **BlinkyBot's own tools reach only some supervised CLIs.** Runtime MCP is passed
   to CLIs that can accept a per-turn server; others use their own tools. For a
-  private VM, Pi can run model-only on the host while OpenBOT executes every
+  private VM, Pi can run model-only on the host while BlinkyBot executes every
   supplied tool through the authenticated guest daemon. Other supervised CLIs
   are refused on a VM target rather than being allowed to touch the host; choose
   Pi or a direct API backend for those bots.
-- **Connector OAuth and tool-level disabling depend on the MCP client.** OpenBOT
+- **Connector OAuth and tool-level disabling depend on the MCP client.** BlinkyBot
   stores account metadata and secrets and passes them to compatible agent CLIs,
   but it does not embed provider-specific OAuth applications or proxy every MCP
   call. A client's own support determines whether it can complete OAuth and
   honour a server's disabled-tool list.
 - **Voice input depends on Chromium speech recognition support.** When that API
   is unavailable the microphone control explains the limitation and macOS
-  Dictation remains usable; OpenBOT does not upload recorded audio to a separate
+  Dictation remains usable; BlinkyBot does not upload recorded audio to a separate
   transcription service.
 - **Web search scrapes DuckDuckGo's HTML.** No API, no key — and it will break
   whenever that page changes. It degrades to telling the model to use `fetch`.
@@ -427,7 +505,7 @@ Honest list. These are structural gaps, not bugs hidden behind a switch.
 
 There are no notarised downloads, and there is no plan for any: signing and
 notarisation need a paid Apple Developer account, which this project does not
-have. **OpenBOT is meant to be built from source on the Mac that will run it** —
+have. **BlinkyBot is meant to be built from source on the Mac that will run it** —
 see "Build it from source" above.
 
 `build/entitlements.mac.plist` is present and correct — in particular

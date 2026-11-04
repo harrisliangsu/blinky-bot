@@ -26,7 +26,7 @@ export interface ProfileLayout {
 }
 
 /** Default userData location, matching what Electron would report. */
-export function defaultUserDataDir(appName = 'OpenBOT'): string {
+export function defaultUserDataDir(appName = 'BlinkyBot'): string {
   const home = homedir()
   if (process.platform === 'darwin') return join(home, 'Library', 'Application Support', appName)
   if (process.platform === 'win32') return join(home, 'AppData', 'Roaming', appName)

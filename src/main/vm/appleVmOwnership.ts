@@ -36,7 +36,7 @@ export function managedVmName(vmId: string): string {
 }
 
 export async function assertOwned(binary: string, target: VmTarget, signal?: AbortSignal): Promise<AppleContainerInfo> {
-  if (target.managed !== 'apple-vm') throw new Error('OpenBOT does not own this external VM.')
+  if (target.managed !== 'apple-vm') throw new Error('BlinkyBot does not own this external VM.')
   const name = managedVmName(target.vmId)
   const inspected = await commandRunner(binary, ['inspect', name], { timeoutMs: 15_000, signal })
   const entries = parseContainerJson(inspected.stdout)
@@ -48,7 +48,7 @@ export async function assertOwned(binary: string, target: VmTarget, signal?: Abo
     labels?.['com.openbot.managed'] !== 'true' ||
     labels?.['com.openbot.owner'] !== ownerMarker()
   ) {
-    throw new Error('The VM failed its OpenBOT ownership-label check.')
+    throw new Error('The VM failed its BlinkyBot ownership-label check.')
   }
   return info
 }
