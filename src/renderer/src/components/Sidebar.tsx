@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { newSession, openProjectEditor, projectsReady, runRoutine, selectProject, store, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
 import {
@@ -49,8 +50,9 @@ function Section({ title, icon, action, children }: SectionProps): ReactNode {
 
 /** Conversations, bots and routines — the app's primary navigation. */
 export function Sidebar(): ReactNode {
-  const { sessions, sessionsLoading, sessionsError, currentSessionId, bots, routines, recording, projects, currentProjectId } =
+  const { sessions, sessionsLoading, sessionsError, currentSessionId, bots, routines, recording, projects, currentProjectId, settings } =
     useAppState()
+  const copy = useSettingsCopy()
   const [query, setQuery] = useState('')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -103,28 +105,8 @@ export function Sidebar(): ReactNode {
           </p>
         ) : null}
 
-        <SessionList
-          sessions={sessions}
-          bots={botMap}
-          currentId={currentSessionId}
-          query={query}
-          showArchived={showArchived}
-          loading={sessionsLoading}
-          error={sessionsError}
-          projectId={currentProjectId}
-          projectName={currentProject?.name}
-        />
-
         <Section
-          title="Projects"
-          icon={<IconBoard size={12} />}
-          action={{ label: 'Create a project', onClick: () => openProjectEditor('new'), disabled: !projectsReady() }}
-        >
-          <ProjectList />
-        </Section>
-
-        <Section
-          title="Bots"
+          title={copy.more.bots}
           icon={<IconBot size={12} />}
           action={{ label: 'Create a bot', onClick: () => store.setModal('bots', 'new') }}
         >
@@ -157,8 +139,30 @@ export function Sidebar(): ReactNode {
           )}
         </Section>
 
+        <SessionList
+          sessions={sessions}
+          bots={botMap}
+          currentId={currentSessionId}
+          query={query}
+          showArchived={showArchived}
+          loading={sessionsLoading}
+          error={sessionsError}
+          projectId={currentProjectId}
+          projectName={currentProject?.name}
+        />
+
+        <details className="ob-side-more">
+          <summary>{copy.more.title}</summary>
         <Section
-          title="Routines"
+          title={copy.more.projects}
+          icon={<IconBoard size={12} />}
+          action={{ label: 'Create a project', onClick: () => openProjectEditor('new'), disabled: !projectsReady() }}
+        >
+          <ProjectList />
+        </Section>
+
+        <Section
+          title={copy.more.routines}
           icon={<IconRoutine size={12} />}
           action={{ label: 'Record a routine', onClick: () => store.setModal('routines') }}
         >
@@ -197,9 +201,6 @@ export function Sidebar(): ReactNode {
             </ul>
           )}
         </Section>
-      </div>
-
-      <footer className="ob-side-foot">
         <button
           type="button"
           className="ob-btn ob-btn-sm ob-btn-ghost"
@@ -207,9 +208,19 @@ export function Sidebar(): ReactNode {
           onClick={() => setShowArchived((v) => !v)}
         >
           <IconArchive size={12} />
-          {showArchived ? 'Active' : 'Archived'}
+          {showArchived ? copy.more.chats : copy.more.archived}
           {!showArchived && archivedCount > 0 ? <span className="ob-side-count">{archivedCount}</span> : null}
         </button>
+        </details>
+      </div>
+
+      <footer className="ob-side-foot">
+        <span className="ob-side-profile">
+          <span className="ob-profile-avatar" style={{ background: settings?.profileColor ?? '#7c9cff' }} aria-hidden="true">
+            {settings?.profileEmoji ?? '🙂'}
+          </span>
+          <span>{settings?.profileName || copy.nav.profile}</span>
+        </span>
         <button type="button" className="ob-icon-btn" onClick={() => store.setModal('settings')} aria-label="Settings (Command comma)">
           <IconSettings size={13} />
         </button>

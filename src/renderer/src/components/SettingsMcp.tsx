@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { McpServerConfig, Settings } from '../../../shared/types'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { store, updateSettings } from '../state'
 import { IconPencil, IconPlus, IconTrash } from './Icons'
 import './SettingsMcp.css'
@@ -44,6 +45,7 @@ const CONNECTORS = [
 
 /** MCP server list: enable, edit connection details, remove. */
 export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
+  const copy = useSettingsCopy().mcp
   const [draft, setDraft] = useState<McpServerConfig | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   /* Set when a catalogue card opens the form, so the field it is waiting on
@@ -82,20 +84,20 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
     if (editingId === null) return
     if (servers.some((server) => server.id === editingId)) return
     closeDraft()
-    store.toast('That MCP server was removed, so the editor closed without saving.', 'error')
+    store.toast(copy.removed, 'error')
   }, [editingId, servers])
 
   return (
     <section className="ob-settings-section">
       <header className="ob-settings-head">
-        <h3 className="ob-label">MCP servers</h3>
+        <h3 className="ob-label">{copy.title}</h3>
         <button type="button" className="ob-btn ob-btn-sm" onClick={() => { setEditingId(null); setDraft(blank()) }} disabled={draft !== null}>
           <IconPlus size={12} />
-          Add server
+          {copy.add}
         </button>
       </header>
 
-      <p className="ob-hint">Connect local or remote MCP accounts. Credentials are encrypted in the OS keychain.</p>
+      <p className="ob-hint">{copy.intro}</p>
 
       <div className="ob-connector-catalog" aria-label="Connector catalogue">
         {CONNECTORS.map((connector) => (
@@ -112,17 +114,14 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
           >
             <strong>{connector.name}</strong>
             <span>{connector.hint}</span>
-            <em>Add its MCP endpoint</em>
+            <em>{copy.addEndpoint}</em>
           </button>
         ))}
       </div>
 
-      <p className="ob-hint">
-        A card sets up a remote OAuth account for that provider and waits for one thing: the MCP endpoint the
-        provider publishes. BlinkyBot ships no endpoint URLs of its own.
-      </p>
+      <p className="ob-hint">{copy.catalogHint}</p>
 
-      {servers.length === 0 && !draft ? <p className="ob-hint">No MCP servers configured.</p> : null}
+      {servers.length === 0 && !draft ? <p className="ob-hint">{copy.empty}</p> : null}
 
       <ul className="ob-mcp-list">
         {servers.map((server) => (
@@ -161,8 +160,8 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
             </div>
             <p className="ob-mcp-target">
               {server.accountName ? `${server.accountName} · ` : ''}
-              {server.transport === 'http' ? server.url || 'No URL set' : server.command || 'No command set'}
-              {server.auth && server.auth !== 'none' ? ` · ${server.auth}${server.hasBearerToken ? ' connected' : ''}` : ''}
+              {server.transport === 'http' ? server.url || copy.noUrl : server.command || copy.noCommand}
+              {server.auth && server.auth !== 'none' ? ` · ${server.auth}${server.hasBearerToken ? ` ${copy.connected}` : ''}` : ''}
             </p>
           </li>
         ))}
@@ -171,17 +170,17 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
       {draft ? (
         <div className="ob-mcp-draft">
           <div className="ob-field">
-            <label htmlFor="ob-mcp-name">Name</label>
+            <label htmlFor="ob-mcp-name">{copy.name}</label>
             <input id="ob-mcp-name" className="ob-input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
           </div>
 
           <div className="ob-field">
-            <label htmlFor="ob-mcp-account">Account label</label>
-            <input id="ob-mcp-account" className="ob-input" value={draft.accountName ?? ''} placeholder="Work, personal, team…" onChange={(e) => setDraft({ ...draft, accountName: e.target.value })} />
+            <label htmlFor="ob-mcp-account">{copy.account}</label>
+            <input id="ob-mcp-account" className="ob-input" value={draft.accountName ?? ''} placeholder={copy.accountPlaceholder} onChange={(e) => setDraft({ ...draft, accountName: e.target.value })} />
           </div>
 
           <div className="ob-field">
-            <label htmlFor="ob-mcp-transport">Transport</label>
+            <label htmlFor="ob-mcp-transport">{copy.transport}</label>
             <select
               id="ob-mcp-transport"
               className="ob-select"
@@ -196,7 +195,7 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
           {draft.transport === 'http' ? (
             <>
               <div className="ob-field">
-                <label htmlFor="ob-mcp-url">Remote MCP URL</label>
+                <label htmlFor="ob-mcp-url">{copy.url}</label>
                 <input ref={urlRef} id="ob-mcp-url" className="ob-input" value={draft.url ?? ''} placeholder="https://…/mcp" onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
                 {/* The catalogue card cannot fill this in, so it names what it
                     is waiting for rather than leaving a dead submit button
@@ -209,25 +208,25 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
                 ) : null}
               </div>
               <div className="ob-field">
-                <label htmlFor="ob-mcp-auth">Authentication</label>
+                <label htmlFor="ob-mcp-auth">{copy.auth}</label>
                 <select id="ob-mcp-auth" className="ob-select" value={draft.auth ?? 'none'} onChange={(e) => setDraft({ ...draft, auth: e.target.value === 'oauth' ? 'oauth' : e.target.value === 'bearer' ? 'bearer' : 'none' })}>
-                  <option value="none">None</option>
-                  <option value="oauth">OAuth (handled by the agent CLI)</option>
-                  <option value="bearer">Bearer token</option>
+                  <option value="none">{copy.none}</option>
+                  <option value="oauth">{copy.oauth}</option>
+                  <option value="bearer">{copy.bearer}</option>
                 </select>
               </div>
               {draft.auth === 'bearer' ? (
                 <div className="ob-field">
-                  <label htmlFor="ob-mcp-token">Bearer token</label>
-                  <input id="ob-mcp-token" type="password" className="ob-input" value={draft.bearerToken ?? ''} placeholder={draft.hasBearerToken ? 'Stored securely — leave blank to keep' : 'Stored in the OS keychain'} autoComplete="off" onChange={(e) => setDraft({ ...draft, bearerToken: e.target.value })} />
+                  <label htmlFor="ob-mcp-token">{copy.token}</label>
+                  <input id="ob-mcp-token" type="password" className="ob-input" value={draft.bearerToken ?? ''} placeholder={draft.hasBearerToken ? copy.tokenStored : copy.tokenPlaceholder} autoComplete="off" onChange={(e) => setDraft({ ...draft, bearerToken: e.target.value })} />
                 </div>
               ) : null}
-              {draft.auth === 'oauth' ? <p className="ob-hint">A compatible agent CLI opens the provider’s OAuth sign-in when it first connects to this server.</p> : null}
+              {draft.auth === 'oauth' ? <p className="ob-hint">{copy.oauthHint}</p> : null}
             </>
           ) : (
             <>
               <div className="ob-field">
-                <label htmlFor="ob-mcp-command">Command</label>
+                <label htmlFor="ob-mcp-command">{copy.command}</label>
                 <input
                   id="ob-mcp-command"
                   className="ob-input"
@@ -236,12 +235,12 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
                 />
               </div>
               <div className="ob-field">
-                <label htmlFor="ob-mcp-args">Arguments</label>
+                <label htmlFor="ob-mcp-args">{copy.args}</label>
                 <input
                   id="ob-mcp-args"
                   className="ob-input"
                   value={(draft.args ?? []).join(' ')}
-                  placeholder="Space separated"
+                  placeholder={copy.argsPlaceholder}
                   onChange={(e) => setDraft({ ...draft, args: e.target.value.split(/\s+/).filter(Boolean) })}
                 />
               </div>
@@ -249,14 +248,14 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
           )}
 
           <div className="ob-field">
-            <label htmlFor="ob-mcp-disabled-tools">Disabled tools</label>
+            <label htmlFor="ob-mcp-disabled-tools">{copy.disabledTools}</label>
             <input id="ob-mcp-disabled-tools" className="ob-input" value={(draft.disabledTools ?? []).join(', ')} placeholder="delete_issue, send_message" onChange={(e) => setDraft({ ...draft, disabledTools: e.target.value.split(',').map((value) => value.trim()).filter(Boolean) })} />
-            <p className="ob-hint">Comma-separated tool names retained for MCP clients that support tool-level controls.</p>
+            <p className="ob-hint">{copy.disabledHint}</p>
           </div>
 
           <div className="ob-mcp-draft-actions">
             <button type="button" className="ob-btn ob-btn-sm" onClick={closeDraft}>
-              Cancel
+              {copy.cancel}
             </button>
             <button
               type="button"
@@ -267,7 +266,7 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
                 closeDraft()
               }}
             >
-              {editingId ? 'Save account' : 'Add server'}
+              {copy.save}
             </button>
           </div>
         </div>

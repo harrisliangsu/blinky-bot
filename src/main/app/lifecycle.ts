@@ -124,19 +124,26 @@ export function installLifecycle(): void {
   })
 }
 
-/** Apply the user's explicit login/background choice and keep it in sync. */
+/**
+ * Login-item registration follows `launchAtLogin`.
+ * `runInBackground` only decides whether closing the window quits the app.
+ * macOS rejects login-item registration for an unsigned development launch
+ * and logs a native process error before JavaScript can catch it, so the
+ * call is limited to the packaged app. The preference is still stored.
+ */
 export function installBackgroundMode(): void {
-  const apply = (enabled: boolean): void => {
-    // macOS rejects login-item registration for an unsigned development
-    // launch and logs a native process error before JavaScript can catch it.
-    // Background scheduling still works; auto-start is a packaged-app feature.
+  const apply = (): void => {
     if (!app.isPackaged) return
+    const { launchAtLogin, runInBackground } = getSettings()
     try {
-      app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: enabled })
+      app.setLoginItemSettings({
+        openAtLogin: launchAtLogin === true,
+        openAsHidden: launchAtLogin === true && runInBackground === true
+      })
     } catch (error) {
       console.warn('[openbot] could not update login-item settings', error)
     }
   }
-  apply(getSettings().runInBackground === true)
-  onSettingsChanged((settings) => apply(settings.runInBackground === true))
+  apply()
+  onSettingsChanged(() => apply())
 }

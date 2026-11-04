@@ -237,3 +237,12 @@
   --ob-transition-fast: 90ms ease;
   --ob-transition-base: 140ms ease;
 }
+
+html[data-accent='amber'] { --ob-accent: #e8a33d; }
+html[data-accent='blue'] { --ob-accent: #3b82f6; }
+html[data-accent='purple'] { --ob-accent: #8b7cf7; }
+html[data-accent='pink'] { --ob-accent: #e07aa8; }
+html[data-accent='green'] { --ob-accent: #3fa266; }
+html[data-accent='slate'] { --ob-accent: #94a3b8; }
+html[data-accent='orange'] { --ob-accent: #e08a3c; }
+html[data-accent='red'] { --ob-accent: #e34671; }

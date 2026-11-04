@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { BackendConfig, BackendInfo, Settings } from '../../../shared/types'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { loadBackends, updateSettings } from '../state'
 import { IconRefresh, IconSpinner } from './Icons'
 import './SettingsBackends.css'
@@ -21,6 +22,7 @@ const STATUS_TONE: Record<BackendInfo['status'], string> = {
 
 /** Per-backend connection settings. Keys stay on this machine. */
 export function SettingsBackends({ settings, backends, loading, error }: SettingsBackendsProps): ReactNode {
+  const copy = useSettingsCopy().backends
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({})
   /*
@@ -56,10 +58,10 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
   return (
     <section className="ob-settings-section">
       <header className="ob-settings-head">
-        <h3 className="ob-label">Backends</h3>
+        <h3 className="ob-label">{copy.title}</h3>
         <button type="button" className="ob-btn ob-btn-sm" onClick={() => void loadBackends(true)} disabled={loading}>
           {loading ? <IconSpinner size={12} /> : <IconRefresh size={12} />}
-          Refresh
+          {copy.refresh}
         </button>
       </header>
 
@@ -70,7 +72,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
       ) : null}
 
       {backends.length === 0 && !loading ? (
-        <p className="ob-hint">No backends detected. Install a local runner or add cloud credentials, then refresh.</p>
+        <p className="ob-hint">{copy.empty}</p>
       ) : null}
 
       <ul className="ob-backends">
@@ -86,9 +88,9 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                   <span className="ob-backend-name">{backend.label}</span>
                 </label>
                 <span className="ob-backend-tags">
-                  <span className="ob-pill">{backend.local ? 'local' : 'cloud'}</span>
-                  <span className="ob-pill">{backend.toolMode} tools</span>
-                  <span className={`ob-pill ${STATUS_TONE[backend.status]}`}>{backend.status}</span>
+                  <span className="ob-pill">{backend.local ? copy.local : copy.cloud}</span>
+                  <span className="ob-pill">{backend.toolMode} {copy.tools}</span>
+                  <span className={`ob-pill ${STATUS_TONE[backend.status]}`}>{copy.status[backend.status]}</span>
                 </span>
               </div>
 
@@ -96,19 +98,19 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
 
               <div className="ob-backend-fields">
                 <div className="ob-field">
-                  <label htmlFor={`ob-url-${backend.id}`}>Base URL</label>
+                  <label htmlFor={`ob-url-${backend.id}`}>{copy.baseUrl}</label>
                   <input
                     id={`ob-url-${backend.id}`}
                     className="ob-input"
                     value={urlDrafts[backend.id] ?? config.baseUrl ?? ''}
-                    placeholder="Leave empty for the default endpoint"
+                    placeholder={copy.baseUrlPlaceholder}
                     onChange={(e) => setUrlDrafts((drafts) => ({ ...drafts, [backend.id]: e.target.value }))}
                     onBlur={() => commitUrl(backend.id, config.baseUrl ?? '')}
                   />
                 </div>
 
                 <div className="ob-field">
-                  <label htmlFor={`ob-key-${backend.id}`}>API key</label>
+                  <label htmlFor={`ob-key-${backend.id}`}>{copy.apiKey}</label>
                   <div className="ob-backend-key">
                     <input
                       id={`ob-key-${backend.id}`}
@@ -118,11 +120,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                       autoComplete="off"
                       spellCheck={false}
                       placeholder={
-                        config.hasApiKey
-                          ? 'Stored securely — type to replace'
-                          : backend.local
-                            ? 'Not required for local backends'
-                            : 'Stored in the OS credential store'
+                        config.hasApiKey ? copy.stored : backend.local ? copy.notRequired : copy.keyPlaceholder
                       }
                       onChange={(e) => setKeyDrafts((drafts) => ({ ...drafts, [backend.id]: e.target.value }))}
                     />
@@ -132,7 +130,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                       aria-pressed={show}
                       onClick={() => setRevealed((r) => ({ ...r, [backend.id]: !show }))}
                     >
-                      {show ? 'Hide' : 'Show'}
+                      {show ? copy.hide : copy.show}
                     </button>
                     {keyDraft.trim() ? (
                       <button
@@ -143,7 +141,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                           setKeyDrafts((drafts) => ({ ...drafts, [backend.id]: '' }))
                         }}
                       >
-                        Save key
+                        {copy.saveKey}
                       </button>
                     ) : null}
                     {config.hasApiKey ? (
@@ -152,7 +150,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
                         className="ob-btn ob-btn-sm"
                         onClick={() => write(backend.id, { apiKey: '', clearApiKey: true })}
                       >
-                        Clear
+                        {copy.clear}
                       </button>
                     ) : null}
                   </div>
@@ -160,12 +158,12 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
 
                 {backend.kind === 'agent-cli' ? (
                   <div className="ob-field">
-                    <label htmlFor={`ob-cmd-${backend.id}`}>Command</label>
+                    <label htmlFor={`ob-cmd-${backend.id}`}>{copy.command}</label>
                     <input
                       id={`ob-cmd-${backend.id}`}
                       className="ob-input"
                       value={commandDrafts[backend.id] ?? config.command ?? ''}
-                      placeholder="Executable to launch"
+                      placeholder={copy.commandPlaceholder}
                       onChange={(e) => setCommandDrafts((drafts) => ({ ...drafts, [backend.id]: e.target.value }))}
                       onBlur={() => commitCommand(backend.id, config.command ?? '')}
                     />

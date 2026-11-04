@@ -5,6 +5,7 @@
  */
 
 import { BrowserWindow, Notification } from 'electron'
+import { getSettings } from '../settings'
 import type { AgentEvent } from '../../shared/types'
 import { EVENT_CHANNEL, MENU_CHANNEL, type MenuCommand } from './channels'
 import { addActivity } from '../store/activity'
@@ -74,7 +75,14 @@ export function broadcast(event: AgentEvent): void {
      * "Background agent task completed" for the one run.
      */
     if (!failed && !hasActiveTask(event.sessionId) && BrowserWindow.getFocusedWindow() === null) {
-      postActivity('completed', getSession(event.sessionId)?.title ?? 'Agent run completed', 'The bot finished while BlinkyBot was in the background.', event.sessionId)
+      postActivity(
+        'completed',
+        getSession(event.sessionId)?.title ?? 'Agent run completed',
+        'The bot finished while BlinkyBot was in the background.',
+        event.sessionId,
+        undefined,
+        getSettings().notifyOnTurn === true
+      )
     }
   }
 }
@@ -96,7 +104,7 @@ export function postActivity(
 ): void {
   const item = addActivity(kind, title, detail, { ...(sessionId ? { sessionId } : {}), ...(botId ? { botId } : {}) })
   send(EVENT_CHANNEL, { type: 'activity-updated', item } satisfies AgentEvent)
-  if (!notify || BrowserWindow.getFocusedWindow() !== null || !Notification.isSupported()) return
+  if (!notify || getSettings().notifications === false || BrowserWindow.getFocusedWindow() !== null || !Notification.isSupported()) return
   const notification = new Notification({ title, body: detail.slice(0, 240), silent: false })
   notification.on('click', () => focusOrCreateWindow())
   notification.show()

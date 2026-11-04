@@ -12,6 +12,8 @@ import './ToolCallView.css'
 interface ToolCallViewProps {
   call: ToolCall
   result?: ToolResult
+  /** Settings → show assistant steps. Only the first paint uses it. */
+  defaultOpen?: boolean
 }
 
 type Status = 'running' | 'ok' | 'failed'
@@ -31,8 +33,8 @@ const STATUS_LABEL: Record<Status, string> = {
 }
 
 /** One tool invocation: collapsed to a single row, expanded to args + output. */
-export function ToolCallView({ call, result }: ToolCallViewProps): ReactNode {
-  const [open, setOpen] = useState(false)
+export function ToolCallView({ call, result, defaultOpen = false }: ToolCallViewProps): ReactNode {
+  const [open, setOpen] = useState(defaultOpen)
   const status: Status = result ? (result.ok ? 'ok' : 'failed') : 'running'
   const detail = result?.detail
   const chart =

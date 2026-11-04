@@ -41,7 +41,8 @@ import type {
   SearchResult,
   Skill,
   SkillInstallResult,
-  SkillUninstallResult
+  SkillUninstallResult,
+  UpdateReport
 } from '../shared/types'
 
 const EVENT_CHANNEL = 'openbot:event'
@@ -188,6 +189,12 @@ const api: OpenBotApi = {
   window: {
     setFullScreen: (active) => invoke<boolean>('openbot:window:setFullScreen', active),
     isFullScreen: () => invoke<boolean>('openbot:window:isFullScreen')
+  },
+
+  updates: {
+    version: () => invoke<string>('openbot:app:version'),
+    check: (channel) => invoke<UpdateReport>('openbot:app:checkUpdate', channel),
+    openRelease: (url) => invoke<boolean>('openbot:app:openRelease', url)
   },
 
   /** Subscribe to the main -> renderer event stream; returns an unsubscribe. */

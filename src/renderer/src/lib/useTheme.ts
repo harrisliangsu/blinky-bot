@@ -7,7 +7,9 @@ const DARK_QUERY = '(prefers-color-scheme: dark)'
  * Reflects the theme and font-size preferences onto the document root, where
  * tokens.css picks them up. 'system' follows the OS and keeps following it.
  */
-export function useTheme(theme: Settings['theme'] | undefined, fontSize: number | undefined): void {
+export function useTheme(settings: Pick<Settings, 'theme' | 'fontSize' | 'uiScale' | 'accent' | 'vibrant'> | undefined): void {
+  const theme = settings?.theme
+  const fontSize = settings?.fontSize
   useEffect(() => {
     const root = document.documentElement
     const media = window.matchMedia(DARK_QUERY)
@@ -29,4 +31,13 @@ export function useTheme(theme: Settings['theme'] | undefined, fontSize: number 
     const clamped = Math.min(24, Math.max(9, Math.round(fontSize)))
     root.style.setProperty('--ob-font-size-base', `${clamped}px`)
   }, [fontSize])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const scale = settings?.uiScale ?? 100
+    root.style.zoom = `${scale}%`
+    if (settings?.accent && settings.accent !== 'theme') root.dataset.accent = settings.accent
+    else delete root.dataset.accent
+    root.dataset.vibrant = settings?.vibrant ? 'true' : 'false'
+  }, [settings?.uiScale, settings?.accent, settings?.vibrant])
 }

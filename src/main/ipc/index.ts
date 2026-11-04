@@ -12,6 +12,7 @@ import { registerRoutineIpc } from './routines'
 import { registerSessionIpc } from './sessions'
 import { registerSettingsIpc } from './settings'
 import { registerSkillIpc } from './skills'
+import { registerUpdateIpc } from './updates'
 import { registerWindowIpc } from './window'
 import { registerSearchIpc } from './search'
 import { registerActivityIpc } from './activity'
@@ -33,6 +34,7 @@ export function registerIpc(): void {
   registerSkillIpc()
   registerDialogIpc()
   registerWindowIpc()
+  registerUpdateIpc()
 }
 
 export { broadcast, sendMenuCommand } from './broadcast'

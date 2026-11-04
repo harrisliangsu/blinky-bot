@@ -108,5 +108,9 @@ export const CHANNELS = {
   dialogPickFiles: 'openbot:dialog:pickFiles',
 
   windowSetFullScreen: 'openbot:window:setFullScreen',
-  windowIsFullScreen: 'openbot:window:isFullScreen'
+  windowIsFullScreen: 'openbot:window:isFullScreen',
+
+  appVersion: 'openbot:app:version',
+  appCheckUpdate: 'openbot:app:checkUpdate',
+  appOpenRelease: 'openbot:app:openRelease'
 } as const

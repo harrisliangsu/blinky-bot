@@ -11,7 +11,7 @@ import { installBackgroundMode, installLifecycle, claimSingleInstance } from './
 import { installMenu } from './app/menu'
 import { installSecurity } from './app/security'
 import { markSmokeFailed, prepareSmoke } from './app/smoke'
-import { createWindow } from './app/window'
+import { createWindow, installWindowChrome } from './app/window'
 import { registerIpc } from './ipc'
 import { initStore } from './store'
 import { startRoutineScheduler } from './routines/scheduler'
@@ -40,6 +40,7 @@ if (!claimSingleInstance()) {
     .then(async () => {
       await initStore()
       installBackgroundMode()
+      installWindowChrome()
       registerIpc()
       installMenu()
       if (!app.getLoginItemSettings().wasOpenedAsHidden) createWindow()

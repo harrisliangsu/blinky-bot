@@ -32,7 +32,7 @@ export default function App(): ReactNode {
     void boot()
   }, [])
 
-  useTheme(settings?.theme, settings?.fontSize)
+  useTheme(settings ?? undefined)
   useShortcuts()
 
   if (!ready || bootError) return <StartupScreen error={bootError} />

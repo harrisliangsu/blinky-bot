@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 22
       - name: Backend selection
-        run: node --experimental-strip-types --test src/main/backends/defaultBackend.test.ts
+        run: node --experimental-strip-types --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts
       - name: Release notes and Sparkle feed
         run: |
           python3 Scripts/release_test.py

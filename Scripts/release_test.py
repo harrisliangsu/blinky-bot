@@ -115,9 +115,9 @@ class SparkleKeyTest(unittest.TestCase):
         build = package["build"]
         self.assertEqual(build["productName"], "BlinkyBot")
         self.assertEqual(build["appId"], "bot.blinky.shell")
-        self.assertEqual(package["version"], "0.2.2")
-        self.assertIsNotNone(changelog.entry("0.2.1"))
-        self.assertIsNotNone(changelog.entry("0.2.1", changelog.CHANGELOG_ZH))
+        self.assertEqual(package["version"], "0.3.0")
+        self.assertIsNotNone(changelog.entry("0.2.2"))
+        self.assertIsNotNone(changelog.entry("0.2.2", changelog.CHANGELOG_ZH))
         self.assertIsNotNone(changelog.entry(package["version"]))
         self.assertIsNotNone(changelog.entry(package["version"], changelog.CHANGELOG_ZH))
         info = build["mac"]["extendInfo"]
