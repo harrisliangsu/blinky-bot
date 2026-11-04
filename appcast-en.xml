@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                        <item>
-            <title>0.3.1</title>
-            <pubDate>Wed, 04 Nov 2026 05:15:12 -0000</pubDate>
-            <sparkle:version>0.3.1</sparkle:version>
-            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
+                            <item>
+            <title>0.3.2</title>
+            <pubDate>Wed, 04 Nov 2026 06:10:13 -0000</pubDate>
+            <sparkle:version>0.3.2</sparkle:version>
+            <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.1</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.1</h2><ul><li><strong>Codex keeps going when the connection blips.</strong> A notice such as &quot;Reconnecting... 2/5&quot; is shown while Codex retries, and the reply still arrives. A real failure shows Codex&#x27;s own message, including the extra detail.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.1">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.1/BlinkyBot-0.3.1.zip"
-                       length="122434489"
+</style><h2>BlinkyBot 0.3.2</h2><ul><li><strong>The dated session list is hidden.</strong> Today, Yesterday, and Older no longer appear on the main sidebar.</li><li><strong>Clicking a bot opens its newest chat.</strong> If that bot has no chat yet, one is created.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.2">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.2/BlinkyBot-0.3.2.zip"
+                       length="122434525"
                        type="application/octet-stream"
-                       sparkle:edSignature="DlFS0caTOBvac7tsDt/vYFzza1fdZwAfhoFrbCWZuNxx2AmZtwpukYDQusBIgbYg5yeekcjwzqIe2rhVYthqCg==" />
+                       sparkle:edSignature="aRVBCWXzp8RDOvzU33Xr5Dpgf1Vi+RJIQF31KCx1wHfmDYQCuFutJrvYbhyercmtJZh7bx3zkDNWSfbvmEUYDQ==" />
         </item>
     </channel>
 </rss>
