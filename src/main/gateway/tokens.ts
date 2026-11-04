@@ -51,6 +51,37 @@ export interface Grant {
 
 const byToken = new Map<string, Grant>()
 
+/** Identity of a computer target, ignoring secrets that rotate on their own. */
+export function targetScope(target: ComputerTarget | undefined): string {
+  const value = target ?? { kind: 'local' as const }
+  if (value.kind === 'vm') return `vm\0${value.vmId}\0${value.endpoint}`
+  if (value.kind === 'browser') return `browser\0${value.botId}`
+  return 'local'
+}
+
+function sameTools(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false
+  const a = [...left].sort()
+  const b = [...right].sort()
+  return a.every((item, index) => item === b[index])
+}
+
+/**
+ * True when this grant still describes the bot about to run.
+ * A match lets the next turn keep the same bearer token, which is what a
+ * warm CLI process was started with.
+ */
+export function grantCovers(grant: Grant, input: GrantInput): boolean {
+  return (
+    grant.botId === input.botId &&
+    grant.sessionId === input.sessionId &&
+    grant.cwd === input.cwd &&
+    grant.computerUse === input.computerUse &&
+    sameTools(grant.tools, input.tools) &&
+    targetScope(grant.computerTarget) === targetScope(input.computerTarget)
+  )
+}
+
 export function mintGrant(input: GrantInput): Grant {
   const grant: Grant = {
     token: randomBytes(TOKEN_BYTES).toString('base64url'),

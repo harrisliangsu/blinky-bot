@@ -144,9 +144,20 @@ class StateCore {
 
   queueDelta(messageId: string, field: 'text' | 'reasoning', delta: string): void {
     if (!this.messages.has(messageId)) return
+    const prev = this.messages.get(messageId)
     const entry = this.pending.get(messageId) ?? { text: '', reasoning: '' }
     entry[field] += delta
     this.pending.set(messageId, entry)
+    /*
+     * The first token paints now. Waiting for the next animation frame on top
+     * of the CLI's line buffer is a second queue in front of an empty bubble,
+     * and it is the one the user actually feels. Later tokens still batch to
+     * a frame so a fast stream does not re-render per character.
+     */
+    if (!prev?.content && !prev?.reasoning) {
+      this.flushNow()
+      return
+    }
     if (this.frame === null) {
       this.frame = window.requestAnimationFrame(() => {
         this.frame = null

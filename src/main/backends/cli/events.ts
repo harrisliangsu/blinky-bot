@@ -260,14 +260,43 @@ function kimiToolLine(call: unknown): string {
   return toolLine(name, input)
 }
 
+/** Growing snapshot → only the new suffix. A non-prefix chunk is a fresh delta. */
+function diffSnapshot(previous: string, next: string): { full: string; delta: string } {
+  if (!next) return { full: previous, delta: '' }
+  if (next.startsWith(previous)) return { full: next, delta: next.slice(previous.length) }
+  return { full: previous + next, delta: next }
+}
+
+function fieldText(value: unknown): string {
+  return typeof value === 'string' ? value : textContent(value)
+}
+
+/**
+ * Incremental thinking/text some Kimi builds emit as Anthropic-style blocks
+ * instead of a growing `content` string. Null when this line is not one of those.
+ */
+function kimiStreamDelta(value: Record<string, unknown>): ChatChunk[] | null {
+  const delta = isPlainObject(value.delta) ? value.delta : null
+  if (!delta) return null
+  const kind = str(delta.type)
+  const text = str(delta.text) || str(delta.thinking) || str(delta.reasoning_content)
+  if (!text) return null
+  if (kind === 'thinking_delta' || kind === 'reasoning_delta') return [{ type: 'reasoning', delta: text }]
+  if (kind === 'text_delta' || kind === 'content_delta') return [{ type: 'text', delta: text }]
+  return null
+}
+
 /**
  * Kimi Code `kimi -p --output-format stream-json`: one JSON object per line.
  * Assistant `content` is a string, sometimes repeated as a growing snapshot.
+ * `reasoning_content` / thinking blocks are the same shape and are forwarded
+ * as soon as they arrive — the answer is not held back for them.
  * Tool calls use the OpenAI `tool_calls` shape. The closing `meta` line carries
  * the session id (`kimi --session`) for the next turn.
  */
 export function kimiMapper(onSession?: (id: string) => void): EventMapper {
   let assistant = ''
+  let thought = ''
   return (value) => {
     if (!isPlainObject(value)) return []
     const type = str(value.type)
@@ -285,8 +314,21 @@ export function kimiMapper(onSession?: (id: string) => void): EventMapper {
       return []
     }
 
+    // Thinking often arrives before any answer text. Dropping it left the
+    // transcript on "Working" with no caret activity until the answer started,
+    // which reads as the app being stuck rather than the model thinking.
+    const streamed = kimiStreamDelta(value)
+    if (streamed) return streamed
+
+    if (type === 'reasoning' || type === 'thinking' || type === 'thought') {
+      const data =
+        str(value.delta) || str(value.text) || str(value.data) || fieldText(value.reasoning_content)
+      return data ? [{ type: 'reasoning', delta: data }] : []
+    }
+
     if (role === 'tool') {
       assistant = ''
+      thought = ''
       return []
     }
 
@@ -296,11 +338,18 @@ export function kimiMapper(onSession?: (id: string) => void): EventMapper {
     const calls = Array.isArray(value.tool_calls) ? value.tool_calls : []
     for (const call of calls) out.push({ type: 'reasoning', delta: kimiToolLine(call) })
 
+    const reasoning = fieldText(value.reasoning_content) || fieldText(value.reasoning) || fieldText(value.thinking)
+    if (reasoning) {
+      const next = diffSnapshot(thought, reasoning)
+      thought = next.full
+      if (next.delta) out.push({ type: 'reasoning', delta: next.delta })
+    }
+
     const content = textContent(value.content)
     if (!content) return out
-    const delta = content.startsWith(assistant) ? content.slice(assistant.length) : content
-    assistant = content.startsWith(assistant) ? content : assistant + content
-    if (delta) out.push({ type: 'text', delta })
+    const next = diffSnapshot(assistant, content)
+    assistant = next.full
+    if (next.delta) out.push({ type: 'text', delta: next.delta })
     return out
   }
 }

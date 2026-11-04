@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { listedBackends } from '../../../shared/backendSections'
+import { KNOWN_BACKEND_LABELS } from '../../../shared/backends'
 import type { BackendInfo } from '../../../shared/types'
 import { useAppState } from '../state'
 import { IconChevronDown, IconRefresh, IconSpinner, IconWarning } from './Icons'
@@ -109,7 +110,17 @@ export function ModelPicker({
 
   const current = backends.find((b) => b.id === backendId)
   const currentModel = current?.models.find((m) => m.id === modelId)
-  const label = currentModel?.label ?? (current ? 'CLI default' : 'Choose model')
+  /*
+   * The agent name comes from the bot (or the known id) and does not wait on
+   * detection. Waiting painted "Choose model" while Settings already said
+   * Codex — and the reply then introduced itself as whichever CLI the bot
+   * actually ran, often Kimi. A specific model id is shown as soon as the bot
+   * has one; the catalog label replaces it when the probe returns.
+   */
+  const agent = current?.label || KNOWN_BACKEND_LABELS[backendId] || backendId
+  const specificModel = Boolean(modelId && modelId !== 'default')
+  const modelText = currentModel?.label || modelId
+  const label = agent ? (specificModel ? `${agent} · ${modelText}` : agent) : 'Choose model'
 
   return (
     <div className="ob-mp" ref={root}>

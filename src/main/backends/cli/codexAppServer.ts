@@ -4,14 +4,19 @@
  * Unlike one-shot `codex exec`, the app server keeps a thread alive and asks
  * the CLIENT before running commands or editing files. Those requests are
  * routed to OpenBOT's approval gate, which is the entire reason for preferring
- * this path. It is marked experimental upstream, so `codex.ts` falls back to
- * `exec` when this fails to start.
+ * this path.
+ *
+ * The process used to be spawned, handshaken and killed on every message.
+ * `initialize` plus `thread/start` is a cold CLI start — the pause before the
+ * first token. A successful turn now leaves the process and its thread warm
+ * for a couple of minutes, and the next message in that conversation sends
+ * only the new user text on the thread Codex already has.
  */
 
 import { AsyncQueue } from '../asyncQueue'
 import { JsonRpcPeer } from '../jsonRpc'
 import { diagnosticTail } from '../secretRedaction'
-import { spawnLines } from '../spawnProcess'
+import { type ProcessHandle, spawnLines } from '../spawnProcess'
 import type { ChatChunk, ChatRequest } from '../types'
 import {
   approvalResponse,
@@ -20,22 +25,19 @@ import {
   describeApproval,
   isTurnEnd
 } from './codexEvents'
+import { type CodexPoolIdentity, codexPoolKey } from './codexPool'
 import type { CliRunContext } from './spec'
+import { codexTurnPrompt } from './transcript'
 
 /**
- * Ceiling on the handshake. `codex.ts` falls back to one-shot `exec` when this
- * transport fails, but an app-server that starts and then never answers
- * `initialize` would leave the request pending forever and the fallback would
- * never run — the turn would just hang.
+ * Ceiling on the handshake. An app-server that starts and then never answers
+ * `initialize` would leave the request pending forever.
  */
 const HANDSHAKE_TIMEOUT_MS = 20_000
 
-/**
- * Ring-buffer bound on kept diagnostics. Only `diagnosticTail` — the last
- * ~1200 characters — is ever reported, but every stderr line was retained for
- * the whole turn, so a chatty server grew the array without limit for output
- * nothing would read. `serverPool` already bounds its own the same way.
- */
+/** Quiet period before a warm server is killed. Matches the gateway detach delay. */
+const WARM_IDLE_MS = 120_000
+
 const MAX_DIAGNOSTIC_LINES = 200
 
 function withDeadline<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
@@ -65,153 +67,292 @@ interface ThreadStarted {
 export interface AppServerRun {
   binaryPath: string
   ctx: CliRunContext
-  prompt: string
   req: ChatRequest
   /** `-c` overrides and the token variables they name, from `mcpConfig`. */
   mcp?: { args: string[]; env: Record<string, string> }
 }
 
-export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<ChatChunk> {
-  const handle = await spawnLines(run.binaryPath, {
-    args: ['app-server', ...(run.mcp?.args ?? [])],
-    cwd: run.ctx.cwd,
-    signal: run.req.signal,
-    stdin: 'pipe',
-    ...(run.mcp?.env ? { extraEnv: run.mcp.env } : {})
+interface WarmCodex {
+  key: string
+  handle: ProcessHandle
+  peer: JsonRpcPeer
+  threadId: string
+  /** True after one turn completed on this thread. */
+  primed: boolean
+  sink: AsyncQueue<ChatChunk> | null
+  items: CodexItems
+  diagnostics: string[]
+  failure: unknown
+  turnEnded: boolean
+  /** Bumps on every turn so a late RPC rejection cannot fail the next one. */
+  generation: number
+  approve?: ChatRequest['approve']
+  idle?: ReturnType<typeof setTimeout>
+  unbind?: () => void
+  disposed: boolean
+}
+
+const warm = new Map<string, WarmCodex>()
+
+let exitHookInstalled = false
+function installExitHook(): void {
+  if (exitHookInstalled) return
+  exitHookInstalled = true
+  process.once('exit', () => {
+    for (const live of warm.values()) {
+      try {
+        live.handle.kill()
+      } catch {
+        // Exiting anyway.
+      }
+    }
+    warm.clear()
   })
+}
 
-  const chunks = new AsyncQueue<ChatChunk>()
-  const diagnostics: string[] = []
-  const note = (line: string): void => {
-    diagnostics.push(line)
-    if (diagnostics.length > MAX_DIAGNOSTIC_LINES) diagnostics.shift()
-  }
-  /*
-   * An approval request names an item; what that item is about was said
-   * earlier, in the notification stream. Without this the file-change dialog
-   * had nothing to show the user but the word "files".
-   */
-  const items = new CodexItems()
-  let failure: unknown = null
-  let turnEnded = false
+function noteDiag(live: WarmCodex, line: string): void {
+  live.diagnostics.push(line)
+  if (live.diagnostics.length > MAX_DIAGNOSTIC_LINES) live.diagnostics.shift()
+}
 
-  const peer = new JsonRpcPeer(
+function dispose(live: WarmCodex): void {
+  if (live.disposed) return
+  live.disposed = true
+  if (live.idle) clearTimeout(live.idle)
+  live.idle = undefined
+  live.unbind?.()
+  live.unbind = undefined
+  if (warm.get(live.key) === live) warm.delete(live.key)
+  live.sink?.close()
+  live.peer.close(new Error('codex app-server closed'))
+  live.handle.kill()
+}
+
+function armIdle(live: WarmCodex): void {
+  if (live.idle) clearTimeout(live.idle)
+  live.idle = setTimeout(() => dispose(live), WARM_IDLE_MS)
+  live.idle.unref?.()
+}
+
+/** Kill every warm Codex process. Called on app quit beside the other pools. */
+export function stopWarmCodex(): void {
+  for (const live of [...warm.values()]) dispose(live)
+  warm.clear()
+}
+
+function wire(live: WarmCodex, handle: ProcessHandle, run: AppServerRun): void {
+  live.peer = new JsonRpcPeer(
     (line) => handle.write(`${line}\n`),
     (method, params) => {
       try {
-        for (const chunk of codexNotification(method, params, items)) chunks.push(chunk)
+        const chunks = codexNotification(method, params, live.items)
+        for (const chunk of chunks) live.sink?.push(chunk)
         if (isTurnEnd(method)) {
-          turnEnded = true
-          chunks.close()
+          live.turnEnded = true
+          live.sink?.close()
         }
       } catch (err) {
-        failure = err
-        chunks.close()
+        live.failure = err
+        live.sink?.close()
       }
     }
   )
 
-  /*
-   * Fail CLOSED, on both counts. If the loop gave us no way to ask the user,
-   * deny rather than letting the CLI run commands unattended — an unattended
-   * `approve` here would be a silent privilege escalation. And if the request
-   * cannot be described, deny too: an approval dialog that cannot say what it
-   * is approving is not consent, and the denylist has nothing to match against.
-   */
   for (const method of APPROVAL_METHODS) {
-    peer.onRequest(method, async (params) => {
-      const request = describeApproval(method, params, items)
-      if (!request || !run.req.approve) return approvalResponse(method, params, 'reject')
-      const decision = await run.req.approve(request)
+    live.peer.onRequest(method, async (params) => {
+      const request = describeApproval(method, params, live.items)
+      const approve = live.approve
+      if (!request || !approve) return approvalResponse(method, params, 'reject')
+      const decision = await approve(request)
       return approvalResponse(method, params, decision)
     })
   }
 
   // Codex asks the client to read files and fetch time; refuse politely rather
   // than leaving the request hanging and stalling the turn.
-  peer.onRequest('item/tool/requestUserInput', () => ({ response: null }))
+  live.peer.onRequest('item/tool/requestUserInput', () => ({ response: null }))
 
-  /*
-   * The rejection handler is attached here, not at the `await` in the `finally`
-   * below: a child that fails to spawn rejects this immediately, and a promise
-   * that stays unhandled until then is an unhandledRejection in the main
-   * process.
-   *
-   * When the loop ends, the child's streams are closed and no further
-   * notification can arrive. If the turn never reached `turn/completed`, the
-   * queue has to be closed with a reason — otherwise the generator below waits
-   * on a queue nothing will ever push to, and the turn hangs forever.
-   */
   const pump = (async () => {
     for await (const { stream, line } of handle.lines) {
-      if (stream === 'stdout') peer.handleLine(line)
-      else if (line.trim()) note(line)
+      if (stream === 'stdout') live.peer.handleLine(line)
+      else if (line.trim()) noteDiag(live, line)
     }
   })()
     .catch((err: unknown) => {
-      failure ??= err
+      live.failure ??= err
     })
     .finally(() => {
-      if (!turnEnded && failure === null && !run.req.signal.aborted) {
-        failure = new Error(
-          appServerFailure(new Error('codex app-server stopped before the turn finished'), diagnostics)
+      if (live.disposed) return
+      if (live.sink && !live.turnEnded && live.failure == null && !run.req.signal.aborted) {
+        live.failure = new Error(
+          appServerFailure(new Error('codex app-server stopped before the turn finished'), live.diagnostics)
         )
       }
-      peer.close(failure ?? new Error('codex app-server closed'))
-      chunks.close()
+      dispose(live)
     })
+  // The rejection is observed; the process exit is what ends the turn.
+  void pump
+}
 
-  const abort = (): void => {
-    peer.close(new Error('cancelled'))
-    chunks.close()
-    handle.kill()
+async function handshake(live: WarmCodex, run: AppServerRun): Promise<void> {
+  await withDeadline(
+    live.peer.request('initialize', {
+      clientInfo: { name: 'BlinkyBot', title: 'BlinkyBot', version: '0.1.0' }
+    }),
+    HANDSHAKE_TIMEOUT_MS,
+    'initialize'
+  )
+
+  const started = await withDeadline(
+    live.peer.request<ThreadStarted>('thread/start', {
+      cwd: run.ctx.cwd,
+      ...(run.ctx.model && run.ctx.model !== 'default' ? { model: run.ctx.model } : {})
+    }),
+    HANDSHAKE_TIMEOUT_MS,
+    'thread/start'
+  )
+  const threadId = started?.threadId ?? started?.thread?.id
+  if (!threadId) throw new Error('codex app-server did not return a thread id')
+  live.threadId = threadId
+}
+
+async function boot(run: AppServerRun, key: string): Promise<WarmCodex> {
+  installExitHook()
+  const handle = await spawnLines(run.binaryPath, {
+    args: ['app-server', ...(run.mcp?.args ?? [])],
+    cwd: run.ctx.cwd,
+    stdin: 'pipe',
+    ...(run.mcp?.env ? { extraEnv: run.mcp.env } : {})
+  })
+
+  const live: WarmCodex = {
+    key,
+    handle,
+    peer: null as unknown as JsonRpcPeer,
+    threadId: '',
+    primed: false,
+    sink: null,
+    items: new CodexItems(),
+    diagnostics: [],
+    failure: null,
+    turnEnded: false,
+    generation: 0,
+    disposed: false
   }
-  run.req.signal.addEventListener('abort', abort, { once: true })
-
+  wire(live, handle, run)
   try {
-    await withDeadline(
-      peer.request('initialize', {
-        clientInfo: { name: 'BlinkyBot', title: 'BlinkyBot', version: '0.1.0' }
-      }),
-      HANDSHAKE_TIMEOUT_MS,
-      'initialize'
-    )
-
-    const started = await withDeadline(
-      peer.request<ThreadStarted>('thread/start', {
-        cwd: run.ctx.cwd,
-        ...(run.ctx.model && run.ctx.model !== 'default' ? { model: run.ctx.model } : {})
-      }),
-      HANDSHAKE_TIMEOUT_MS,
-      'thread/start'
-    )
-    const threadId = started?.threadId ?? started?.thread?.id
-    if (!threadId) throw new Error('codex app-server did not return a thread id')
-
-    // Not awaited: the turn's output arrives as notifications, and this request
-    // only settles when the turn is already over.
-    void peer
-      .request('turn/start', {
-        threadId,
-        input: [{ type: 'text', text: run.prompt }]
-      })
-      .catch((err) => {
-        failure = err
-        chunks.close()
-      })
-
-    for await (const chunk of chunks) yield chunk
-    if (failure) throw failure
-    yield { type: 'done' }
-  } finally {
-    run.req.signal.removeEventListener('abort', abort)
-    peer.close()
-    handle.kill()
-    await pump.catch(() => {})
+    if (run.req.signal.aborted) throw new Error('cancelled')
+    await handshake(live, run)
+    return live
+  } catch (err) {
+    const wrapped = new Error(appServerFailure(err, live.diagnostics))
+    dispose(live)
+    throw wrapped
   }
 }
 
-/** Readable reason for the fallback path to report if the server never starts. */
+function bindAbort(live: WarmCodex, signal: AbortSignal): void {
+  const onAbort = (): void => dispose(live)
+  if (signal.aborted) {
+    dispose(live)
+    return
+  }
+  signal.addEventListener('abort', onAbort, { once: true })
+  live.unbind = () => signal.removeEventListener('abort', onAbort)
+}
+
+async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): AsyncGenerator<ChatChunk> {
+  if (live.disposed) throw new Error('codex app-server is no longer running')
+  const generation = ++live.generation
+  live.sink = new AsyncQueue()
+  live.items = new CodexItems()
+  live.failure = null
+  live.turnEnded = false
+  live.approve = run.req.approve
+  live.diagnostics = []
+  bindAbort(live, run.req.signal)
+
+  const prompt = codexTurnPrompt(live.primed, run.req.messages)
+  void live.peer
+    .request('turn/start', {
+      threadId: live.threadId,
+      input: [{ type: 'text', text: prompt }]
+    })
+    .catch((err: unknown) => {
+      if (live.generation !== generation || live.disposed) return
+      // `turn/start` settles when the turn is over. A completion we already
+      // accepted must not tear the warm thread down.
+      if (live.turnEnded && live.primed) return
+      live.failure = err
+      live.sink?.close()
+    })
+
+  try {
+    for await (const chunk of live.sink) yield chunk
+    if (live.failure) throw live.failure
+    if (!live.turnEnded || run.req.signal.aborted || live.disposed) return
+    live.primed = true
+    if (reuse) armIdle(live)
+    yield { type: 'done' }
+  } finally {
+    live.unbind?.()
+    live.unbind = undefined
+    live.approve = undefined
+    const clean =
+      reuse && live.turnEnded && live.primed && !live.failure && !run.req.signal.aborted && !live.disposed
+    live.sink = null
+    // Stop, a transport error, or a turn that never finished must not leave
+    // the thread warm: the next message would send only the new line onto a
+    // transcript Codex does not actually have.
+    if (!clean) dispose(live)
+  }
+}
+
+function reusable(run: AppServerRun): boolean {
+  return Boolean(run.req.sessionKey) && run.req.readOnly !== true
+}
+
+function identity(run: AppServerRun): CodexPoolIdentity {
+  return {
+    binaryPath: run.binaryPath,
+    cwd: run.ctx.cwd,
+    model: run.ctx.model,
+    sessionKey: run.req.sessionKey ?? '',
+    args: run.mcp?.args ?? [],
+    env: run.mcp?.env ?? {}
+  }
+}
+
+function alive(live: WarmCodex): boolean {
+  return (
+    !live.disposed &&
+    live.sink === null &&
+    live.handle.child.exitCode === null &&
+    live.handle.child.signalCode === null &&
+    !live.handle.child.killed
+  )
+}
+
+export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<ChatChunk> {
+  const keep = reusable(run)
+  const key = keep ? codexPoolKey(identity(run)) : ''
+  const existing = keep ? warm.get(key) : undefined
+  if (existing && alive(existing)) {
+    if (existing.idle) {
+      clearTimeout(existing.idle)
+      existing.idle = undefined
+    }
+    yield* runTurnOn(existing, run, true)
+    return
+  }
+  if (existing) dispose(existing)
+
+  const live = await boot(run, key)
+  if (keep) warm.set(key, live)
+  yield* runTurnOn(live, run, keep)
+}
+
+/** Readable reason when the server never starts. */
 export function appServerFailure(err: unknown, diagnostics: string[]): string {
   const tail = diagnosticTail(diagnostics.join('\n'))
   const message = err instanceof Error ? err.message : String(err)

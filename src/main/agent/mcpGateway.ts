@@ -111,8 +111,28 @@ export async function noteGatewayMessage(
   }
 }
 
-/** Best-effort detach, called when a supervised session ends or is stopped. */
-export async function detachGateway(sessionId: string): Promise<void> {
+/**
+ * How long a supervised session keeps its gateway after the reply.
+ *
+ * Detaching in the same tick as `done` revoked the bearer token before the
+ * user had typed the next message, so the CLI process that could have stayed
+ * warm had to cold-start — new process, new handshake, new thread. Two minutes
+ * covers reading the reply and sending the next one. Stop and quit still
+ * detach immediately.
+ */
+const DETACH_AFTER_MS = 120_000
+
+const detachTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** Drop a deferred detach without revoking anything. The next turn calls this. */
+export function cancelGatewayDetach(sessionId: string): void {
+  const timer = detachTimers.get(sessionId)
+  if (!timer) return
+  clearTimeout(timer)
+  detachTimers.delete(sessionId)
+}
+
+async function detachNow(sessionId: string): Promise<void> {
   const mod = await load()
   const fn = mod?.detachSession ?? mod?.detach
   if (typeof fn !== 'function') return
@@ -121,4 +141,21 @@ export async function detachGateway(sessionId: string): Promise<void> {
   } catch (err) {
     console.warn(`[agent] MCP gateway detach failed: ${errorMessage(err)}`)
   }
+}
+
+/** Best-effort detach, called when a supervised session is stopped or the app quits. */
+export async function detachGateway(sessionId: string): Promise<void> {
+  cancelGatewayDetach(sessionId)
+  await detachNow(sessionId)
+}
+
+/** Revoke the gateway after {@link DETACH_AFTER_MS} of quiet. */
+export function scheduleGatewayDetach(sessionId: string): void {
+  cancelGatewayDetach(sessionId)
+  const timer = setTimeout(() => {
+    detachTimers.delete(sessionId)
+    void detachNow(sessionId)
+  }, DETACH_AFTER_MS)
+  timer.unref?.()
+  detachTimers.set(sessionId, timer)
 }

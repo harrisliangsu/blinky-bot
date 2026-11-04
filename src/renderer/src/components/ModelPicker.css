@@ -1,7 +1,7 @@
 .ob-mp {
   position: relative;
   min-width: 0;
-  --ob-mp-trigger-max: 200px;
+  --ob-mp-trigger-max: 240px;
   --ob-menu-width: 232px;
 }
 

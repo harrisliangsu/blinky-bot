@@ -112,6 +112,22 @@ describe('kimi and grok cli adapters', () => {
       grokSession = id
     })
     assert.deepEqual(grok({ type: 'text', data: 'Hi' }), [{ type: 'text', delta: 'Hi' }])
+    assert.deepEqual(grok({ type: 'thought', data: 'Looking' }), [{ type: 'reasoning', delta: 'Looking' }])
+
+    const thinking = kimiMapper()
+    assert.deepEqual(thinking({ role: 'assistant', reasoning_content: 'Checking', content: '' }), [
+      { type: 'reasoning', delta: 'Checking' }
+    ])
+    assert.deepEqual(
+      thinking({ role: 'assistant', reasoning_content: 'Checking the file', content: 'Hi' }),
+      [
+        { type: 'reasoning', delta: ' the file' },
+        { type: 'text', delta: 'Hi' }
+      ]
+    )
+    assert.deepEqual(thinking({ type: 'thinking_delta', delta: { type: 'thinking_delta', thinking: 'more' } }), [
+      { type: 'reasoning', delta: 'more' }
+    ])
     assert.equal(grok({ type: 'tool_call', toolName: 'read_file', rawInput: { path: 'a' } })[0]?.type, 'reasoning')
     const end = grok({ type: 'end', sessionId: 'sess-1', usage: { input_tokens: 3, output_tokens: 4 } })
     assert.equal(grokSession, 'sess-1')

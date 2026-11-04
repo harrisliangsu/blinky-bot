@@ -26,8 +26,6 @@ import {
   resolveBinary,
   runContext
 } from './spec'
-import { flattenTranscript } from './transcript'
-
 export const CODEX_SPEC: AgentCliSpec = {
   id: 'codex',
   displayName: 'Codex',
@@ -52,12 +50,13 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   const opts = readCliOptions(cfg, req.cwd)
   const binaryPath = await resolveBinary(CODEX_SPEC, cfg)
   const ctx = runContext(req.model, opts)
-  const prompt = flattenTranscript(req.messages)
   // Codex takes `-c` on both transports, so the same servers reach either path.
   const mcp = codexMcpConfig(req.mcpServers)
 
   try {
-    yield* runCodexAppServer({ binaryPath, ctx, prompt, req, mcp })
+    // The prompt is chosen inside the app-server: the full transcript on a cold
+    // thread, only the new user text when that thread is still warm.
+    yield* runCodexAppServer({ binaryPath, ctx, req, mcp })
   } catch (err) {
     if (req.signal.aborted) throw err
     throw presentCodexError(err)

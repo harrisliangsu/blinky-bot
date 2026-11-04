@@ -10,6 +10,7 @@
 import { createHash } from 'node:crypto'
 import { diagnosticTail } from '../secretRedaction'
 import { type ProcessHandle, spawnLines } from '../spawnProcess'
+import { stopWarmCodex } from './codexAppServer'
 import type { AgentCliSpec } from './spec'
 
 const READY_TIMEOUT_MS = 20_000
@@ -217,6 +218,7 @@ export async function runningServer(req: ServerRequest): Promise<PooledServer | 
 
 /** Shut every pooled server down (app quit). */
 export async function stopAgentCliServers(): Promise<void> {
+  stopWarmCodex()
   const entries = [...pool.values()]
   pool.clear()
   await Promise.all(
