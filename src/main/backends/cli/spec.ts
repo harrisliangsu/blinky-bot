@@ -3,7 +3,7 @@
  *
  * Each supported CLI is a row: its binary, how to install it, and the few
  * transport knobs its runtime needs. A CLI compatible with one we already
- * support (kilo ≈ opencode, grok ≈ ACP) costs a row, not code.
+ * support costs a spec row plus a stdout mapper, not a new transport.
  */
 
 import type { InstallSpec } from '../detectionTable'

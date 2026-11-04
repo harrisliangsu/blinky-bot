@@ -23,6 +23,8 @@ const GLYPH: Record<string, string> = {
   opencode: 'oc',
   claude: 'cl',
   codex: 'cx',
+  kimi: 'ki',
+  grok: 'gk',
   pi: 'pi',
   droid: 'dr',
   openai: 'ai',

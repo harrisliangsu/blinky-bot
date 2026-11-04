@@ -19,8 +19,12 @@ export interface StdioJsonRun {
   args: string[]
   ctx: CliRunContext
   prompt: string
-  /** `json` writes one encoded line; `text` writes the raw prompt. */
-  promptInput: 'stdin-json' | 'stdin-text'
+  /**
+   * `json` writes one encoded line; `text` writes the raw prompt.
+   * `none` only closes stdin — the prompt already went out as an argv or a file,
+   * which is how Kimi (`-p`) and Grok (`--prompt-file`) take it.
+   */
+  promptInput: 'stdin-json' | 'stdin-text' | 'none'
   encodePrompt?: (prompt: string) => string
   mapper: EventMapper
   signal: AbortSignal
@@ -69,13 +73,15 @@ export async function* runStdioJson(run: StdioJsonRun): AsyncGenerator<ChatChunk
   })
 
   try {
-    const payload =
-      run.promptInput === 'stdin-json' && run.encodePrompt
-        ? `${run.encodePrompt(run.prompt)}\n`
-        : run.prompt.endsWith('\n')
-          ? run.prompt
-          : `${run.prompt}\n`
-    handle.write(payload)
+    if (run.promptInput !== 'none') {
+      const payload =
+        run.promptInput === 'stdin-json' && run.encodePrompt
+          ? `${run.encodePrompt(run.prompt)}\n`
+          : run.prompt.endsWith('\n')
+            ? run.prompt
+            : `${run.prompt}\n`
+      handle.write(payload)
+    }
     handle.closeStdin()
 
     const diagnostics: string[] = []
@@ -111,15 +117,11 @@ export async function* runStdioJson(run: StdioJsonRun): AsyncGenerator<ChatChunk
      */
     const info = await handle.exit
     /*
-     * A broken stdin pipe fails the turn on its own.
-     *
-     * This transport writes the entire prompt and then closes stdin, so a CLI
-     * in this family always consumes the whole thing. If the pipe broke, the
-     * prompt was not delivered, and whatever the process printed is not an
-     * answer to this turn — reporting it as one is the same silent-wrong-answer
-     * failure the exit-code rule above exists to prevent.
+     * A broken stdin pipe fails the turn on its own, when the prompt went
+     * through stdin. `promptInput: 'none'` already delivered it as argv or a
+     * file, so closing the unused pipe is not a failed prompt.
      */
-    const pipeError = handle.stdinError()
+    const pipeError = run.promptInput === 'none' ? null : handle.stdinError()
     if (!run.signal.aborted && (info.error || pipeError || info.code !== 0)) {
       const tail = diagnosticTail(diagnostics.join('\n'))
       const reason = handle.timedOut()
