@@ -20,6 +20,7 @@ const SECTIONS = [
   'permissions',
   'backends',
   'apps',
+  'tools',
   'updates',
   'about'
 ] as const

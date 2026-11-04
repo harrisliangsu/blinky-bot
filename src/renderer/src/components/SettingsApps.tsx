@@ -1,13 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { AppStatus } from '../../../shared/apps'
-import type { Settings } from '../../../shared/types'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { store } from '../state'
-import { SettingsMcp } from './SettingsMcp'
 import './SettingsApps.css'
 
 /** GitHub, Git, and Gmail. One connection, shared by every Bot. */
-export function SettingsApps({ settings }: { settings: Settings }): ReactNode {
+export function SettingsApps(): ReactNode {
   const copy = useSettingsCopy().apps
   const [rows, setRows] = useState<AppStatus[]>([])
   const [gitName, setGitName] = useState('')
@@ -35,14 +33,13 @@ export function SettingsApps({ settings }: { settings: Settings }): ReactNode {
   const github = row('github')
   const git = row('git')
   const gmail = row('gmail')
+  const gmailSoon = gmail?.status !== 'connected'
 
   return (
     <div className="ob-set-stack" data-apps="">
       <section className="ob-set-card">
         <h3>{copy.title}</h3>
         <p className="ob-hint">{copy.intro}</p>
-        <p className="ob-hint">{copy.shared}</p>
-        <p className="ob-hint">{copy.confirm}</p>
         <div className="ob-apps-toolbar">
           <button type="button" className="ob-btn ob-btn-sm" onClick={load}>
             {copy.refresh}
@@ -123,33 +120,19 @@ export function SettingsApps({ settings }: { settings: Settings }): ReactNode {
         </div>
       </section>
 
-      <section className="ob-set-card" data-app="gmail">
-        <h3>{copy.gmailTitle}</h3>
-        <p className="ob-hint">{copy.gmailHint}</p>
-        <p className="ob-set-value">{label(gmail?.status)}</p>
-        {gmail?.status === 'pending' ? <p className="ob-hint">{copy.gmailPending}</p> : null}
-        <button
-          type="button"
-          className="ob-btn ob-btn-sm"
-          data-connect="gmail"
-          disabled={busy || gmail?.status === 'pending'}
-          onClick={() => {
-            setBusy(true)
-            void window.openbot.apps
-              .requestGmail()
-              .then((next) => setRows((current) => current.map((item) => (item.id === 'gmail' ? next : item))))
-              .finally(() => setBusy(false))
-          }}
-        >
-          {copy.connect}
-        </button>
+      <section className={`ob-set-card${gmailSoon ? ' ob-app-soon' : ''}`} data-app="gmail">
+        <div className="ob-app-soon-head">
+          <h3>{copy.gmailTitle}</h3>
+          {gmailSoon ? (
+            <span className="ob-pill" data-app-badge="coming-soon">
+              {copy.comingSoon}
+            </span>
+          ) : (
+            <p className="ob-set-value">{label(gmail?.status)}</p>
+          )}
+        </div>
+        {gmailSoon ? <p className="ob-hint">{copy.gmailHint}</p> : null}
       </section>
-
-      <details className="ob-apps-advanced">
-        <summary>{copy.advanced}</summary>
-        <p className="ob-hint">{copy.advancedHint}</p>
-        <SettingsMcp settings={settings} hideCatalog />
-      </details>
     </div>
   )
 }

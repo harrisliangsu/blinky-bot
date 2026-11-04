@@ -10,11 +10,18 @@
   flex: 1 1 140px;
 }
 
-.ob-apps-advanced {
-  margin-top: var(--ob-space-2);
+.ob-app-soon {
+  opacity: 0.72;
 }
 
-.ob-apps-advanced summary {
-  cursor: pointer;
-  font-weight: var(--ob-weight-semibold);
+.ob-app-soon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ob-space-2);
+}
+
+.ob-app-soon-head h3,
+.ob-app-soon .ob-set-value {
+  margin: 0;
 }

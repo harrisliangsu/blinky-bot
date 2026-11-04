@@ -210,9 +210,23 @@
   display: flex;
   align-items: center;
   gap: var(--ob-space-2);
+  width: 100%;
   min-width: 0;
+  margin: 0;
+  padding: var(--ob-space-1) var(--ob-space-2);
   color: var(--ob-text-secondary);
+  font: inherit;
   font-size: var(--ob-font-size-xs);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ob-radius-lg);
+  cursor: pointer;
+}
+.ob-side-profile:hover,
+.ob-side-profile[aria-expanded='true'] {
+  color: var(--ob-text-primary);
+  background: var(--ob-bg-hover);
 }
 .ob-side-profile span:last-child {
   overflow: hidden;
