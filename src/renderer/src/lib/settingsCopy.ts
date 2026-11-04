@@ -112,8 +112,15 @@ export interface SettingsCopy {
     command: string
     commandPlaceholder: string
     stored: string
-    notRequired: string
     keyPlaceholder: string
+    localCli: string
+    localCliHint: string
+    providers: string
+    providersHint: string
+    compatibleHint: string
+    optionalKey: string
+    optionalKeyPlaceholder: string
+    sectionEmpty: string
     status: Record<'available' | 'not-installed' | 'not-running' | 'needs-key' | 'error', string>
   }
   mcp: {
@@ -175,7 +182,7 @@ const en: SettingsCopy = {
   close: 'Close dialog',
   nav: {
     general: 'General',
-    bots: 'Assistants',
+    bots: 'Bots',
     profile: 'Profile',
     notifications: 'Notifications',
     permissions: 'Permissions',
@@ -206,7 +213,7 @@ const en: SettingsCopy = {
     sendHint: 'How a message leaves the composer.',
     sendEnter: 'Enter to send',
     sendMod: '⌘/Ctrl + Enter to send',
-    steps: 'Show assistant steps',
+    steps: 'Show bot steps',
     stepsHint: 'Start each tool step expanded.',
     links: 'External links',
     linksHint: 'Where a link from chat opens.',
@@ -285,8 +292,16 @@ const en: SettingsCopy = {
     command: 'Command',
     commandPlaceholder: 'Executable to launch',
     stored: 'Stored securely — type to replace',
-    notRequired: 'Not required for local backends',
     keyPlaceholder: 'Stored in the OS credential store',
+    localCli: 'Local CLIs',
+    localCliHint: 'Agent CLIs on this Mac. Set the command if it is not on PATH, then sign in from the terminal.',
+    providers: 'Providers',
+    providersHint: 'Cloud APIs. Save an API key here. The base URL is that provider’s own address.',
+    compatibleHint:
+      'Other OpenAI-compatible models use OpenRouter. A provider key is sent only to that provider’s own address, so a custom base URL does not carry the key anywhere else.',
+    optionalKey: 'API key (optional)',
+    optionalKeyPlaceholder: 'Only if the CLI is not signed in',
+    sectionEmpty: 'Nothing in this section.',
     status: {
       available: 'signed in',
       'not-installed': 'not installed',
@@ -361,7 +376,7 @@ const zh: SettingsCopy = {
   close: '关闭对话框',
   nav: {
     general: '通用',
-    bots: '助手',
+    bots: 'Bot',
     profile: '个人资料',
     notifications: '通知',
     permissions: '权限',
@@ -392,7 +407,7 @@ const zh: SettingsCopy = {
     sendHint: '消息如何从输入框发出。',
     sendEnter: '按 Enter 发送',
     sendMod: '按 ⌘/Ctrl + Enter 发送',
-    steps: '显示助手步骤',
+    steps: '显示 Bot 步骤',
     stepsHint: '工具步骤默认展开。',
     links: '打开外部链接的方式',
     linksHint: '对话里的链接在哪里打开。',
@@ -471,8 +486,15 @@ const zh: SettingsCopy = {
     command: '命令',
     commandPlaceholder: '要启动的可执行文件',
     stored: '已安全保存 — 输入新值即可替换',
-    notRequired: '本地后端不需要',
     keyPlaceholder: '保存在系统凭据库中',
+    localCli: '本地 CLI',
+    localCliHint: '这台 Mac 上的 Agent CLI。不在 PATH 上时填写命令，然后在终端里登录。',
+    providers: '供应商',
+    providersHint: '云端 API。在这里保存 API key。基础 URL 是该供应商自己的地址。',
+    compatibleHint: '其它 OpenAI 兼容模型用 OpenRouter。密钥只发给该供应商自己的地址，改基础 URL 不会把密钥送到别的主机。',
+    optionalKey: 'API key（可选）',
+    optionalKeyPlaceholder: 'CLI 未登录时才需要',
+    sectionEmpty: '这一组里还没有。',
     status: {
       available: '已登录',
       'not-installed': '未安装',
@@ -536,7 +558,7 @@ const zh: SettingsCopy = {
     routines: '例程',
     archived: '已归档',
     chats: '对话',
-    bots: '助手'
+    bots: 'Bot'
   }
 }
 

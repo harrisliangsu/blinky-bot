@@ -51,7 +51,7 @@ function SnapshotMessage({ message, bots, multiBot }: { message: Message; bots: 
   const toolCalls = message.toolCalls ?? []
 
   return (
-    <article className={`ob-pane-msg ob-pane-msg-${isUser ? 'user' : 'assistant'}`} aria-label={isUser ? 'You' : bot?.name ?? 'Assistant'}>
+    <article className={`ob-pane-msg ob-pane-msg-${isUser ? 'user' : 'assistant'}`} aria-label={isUser ? 'You' : bot?.name ?? 'Bot'}>
       {!isUser && multiBot && bot ? (
         <header className="ob-pane-msg-author">
           <BotAvatar bot={bot} size="sm" />

@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { backendFieldPlan, orderedBackendSections } from '../shared/backendSections.ts'
 import { copyLeaves, settingsCopy } from '../renderer/src/lib/settingsCopy.ts'
 import { defaultSettings, normaliseSettings } from './settingsSchema.ts'
 import { compareVersions, decideUpdate, isNewer, pickRelease, readSparkleItem } from './updates/sparkleFeed.ts'
@@ -14,6 +15,56 @@ test('Chinese and English settings describe the same controls', () => {
   const chinese = copyLeaves(settingsCopy('zh-CN')).sort()
   assert.deepEqual(chinese, english)
   assert.ok(english.length > 40)
+})
+
+test('backends settings separate providers from local CLIs, and bots are not assistants', () => {
+  const zh = settingsCopy('zh-CN')
+  const en = settingsCopy('en')
+  assert.equal(zh.nav.bots, 'Bot')
+  assert.equal(en.nav.bots, 'Bots')
+  assert.equal(zh.more.bots, 'Bot')
+  assert.equal(zh.general.steps, '显示 Bot 步骤')
+  assert.equal(en.general.steps, 'Show bot steps')
+  assert.equal(zh.backends.localCli, '本地 CLI')
+  assert.equal(zh.backends.providers, '供应商')
+  assert.equal(en.backends.providers, 'Providers')
+  assert.match(zh.backends.compatibleHint, /OpenRouter/)
+  assert.equal(JSON.stringify(zh).includes('助手'), false)
+  assert.equal(JSON.stringify(en).toLowerCase().includes('assistant'), false)
+
+  const sections = orderedBackendSections([
+    { id: 'opencode', kind: 'agent-cli' as const },
+    { id: 'openai', kind: 'cloud-api' as const },
+    { id: 'claude', kind: 'agent-cli' as const },
+    { id: 'ollama', kind: 'local-server' as const },
+    { id: 'openrouter', kind: 'cloud-api' as const }
+  ])
+  assert.deepEqual(
+    sections.map((section) => section.id),
+    ['provider', 'cli']
+  )
+  assert.deepEqual(
+    sections[0]?.items.map((item) => item.id),
+    ['openai', 'ollama', 'openrouter']
+  )
+  assert.deepEqual(
+    sections[1]?.items.map((item) => item.id),
+    ['opencode', 'claude']
+  )
+
+  assert.deepEqual(backendFieldPlan({ id: 'claude', kind: 'agent-cli' }, false), {
+    command: true,
+    baseUrl: false,
+    apiKey: false,
+    apiKeyOptional: false
+  })
+  assert.equal(backendFieldPlan({ id: 'grok', kind: 'agent-cli' }, false).apiKey, true)
+  assert.equal(backendFieldPlan({ id: 'opencode', kind: 'agent-cli' }, true).apiKey, true)
+  assert.equal(backendFieldPlan({ id: 'kimi', kind: 'agent-cli' }, false).apiKey, false)
+  const provider = backendFieldPlan({ id: 'openai', kind: 'cloud-api' }, false)
+  assert.equal(provider.apiKey, true)
+  assert.equal(provider.baseUrl, true)
+  assert.equal(provider.command, false)
 })
 
 test('defaults include the settings the window actually shows', () => {

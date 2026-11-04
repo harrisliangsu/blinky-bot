@@ -11,8 +11,8 @@
 
 ## 0.3.0
 
-- **Settings has a sidebar.** General, assistants, profile, notifications, permissions, backends, MCP, updates, and about. Search filters the list. Labels are Chinese by default and English is one menu away.
-- **The controls persist.** Theme, translucent window, language, interface size, accent, send shortcut, assistant steps, external links, launch at login, and running in the background are saved on this Mac. Check now reads the Sparkle feed or a GitHub beta.
+- **Settings has a sidebar.** General, bots, profile, notifications, permissions, backends, MCP, updates, and about. Search filters the list. Labels are Chinese by default and English is one menu away.
+- **The controls persist.** Theme, translucent window, language, interface size, accent, send shortcut, bot steps, external links, launch at login, and running in the background are saved on this Mac. Check now reads the Sparkle feed or a GitHub beta.
 - **The main window leads with bots.** Projects, routines, and archived chats sit under More. The activity panel stays closed until you open it.
 
 ## 0.2.2
