@@ -10,7 +10,15 @@
 export interface BackendStartInfo {
   label: string
   status: string
+  /**
+   * Set on a placeholder row that has not been probed yet.
+   * `chatStartBlock` will not refuse a turn on that placeholder.
+   */
+  statusDetail?: string
 }
+
+/** Status detail of a row filled in before any probe has run. */
+export const UNCHECKED_BACKEND_DETAIL = 'Not checked yet.'
 
 /** True when the process never started because the executable was missing. */
 export function isMissingExecutableError(text: string): boolean {
@@ -33,6 +41,23 @@ export function backendStartBlock(
     label: info?.label || fallbackLabel,
     nothingReady
   })
+}
+
+/**
+ * Whether this chat turn should refuse to start before trying the backend.
+ *
+ * A placeholder (`Not checked yet`) is not evidence the CLI is missing. Blocking
+ * on it forced every send to wait for a version check and a sign-in probe of
+ * every installed agent, or refused a backend the app simply had not scanned.
+ * A real `not-installed` / `needs-key` result still fails fast.
+ */
+export function chatStartBlock(
+  info: BackendStartInfo | null,
+  infos: readonly { status: string }[],
+  fallbackLabel: string
+): string | null {
+  if (!info || info.statusDetail === UNCHECKED_BACKEND_DETAIL) return null
+  return backendStartBlock(info, infos, fallbackLabel)
 }
 
 export function unavailableBackendMessage(input: { label: string; nothingReady: boolean }): string {

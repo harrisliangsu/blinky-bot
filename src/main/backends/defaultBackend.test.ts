@@ -12,9 +12,11 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import {
   backendStartBlock,
+  chatStartBlock,
   explainStartupFailure,
   isBackendSetupMessage,
-  isMissingExecutableError
+  isMissingExecutableError,
+  UNCHECKED_BACKEND_DETAIL
 } from '../../shared/backendPrompt.ts'
 import { pickDefaultBackend, retargetPlan, type BackendChoice } from './defaultBackend.ts'
 import { firstExecutable, guiBinaryDirs, npmGlobalBin, nvmVersionBinDirs } from './guiPath.ts'
@@ -234,6 +236,24 @@ test('a missing backend names itself when another backend is already signed in',
   )
   assert.match(message ?? '', /^pi is not installed or not signed in/)
   assert.equal(isBackendSetupMessage(message ?? ''), true)
+})
+
+test('a chat send does not refuse a backend that has not been probed', () => {
+  assert.equal(
+    chatStartBlock(
+      { label: 'Codex', status: 'not-installed', statusDetail: UNCHECKED_BACKEND_DETAIL },
+      [{ status: 'not-installed' }],
+      'codex'
+    ),
+    null
+  )
+  assert.equal(chatStartBlock(null, [], 'codex'), null)
+  const blocked = chatStartBlock(
+    { label: 'Codex', status: 'needs-key', statusDetail: 'Codex is installed but not signed in.' },
+    [{ status: 'available' }],
+    'codex'
+  )
+  assert.match(blocked ?? '', /not signed in/)
 })
 
 test('an available backend is allowed to start', () => {

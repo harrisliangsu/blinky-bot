@@ -9,7 +9,9 @@ import { describe, it } from 'node:test'
 
 import { approvalResponse, describeApproval } from './codexApprovals.ts'
 import { CodexItems } from './codexItems.ts'
+import { codexPoolKey } from './codexPool.ts'
 import { CodexTurnError, codexNotification, isTurnEnd, presentCodexError } from './codexEvents.ts'
+import { codexTurnPrompt } from './transcript.ts'
 
 const THREAD = 'thread-1'
 const TURN = 'turn-1'
@@ -512,5 +514,37 @@ describe('codex app-server approvals', () => {
   it('refuses an approval it cannot describe', () => {
     assert.equal(describeApproval('item/tool/call', { tool: 'mystery' }), null)
     assert.equal(describeApproval('item/commandExecution/requestApproval', { itemId: 'missing' }), null)
+  })
+})
+
+describe('codex warm thread', () => {
+  it('sends the full transcript once, then only the new user text', () => {
+    const messages = [
+      { role: 'system' as const, content: 'Be brief' },
+      { role: 'user' as const, content: 'First' },
+      { role: 'assistant' as const, content: 'Ack' },
+      { role: 'user' as const, content: 'Second' }
+    ]
+    const cold = codexTurnPrompt(false, messages)
+    assert.match(cold, /First/)
+    assert.match(cold, /Be brief/)
+    assert.match(cold, /Second/)
+    assert.equal(codexTurnPrompt(true, messages), 'Second')
+  })
+
+  it('keeps the bearer token out of the pool key and still distinguishes grants', () => {
+    const secret = 'super-secret-token-value'
+    const base = {
+      binaryPath: '/usr/local/bin/codex',
+      cwd: '/work',
+      model: 'default',
+      sessionKey: 'sess',
+      args: ['-c', 'mcp_servers.openbot={url="http://127.0.0.1:9"}']
+    }
+    const key = codexPoolKey({ ...base, env: { OPENBOT_MCP_TOKEN_OPENBOT: secret } })
+    assert.equal(key.includes(secret), false)
+    const rotated = codexPoolKey({ ...base, env: { OPENBOT_MCP_TOKEN_OPENBOT: 'other-token' } })
+    assert.notEqual(key, rotated)
+    assert.equal(codexPoolKey({ ...base, env: { OPENBOT_MCP_TOKEN_OPENBOT: secret } }), key)
   })
 })

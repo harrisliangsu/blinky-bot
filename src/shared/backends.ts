@@ -9,6 +9,24 @@ import type { CliAuthInfo } from './cliAuth'
 
 export type BackendKind = 'local-server' | 'agent-cli' | 'cloud-api'
 
+/**
+ * Names the composer can show before a probe finishes.
+ * The detected row's label wins once it exists; this only covers the gap.
+ */
+export const KNOWN_BACKEND_LABELS: Record<string, string> = {
+  opencode: 'OpenCode',
+  claude: 'Claude Code',
+  codex: 'Codex',
+  kimi: 'Kimi Code',
+  grok: 'Grok',
+  pi: 'pi',
+  droid: 'Droid',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  xai: 'xAI',
+  openrouter: 'OpenRouter'
+}
+
 export type BackendStatus =
   | 'available'
   | 'not-installed'

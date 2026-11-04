@@ -92,6 +92,19 @@ export function latestUserTurn(messages: ProviderMessage[]): string {
   return flattenTranscript(messages)
 }
 
+/**
+ * Prompt for one Codex app-server turn.
+ *
+ * The first turn of a thread carries the transcript. Later turns send only the
+ * new user text: the thread already has the history, and resending it makes
+ * the model re-read the whole chat before the first token.
+ */
+export function codexTurnPrompt(primed: boolean, messages: ProviderMessage[]): string {
+  if (!primed) return flattenTranscript(messages)
+  const latest = latestUserTurn(messages).trim()
+  return latest || flattenTranscript(messages)
+}
+
 /** System turns are passed separately by CLIs that support it. */
 export function systemPromptOf(messages: ProviderMessage[]): string {
   return messages

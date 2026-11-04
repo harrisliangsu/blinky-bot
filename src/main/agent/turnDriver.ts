@@ -24,7 +24,7 @@ import { actionNudge, floorBrief, goalOf, lastUserMessage } from './exchangeBrie
 import { addressedBot, mentionsBot } from './exchange'
 import { carryAfterHandoff, carryAfterNudge } from './turnCarry'
 import { addNotice } from './messages'
-import { detachGateway } from './mcpGateway'
+import { cancelGatewayDetach, detachGateway, scheduleGatewayDetach } from './mcpGateway'
 import { bots, sessions } from './sessionGateway'
 import { broadcastError } from './events'
 import { extractAfterTurn } from './memory'
@@ -45,13 +45,17 @@ const MAX_ACTION_NUDGES = 1
  * throwing path, and the gateway's server for that session then outlived the run.
  */
 export async function iterate(session: Session, signal: AbortSignal): Promise<void> {
+  // A follow-up message must not find the gateway already revoked. The detach
+  // is deferred when the previous turn ended so a warm CLI can keep its token.
+  cancelGatewayDetach(session.id)
   let sawSupervised = false
   try {
     await runTurns(session, signal, () => {
       sawSupervised = true
     })
   } finally {
-    if (sawSupervised) void detachGateway(session.id)
+    if (sawSupervised) scheduleGatewayDetach(session.id)
+    else void detachGateway(session.id)
   }
 }
 

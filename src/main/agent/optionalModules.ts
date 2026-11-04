@@ -27,6 +27,8 @@ export interface BackendRegistry {
   detectAll(
     configs?: Record<string, BackendConfig>
   ): BackendInfo[] | Promise<BackendInfo[]>
+  /** Last probe, or a placeholder row per backend. Never spawns a CLI. */
+  cachedBackendInfos?: () => BackendInfo[] | Promise<BackendInfo[]>
 }
 
 export interface ToolRegistry {

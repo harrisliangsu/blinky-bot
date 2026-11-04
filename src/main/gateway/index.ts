@@ -22,6 +22,7 @@ import { closeServer, ensureServer, mcpEndpoint } from './server'
 import { closeStreamsFor } from './sse'
 import {
   activeGrantCount,
+  grantCovers,
   grantsForSession,
   mintGrant,
   revokeToken,
@@ -49,12 +50,11 @@ export const GATEWAY_SERVER_NAME = 'openbot'
 /**
  * Give this bot an MCP endpoint for the turn about to run.
  *
- * One live grant per bot and session, minted fresh each turn. Fresh, because
- * the grant is where the bot's tool list, working directory and computer-use
- * permission are frozen, and the user may have changed any of them between
- * turns — a reused grant would keep exposing the tools the bot had last time.
- * Each supervised turn spawns a new CLI process anyway, so it reads the new
- * token as readily as the old one. A different bot in the same session gets its
+ * One live grant per bot and session. The grant is where the bot's tool list,
+ * working directory and computer-use permission are frozen. When those are
+ * unchanged the same token is kept: a warm CLI was started with that token in
+ * its environment, and minting a new one would force a cold process. A changed
+ * scope revokes the old grant. A different bot in the same session gets its
  * own, because the token is the only thing that says which bot a `tools/call`
  * belongs to.
  */
@@ -66,10 +66,23 @@ export async function attachSession(input: GatewayAttachment): Promise<AttachedG
   // come up is a live credential nothing will ever revoke.
   await ensureServer()
 
+  const next = grantInput(bot, input)
+  const existing = grantsForSession(input.sessionId).find(
+    (grant) => grant.botId === input.botId && grantCovers(grant, next)
+  )
+  if (existing) {
+    return {
+      name: GATEWAY_SERVER_NAME,
+      transport: 'http',
+      url: mcpEndpoint(),
+      bearerToken: existing.token
+    }
+  }
+
   for (const stale of grantsForSession(input.sessionId)) {
     if (stale.botId === input.botId) revokeToken(stale.token)
   }
-  const grant = mintGrant(grantInput(bot, input))
+  const grant = mintGrant(next)
 
   return {
     name: GATEWAY_SERVER_NAME,

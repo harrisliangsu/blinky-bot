@@ -15,7 +15,7 @@
  */
 
 import {
-  backendStartBlock,
+  chatStartBlock,
   explainStartupFailure,
   unavailableBackendMessage
 } from '../../shared/backendPrompt'
@@ -58,7 +58,7 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
   const infos = await detectBackends()
   const info = infos.find((item) => item.id === bot.backendId) ?? null
   const mode = modeFor(info, bot.computerTarget)
-  const blocked = backendStartBlock(info, infos, bot.backendId)
+  const blocked = chatStartBlock(info, infos, bot.backendId)
   if (blocked) return failTurn(session, message, mode, blocked, false)
 
   const backend = await getBackend(bot.backendId)
@@ -75,48 +75,52 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
     )
   }
 
-  const model = await getModelInfo(bot.backendId, bot.modelId)
   /*
-   * Assigned skills are described last, after the handoff note and any routine
-   * brief, so a skill can never talk over the instruction that started the turn.
-   * Resolution reads disk (cached), which is why it happens here rather than in
-   * the synchronous prompt composer.
+   * The bubble goes up before skills, memory and the CLI. Those are the gap
+   * the user was staring at: a "Working" pill and no caret until a probe or
+   * a cold process finished. The caret is the acknowledgement.
    */
-  const skills = await skillsSection(bot, session)
-  const context = buildContext({
-    session,
-    bot,
-    settings,
-    memory: await memoryStore.list(bot.id),
-    schemas: mergeBuiltins(await schemasFor(bot.tools ?? [], bot.computerTarget), bot.tools ?? []),
-    roster: await bots.many(session.botIds ?? []),
-    contextWindow: model?.contextWindow,
-    supportsVision: model?.supportsVision === true,
-    extras: skills ? [...(input.extras ?? []), skills] : input.extras
-  })
-
-  /*
-   * The moderator hands over the floor as a USER turn rather than a system
-   * section. Instruction-following collapses with distance from the generation
-   * point: the same words in a system prompt get ignored by local models, but
-   * as the final user message they are obeyed. This is how the reference
-   * implementation drives its rooms too.
-   */
-  if (input.floor) {
-    context.messages.push({ role: 'user', content: input.floor })
-  }
-
   begin(session.id, message)
-  /*
-   * A CLI calling one of OUR tools through the gateway emits a `tool-call`
-   * event, and an event needs a message to hang off. The message only exists
-   * now — after the gateway was attached — so the gateway is told about it
-   * here, or the CLI's use of our tools never shows up in the transcript.
-   */
   if (mode === 'supervised') void noteGatewayMessage(session.id, message.id)
 
   let streamed
   try {
+    /*
+     * Assigned skills are described last, after the handoff note and any routine
+     * brief, so a skill can never talk over the instruction that started the turn.
+     * Resolution reads disk (cached), which is why it happens here rather than in
+     * the synchronous prompt composer. None of these reads depend on each other.
+     */
+    const [model, skills, memory, schemas, roster] = await Promise.all([
+      getModelInfo(bot.backendId, bot.modelId),
+      skillsSection(bot, session),
+      memoryStore.list(bot.id),
+      schemasFor(bot.tools ?? [], bot.computerTarget),
+      bots.many(session.botIds ?? [])
+    ])
+    const context = buildContext({
+      session,
+      bot,
+      settings,
+      memory,
+      schemas: mergeBuiltins(schemas, bot.tools ?? []),
+      roster,
+      contextWindow: model?.contextWindow,
+      supportsVision: model?.supportsVision === true,
+      extras: skills ? [...(input.extras ?? []), skills] : input.extras
+    })
+
+    /*
+     * The moderator hands over the floor as a USER turn rather than a system
+     * section. Instruction-following collapses with distance from the generation
+     * point: the same words in a system prompt get ignored by local models, but
+     * as the final user message they are obeyed. This is how the reference
+     * implementation drives its rooms too.
+     */
+    if (input.floor) {
+      context.messages.push({ role: 'user', content: input.floor })
+    }
+
     const stream = await openChatStream(
       backend,
       buildChatRequest({

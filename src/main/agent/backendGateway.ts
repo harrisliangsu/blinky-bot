@@ -3,11 +3,12 @@
  * of the build the loop reports "backend unavailable" instead of failing to load.
  */
 
+import { UNCHECKED_BACKEND_DETAIL } from '../../shared/backendPrompt'
 import type { BackendConfig, BackendInfo, ModelInfo, Settings, ToolCall } from '../../shared/types'
 import type { Backend, ChatChunk, ChatRequest } from './contracts'
 import { asRecord, asString, extractJson } from './json'
 import { loadBackendRegistry, tryCall } from './optionalModules'
-import { newId, now } from './ids'
+import { newId } from './ids'
 import { settingsStore } from './settingsGateway'
 
 export async function getBackend(id: string): Promise<Backend | null> {
@@ -20,24 +21,74 @@ export async function getBackend(id: string): Promise<Backend | null> {
   return backend && typeof backend.chat === 'function' ? backend : null
 }
 
-let cached: { at: number; infos: BackendInfo[] } | null = null
-const DETECT_TTL_MS = 60_000
+let inflight: Promise<BackendInfo[]> | null = null
 
-export async function detectBackends(force = false): Promise<BackendInfo[]> {
-  if (!force && cached && now() - cached.at < DETECT_TTL_MS) return cached.infos
+function usable(infos: BackendInfo[] | null | undefined): BackendInfo[] {
+  return Array.isArray(infos) ? infos.filter((info) => !!info?.id) : []
+}
+
+/** Probe every backend. Single-flight, and never started by a chat send. */
+async function probeAll(): Promise<BackendInfo[]> {
+  if (inflight) return inflight
+  inflight = (async () => {
+    const registry = await loadBackendRegistry()
+    const { backends } = await settingsStore.get()
+    const infos = await tryCall(
+      registry?.detectAll ? () => registry.detectAll!(backends) : undefined,
+      [] as BackendInfo[]
+    )
+    return usable(infos)
+  })().finally(() => {
+    inflight = null
+  })
+  return inflight
+}
+
+/**
+ * Last probe, or a placeholder row per backend.
+ * Reads the in-memory status cache after the first disk load, so a boot scan
+ * that finishes between two messages is visible to the next one. No CLI is spawned.
+ */
+async function rememberedBackends(): Promise<BackendInfo[]> {
   const registry = await loadBackendRegistry()
-  const { backends } = await settingsStore.get()
   const infos = await tryCall(
-    registry?.detectAll ? () => registry.detectAll!(backends) : undefined,
+    registry?.cachedBackendInfos ? () => registry.cachedBackendInfos!() : undefined,
     [] as BackendInfo[]
   )
-  const safe = Array.isArray(infos) ? infos.filter((info) => !!info?.id) : []
-  cached = { at: now(), infos: safe }
-  return safe
+  return usable(infos)
+}
+
+/**
+ * Backend rows for a chat turn.
+ *
+ * A fresh probe spawns every CLI (`--version`, then `login status`). Settings
+ * refresh and the boot scan do that on their own. Send must not: it held the
+ * reply bubble back for the whole scan, and a second copy of the same CLI
+ * competed with the one about to chat. `force` is the explicit scan.
+ */
+export async function detectBackends(force = false): Promise<BackendInfo[]> {
+  if (force) return probeAll()
+  return rememberedBackends()
 }
 
 export async function getBackendInfo(id: string): Promise<BackendInfo | null> {
-  return (await detectBackends()).find((info) => info.id === id) ?? null
+  const found = (await detectBackends()).find((info) => info.id === id)
+  if (found) return found
+  // No row yet (registry still loading). Kind lives on the adapter itself, so
+  // the turn can still choose supervised vs orchestrated without a probe.
+  const backend = await getBackend(id)
+  if (!backend) return null
+  return {
+    id: backend.id,
+    label: backend.label,
+    kind: backend.kind,
+    status: 'error',
+    statusDetail: UNCHECKED_BACKEND_DETAIL,
+    models: [],
+    local: backend.local,
+    toolMode: backend.kind === 'local-server' ? 'prompted' : 'native',
+    ...(backend.supportsVmOrchestration ? { supportsVmOrchestration: true } : {})
+  }
 }
 
 export async function getModelInfo(backendId: string, modelId: string): Promise<ModelInfo | null> {

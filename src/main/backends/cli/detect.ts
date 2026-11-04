@@ -10,6 +10,7 @@ import type { CliAuthInfo } from '../../../shared/cliAuth'
 import { installHint } from '../detectionTable'
 import { checkInstall } from '../installStatus'
 import type { DetectResult } from '../types'
+import { probeVersion } from '../versionProbe'
 import { probeCliAuth } from './authProbe'
 import { type AgentCliSpec, commandFor } from './spec'
 import type { BackendConfig } from '../types'
@@ -61,9 +62,12 @@ export async function detectAgentCli(
     }
   }
 
-  const install = await checkInstall(spec.install, { command, runVersionProbe: true })
+  // Resolve the binary first, then ask "what version?" and "signed in?" together.
+  // Those used to run one after the other, so a Codex row paid two cold starts
+  // (often several seconds) before Settings, or a background refresh, could move on.
+  const located = await checkInstall(spec.install, { command, runVersionProbe: false })
 
-  if (!install.installed || !install.binaryPath) {
+  if (!located.installed || !located.binaryPath) {
     return {
       status: 'not-installed',
       detail: `\`${command}\` was not found on your PATH. ${installHint(spec.install)}`,
@@ -71,17 +75,30 @@ export async function detectAgentCli(
     }
   }
 
-  if (install.outcome === 'timeout') {
+  const binaryPath = located.binaryPath
+  const [probe, cliAuth] = await Promise.all([
+    probeVersion(binaryPath, spec.install.versionArgs ?? ['--version']),
+    probeCliAuth(spec, cfg, binaryPath)
+  ])
+
+  if (probe.outcome === 'missing') {
     return {
-      status: 'error',
-      detail: `${spec.displayName} did not answer a version check within the probe window — it may be waiting on first-run setup. Run \`${command}\` once in a terminal.`,
-      cliAuth: { state: 'unknown' }
+      status: 'not-installed',
+      detail: `\`${command}\` was not found on your PATH. ${installHint(spec.install)}`,
+      cliAuth: { state: 'not-installed' }
     }
   }
 
-  const version = install.version ? ` ${install.version}` : ''
-  const where = ` (${install.binaryPath})`
-  const cliAuth = await probeCliAuth(spec, cfg, install.binaryPath)
+  if (probe.outcome === 'timeout') {
+    return {
+      status: 'error',
+      detail: `${spec.displayName} did not answer a version check within the probe window — it may be waiting on first-run setup. Run \`${command}\` once in a terminal.`,
+      cliAuth
+    }
+  }
+
+  const version = probe.version ? ` ${probe.version}` : ''
+  const where = ` (${binaryPath})`
   const reported = authDetail(spec, cliAuth, command, version, where)
   return { ...reported, cliAuth }
 }

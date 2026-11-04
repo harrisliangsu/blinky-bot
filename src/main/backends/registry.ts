@@ -18,6 +18,7 @@ import { readStatusCache, rememberStatuses } from './statusCache'
 import type { Backend, BackendConfig, ModelInfo } from './types'
 import { clearWhichCache } from './which'
 import { xaiBackend } from './xai'
+import { UNCHECKED_BACKEND_DETAIL } from '../../shared/backendPrompt'
 import type { BackendInfo } from '../../shared/types'
 
 /** Hard ceiling per backend, covering detection plus its model listing. */
@@ -114,7 +115,7 @@ function provisionalStatus(backend: Backend): BackendInfo {
       : backend.kind === 'agent-cli'
         ? ('not-installed' as const)
         : ('not-running' as const)
-  return { ...base, status, statusDetail: 'Not checked yet.' }
+  return { ...base, status, statusDetail: UNCHECKED_BACKEND_DETAIL }
 }
 
 /**
