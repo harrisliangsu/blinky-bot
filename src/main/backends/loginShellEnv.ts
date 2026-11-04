@@ -12,7 +12,7 @@
  */
 
 import { execFile } from 'node:child_process'
-import { platform, userInfo } from 'node:os'
+import { homedir, platform, userInfo } from 'node:os'
 import { delimiter } from 'node:path'
 import { promisify } from 'node:util'
 import { readShellEnvCache, shellFingerprint, writeShellEnvCache } from './shellEnvCache'
@@ -22,13 +22,26 @@ const run = promisify(execFile)
 const MARKER = '__openbot_env__'
 const SHELL_TIMEOUT_MS = 5000
 
-/** Variables worth carrying into probes and child agents. */
+/**
+ * Variables worth carrying into probes and child agents.
+ *
+ * HOME and the XDG roots are included so a CLI sees the same credential
+ * directory it used when the user signed in from Terminal. CLI home overrides
+ * are the documented way those tools relocate that directory.
+ */
 const CAPTURE = new Set([
   'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'TMPDIR',
   'SSH_AUTH_SOCK',
   'HOMEBREW_PREFIX',
   'XDG_CONFIG_HOME',
   'XDG_DATA_HOME',
+  'XDG_CACHE_HOME',
+  'XDG_STATE_HOME',
   'LANG',
   'LC_ALL',
   'NVM_DIR',
@@ -36,8 +49,51 @@ const CAPTURE = new Set([
   'BUN_INSTALL',
   'PYENV_ROOT',
   'CARGO_HOME',
-  'GOPATH'
+  'GOPATH',
+  'CODEX_HOME',
+  'CLAUDE_CONFIG_DIR',
+  'KIMI_CODE_HOME',
+  'GROK_HOME',
+  'PI_CODING_AGENT_DIR'
 ])
+
+function safeHome(): string {
+  try {
+    return homedir()
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Child processes get a copied env, not the login session's defaults.
+ * An empty HOME makes every CLI look signed out, because its credential
+ * file lives under the real home. The login shell's HOME and XDG roots win
+ * when it printed them; otherwise the account home is filled in.
+ */
+export function withUserIdentity(
+  env: NodeJS.ProcessEnv,
+  captured?: Record<string, string> | null
+): NodeJS.ProcessEnv {
+  const next: NodeJS.ProcessEnv = { ...env }
+  if (captured) {
+    for (const [key, value] of Object.entries(captured)) {
+      if (value && CAPTURE.has(key)) next[key] = value
+    }
+    if (captured.PATH) next.PATH = mergePaths(captured.PATH, env.PATH)
+  }
+  const home = next.HOME?.trim() || safeHome()
+  if (home) next.HOME = home
+  try {
+    const info = userInfo()
+    if (!next.USER?.trim() && info.username) next.USER = info.username
+    if (!next.LOGNAME?.trim() && info.username) next.LOGNAME = info.username
+    if (!next.SHELL?.trim() && info.shell) next.SHELL = info.shell
+  } catch {
+    // Some sandboxes cannot read the password database.
+  }
+  return next
+}
 
 /** `process.env.SHELL` → the account's shell → a platform default. */
 export function loginShell(): string {
@@ -125,9 +181,9 @@ async function hydrate(): Promise<NodeJS.ProcessEnv> {
   const base: NodeJS.ProcessEnv = { ...process.env }
   if (process.env.BLINKY_SHOTS === '1') {
     base.PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
-    return base
+    return withUserIdentity(base)
   }
-  if (platform() === 'win32') return base
+  if (platform() === 'win32') return withUserIdentity(base)
 
   const shell = loginShell()
   const fingerprint = await shellFingerprint(shell)
@@ -137,14 +193,7 @@ async function hydrate(): Promise<NodeJS.ProcessEnv> {
     captured = (await captureFromShell(shell)) ?? (await launchctlPath())
     if (captured) await writeShellEnvCache(fingerprint, captured)
   }
-  if (!captured) return base
-
-  for (const [key, value] of Object.entries(captured)) {
-    if (value) base[key] = value
-  }
-  // Union rather than replace: never lose a directory the app already had.
-  base.PATH = mergePaths(captured.PATH, process.env.PATH)
-  return base
+  return withUserIdentity(base, captured)
 }
 
 /**
@@ -152,7 +201,7 @@ async function hydrate(): Promise<NodeJS.ProcessEnv> {
  * Hydration happens at most once per process (plus the disk cache across runs).
  */
 export async function hydratedEnv(): Promise<NodeJS.ProcessEnv> {
-  pending ??= hydrate().catch(() => ({ ...process.env }))
+  pending ??= hydrate().catch(() => withUserIdentity({ ...process.env }))
   return pending
 }
 

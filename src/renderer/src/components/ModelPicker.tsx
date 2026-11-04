@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { listedBackends } from '../../../shared/backendSections'
 import type { BackendInfo } from '../../../shared/types'
+import { useAppState } from '../state'
 import { IconChevronDown, IconRefresh, IconSpinner, IconWarning } from './Icons'
 import { BackendMenu, STATUS_TONE } from './ModelPickerBackends'
 import { ModelMenu } from './ModelPickerModels'
@@ -58,6 +60,8 @@ export function ModelPicker({
   dropUp = false,
   disabled = false
 }: ModelPickerProps): ReactNode {
+  const { settings } = useAppState()
+  const visibleBackends = listedBackends(backends, settings?.backends, backendId)
   const [open, setOpen] = useState(false)
   const [flyout, setFlyout] = useState<Flyout | null>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -149,14 +153,14 @@ export function ModelPicker({
             </p>
           ) : null}
 
-          {backends.length === 0 && !loading ? (
+          {visibleBackends.length === 0 && !loading ? (
             <p className="ob-menu-empty">
               No agents detected. Install one, or add an API key in Settings.
             </p>
           ) : null}
 
           <BackendMenu
-            backends={backends}
+            backends={visibleBackends}
             backendId={backendId}
             activeId={flyout?.backend.id ?? null}
             onHover={(backend, top) => setFlyout({ backend, top })}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { listedBackends } from '../../../shared/backendSections'
 import type { AgentMode, Settings, UpdateReport } from '../../../shared/types'
 import { takeSettingsTab } from '../lib/settingsNavigation'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
@@ -222,7 +223,10 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
           onChange={(e) => void updateSettings({ defaultBackendId: e.target.value, defaultModelId: 'default' })}
         >
           {(backends.length > 0
-            ? backends.map((item) => ({ id: item.id, label: item.label }))
+            ? listedBackends(backends, settings.backends, settings.defaultBackendId).map((item) => ({
+                id: item.id,
+                label: item.label
+              }))
             : [{ id: settings.defaultBackendId, label: settings.defaultBackendId }]
           ).map((item) => (
             <option key={item.id} value={item.id}>

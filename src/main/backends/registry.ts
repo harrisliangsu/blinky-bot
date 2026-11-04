@@ -79,6 +79,7 @@ async function detectOne(backend: Backend, cfg: BackendConfig): Promise<BackendI
       ...base,
       status: result.status,
       ...(result.detail ? { statusDetail: result.detail } : {}),
+      ...(result.cliAuth ? { cliAuth: result.cliAuth } : {}),
       models,
       toolMode: toolModeFor(backend, models)
     }
@@ -131,7 +132,8 @@ export async function cachedBackendInfos(): Promise<BackendInfo[]> {
       ...(stored.statusDetail ? { statusDetail: stored.statusDetail } : {}),
       models: stored.models ?? [],
       toolMode: stored.toolMode ?? 'native',
-      ...(stored.supportsVmOrchestration ? { supportsVmOrchestration: true } : {})
+      ...(stored.supportsVmOrchestration ? { supportsVmOrchestration: true } : {}),
+      ...(stored.cliAuth ? { cliAuth: stored.cliAuth } : {})
     }
   })
 }
@@ -140,4 +142,21 @@ export async function cachedBackendInfos(): Promise<BackendInfo[]> {
 export function invalidateDetection(): void {
   clearWhichCache()
   resetHydratedEnv()
+}
+
+/** Re-probe one backend and return its fresh row. */
+export async function redetectOne(
+  id: string,
+  configs?: Record<string, BackendConfig>
+): Promise<BackendInfo | null> {
+  const backend = getBackend(id)
+  if (!backend) return null
+  invalidateDetection()
+  const info = await raceTimeout(detectOne(backend, configFor(backend.id, configs)), BACKEND_BUDGET_MS, {
+    ...shell(backend),
+    status: 'error' as const,
+    statusDetail: 'Detection timed out.'
+  })
+  await rememberStatuses([info])
+  return info
 }

@@ -76,12 +76,19 @@ async function click(window: BrowserWindow, selector: string): Promise<void> {
  * Emulate a taller layout viewport and capture that, instead of the
  * clamped on-screen window.
  */
-async function shot(window: BrowserWindow, name: string, width: number, height: number): Promise<void> {
+async function shot(
+  window: BrowserWindow,
+  name: string,
+  width: number,
+  height: number,
+  clip?: { x: number; y: number; width: number; height: number }
+): Promise<void> {
   const dbg = window.webContents.debugger
   if (!dbg.isAttached()) dbg.attach('1.3')
+  const frameHeight = Math.ceil(clip ? Math.max(height, clip.y + clip.height) : height)
   await dbg.sendCommand('Emulation.setDeviceMetricsOverride', {
     width,
-    height,
+    height: frameHeight,
     deviceScaleFactor: 1,
     mobile: false
   })
@@ -89,9 +96,35 @@ async function shot(window: BrowserWindow, name: string, width: number, height: 
   const result = (await dbg.sendCommand('Page.captureScreenshot', {
     format: 'png',
     captureBeyondViewport: true,
-    clip: { x: 0, y: 0, width, height, scale: 1 }
+    clip: {
+      x: Math.round(clip?.x ?? 0),
+      y: Math.round(clip?.y ?? 0),
+      width: Math.round(clip?.width ?? width),
+      height: Math.round(clip?.height ?? frameHeight),
+      scale: 1
+    }
   })) as { data: string }
   await writeFile(join(shotsDir(), name), Buffer.from(result.data, 'base64'))
+}
+
+async function shotGroup(window: BrowserWindow, name: string, selector: string): Promise<void> {
+  const height = await settingsHeight(window)
+  const box = await evalJs<{ y: number; height: number } | null>(
+    window,
+    `(() => {
+      const node = document.querySelector(${JSON.stringify(selector)})
+      if (!node) return null
+      const rect = node.getBoundingClientRect()
+      return { y: Math.max(0, rect.y - 12), height: rect.height + 24 }
+    })()`
+  )
+  if (!box) throw new Error(`missing ${selector}`)
+  await shot(window, name, 1440, height, {
+    x: 0,
+    y: box.y,
+    width: 1440,
+    height: box.height
+  })
 }
 
 async function settingsHeight(window: BrowserWindow): Promise<number> {
@@ -142,6 +175,15 @@ async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): 
     await click(window, `#ob-set-tab-${id}`)
     await waitFor(window, `document.querySelector('[data-settings-section="${id}"]')`, 10_000)
     await shot(window, `settings-${theme}-${id}.png`, 1440, await settingsHeight(window))
+    if (id === 'backends' && theme === 'light') {
+      await shot(window, 'settings-providers-empty-light.png', 1440, await settingsHeight(window))
+      await shotGroup(window, 'settings-local-cli-light.png', '[data-backend-group="cli"]')
+      await click(window, '[data-add-provider]')
+      await waitFor(window, `document.querySelector('[data-provider-choice="openai"]')`, 10_000)
+      await click(window, '[data-provider-choice="openai"]')
+      await waitFor(window, `document.getElementById('ob-key-openai')`, 10_000)
+      await shot(window, 'settings-providers-added-light.png', 1440, await settingsHeight(window))
+    }
   }
 }
 

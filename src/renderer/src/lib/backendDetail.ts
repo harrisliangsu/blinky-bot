@@ -74,5 +74,8 @@ export function localizeBackendDetail(detail: string, copy: DetailCopy): string 
   const failed = detail.match(/^(.+?) check failed: (.*)$/)
   if (failed) return fill(copy.checkFailed, { label: failed[1], error: failed[2] })
 
+  const unknown = detail.match(/^(.+?) is installed( \([^)]+\))?, but its sign-in state could not be checked\.$/)
+  if (unknown) return fill(copy.signInUnknown, { name: unknown[1], where: unknown[2] ?? '' })
+
   return detail
 }

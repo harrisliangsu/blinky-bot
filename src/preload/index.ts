@@ -165,7 +165,9 @@ const api: OpenBotApi = {
 
   backends: {
     list: () => invoke<BackendInfo[]>('openbot:backends:list'),
-    refresh: () => invoke<BackendInfo[]>('openbot:backends:refresh')
+    refresh: () => invoke<BackendInfo[]>('openbot:backends:refresh'),
+    recheck: (id: string) => invoke<BackendInfo[]>('openbot:backends:recheck', id),
+    login: (id: string) => invoke<{ started: boolean }>('openbot:backends:login', id)
   },
 
   skills: {

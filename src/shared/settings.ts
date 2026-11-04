@@ -10,6 +10,11 @@ export type ApprovalPolicy =
 
 export interface BackendConfig {
   enabled: boolean
+  /**
+   * Cloud providers stay out of Settings until the user adds one.
+   * Agent CLIs ignore this and stay auto-detected.
+   */
+  added?: boolean
   baseUrl?: string
   /** Stored locally; sent only to that backend's own endpoint. */
   apiKey?: string

@@ -6,6 +6,7 @@
  * where inference actually runs.
  */
 
+import type { CliAuthInfo } from '../../shared/cliAuth'
 import type {
   BackendConfig,
   BackendKind,
@@ -173,6 +174,8 @@ export type ChatChunk =
 export interface DetectResult {
   status: BackendStatus
   detail?: string
+  /** Agent CLIs only. The CLI owns the credential; this is the public state. */
+  cliAuth?: CliAuthInfo
 }
 
 export interface Backend {

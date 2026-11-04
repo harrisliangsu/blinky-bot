@@ -240,6 +240,10 @@ export function applyEvent(event: AgentEvent): void {
       store.patch({ settings: withPendingSettings(event.settings) })
       break
 
+    case 'backends-updated':
+      store.patch({ backends: event.backends, backendsLoading: false, backendsError: null })
+      return
+
     case 'error':
       dropApprovals(event.sessionId)
       if (isCurrent(event.sessionId)) {

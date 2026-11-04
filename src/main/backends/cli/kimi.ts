@@ -26,7 +26,6 @@ import { fingerprints, firstUnsent, forgetSent, rememberSent } from './resumePro
 import {
   type AgentCliSpec,
   CLI_DEFAULT_MODEL,
-  commandFor,
   modelFlag,
   readCliOptions,
   resolveBinary,
@@ -127,23 +126,13 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   }
 }
 
-async function detect(cfg: BackendConfig): Promise<DetectResult> {
-  const result = await detectAgentCli(KIMI_SPEC, cfg)
-  if (result.status !== 'needs-key') return result
-  const command = commandFor(KIMI_SPEC, cfg)
-  return {
-    status: 'needs-key',
-    detail: `${KIMI_SPEC.displayName} is installed but not signed in. Run \`${command} login\` in a terminal, then refresh.`
-  }
-}
-
 export const kimiBackend: Backend = {
   id: KIMI_SPEC.id,
   label: KIMI_SPEC.displayName,
   kind: 'agent-cli',
   local: true,
 
-  detect,
+  detect: (cfg: BackendConfig): Promise<DetectResult> => detectAgentCli(KIMI_SPEC, cfg),
 
   async listModels(): Promise<ModelInfo[]> {
     return [CLI_DEFAULT_MODEL]

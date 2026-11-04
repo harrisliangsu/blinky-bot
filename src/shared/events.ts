@@ -13,6 +13,7 @@ import type { Settings } from './settings'
 import type { Session, TodoItem } from './sessions'
 import type { ApprovalRequest } from './tools'
 import type { ActivityItem, AgentTask } from './activity'
+import type { BackendInfo } from './backends'
 
 export interface HumanHelpRequest {
   id: string
@@ -71,5 +72,7 @@ export type AgentEvent =
    * that stale array straight back, destroying the rules the agent had added.
    */
   | { type: 'settings-updated'; settings: Settings }
+  /** A CLI login finished, or the window focused while one was still open. */
+  | { type: 'backends-updated'; backends: BackendInfo[] }
   | { type: 'error'; sessionId: string; message: string }
   | { type: 'done'; sessionId: string }

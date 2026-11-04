@@ -100,6 +100,8 @@ export const CHANNELS = {
 
   backendsList: 'openbot:backends:list',
   backendsRefresh: 'openbot:backends:refresh',
+  backendsRecheck: 'openbot:backends:recheck',
+  backendsLogin: 'openbot:backends:login',
 
   settingsGet: 'openbot:settings:get',
   settingsUpdate: 'openbot:settings:update',

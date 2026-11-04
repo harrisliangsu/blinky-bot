@@ -122,6 +122,25 @@ export async function editSettingsList(key: SettingsListKey, edit: ListEdit): Pr
   }
 }
 
+export async function recheckBackend(id: string): Promise<void> {
+  try {
+    const next = await bridge().backends.recheck(id)
+    if (next.length) store.patch({ backends: next, backendsError: null })
+  } catch (e) {
+    store.patch({ backendsError: errText(e) })
+  }
+}
+
+/** Opens Terminal with that CLI's own login. The CLI keeps the credential. */
+export async function loginBackend(id: string): Promise<boolean> {
+  try {
+    const result = await bridge().backends.login(id)
+    return result.started === true
+  } catch {
+    return false
+  }
+}
+
 export async function loadBackends(refresh = false): Promise<void> {
   store.patch({ backendsLoading: true, backendsError: null })
   try {
