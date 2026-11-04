@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { AgentTask, AgentTaskStatus, Session } from '../../shared/types'
 import { JsonCollection } from './collection'
 import { tasksDir } from './paths'
+import { conversationIsHome } from './bots'
 import { archiveSession, getSession } from './sessions'
 
 const collection = new JsonCollection<AgentTask>(tasksDir, normalise)
@@ -51,15 +52,17 @@ export function countActiveTasks(botId?: string): number {
 }
 
 /**
- * True while a queued or running background task owns this session.
+ * True while a background task is running in this session.
  *
  * The task pipeline posts its own inbox item when a run settles, so
  * `ipc/broadcast` uses this to skip the duplicate it used to post for the same
  * failure. A finished task deliberately does not count: once the pipeline has
- * settled, nothing else would report a later failure in that chat.
+ * settled, nothing else would report a later failure in that chat. A queued
+ * task does not count either — the home chat is the user's chat, and a task
+ * waiting its turn must not swallow that chat's own notifications.
  */
 export const hasActiveTask = (sessionId: string): boolean =>
-  collection.all().some((task) => task.sessionId === sessionId && active.includes(task.status))
+  collection.all().some((task) => task.sessionId === sessionId && task.status === 'running')
 
 /**
  * Forget the oldest finished tasks and archive the session each one owned.
@@ -90,6 +93,9 @@ export function trimTasks(): Session[] {
      * from search mid-sentence. The session's own clock is what decides.
      */
     if (session.updatedAt > task.updatedAt) continue
+    // Background work posts into the bot's home chat. Archiving that file
+    // would hide the bot, not a disposable task log.
+    if (conversationIsHome(session.id)) continue
     const next = archiveSession(task.sessionId)
     if (next) archived.push(next)
   }

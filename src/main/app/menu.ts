@@ -11,9 +11,14 @@ import { sendMenuCommand } from '../ipc'
 const isMac = process.platform === 'darwin'
 
 const newChatItem: MenuItemConstructorOptions = {
-  label: 'New Chat',
+  label: '清空对话',
   accelerator: 'CmdOrCtrl+N',
   click: () => sendMenuCommand('new-chat')
+}
+
+const archiveClearItem: MenuItemConstructorOptions = {
+  label: '归档当前再清空',
+  click: () => sendMenuCommand('archive-clear')
 }
 
 const settingsItem: MenuItemConstructorOptions = {
@@ -45,7 +50,7 @@ function appMenu(): MenuItemConstructorOptions[] {
 }
 
 function fileMenu(): MenuItemConstructorOptions {
-  const items: MenuItemConstructorOptions[] = [newChatItem, { type: 'separator' }]
+  const items: MenuItemConstructorOptions[] = [newChatItem, archiveClearItem, { type: 'separator' }]
   if (isMac) {
     items.push({ role: 'close' })
   } else {

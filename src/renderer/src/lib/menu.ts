@@ -4,7 +4,7 @@
  * so a command never fires twice.
  */
 
-export const MENU_COMMANDS = ['new-chat', 'settings'] as const
+export const MENU_COMMANDS = ['new-chat', 'archive-clear', 'settings'] as const
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number]
 

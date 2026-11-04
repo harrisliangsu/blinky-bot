@@ -26,7 +26,6 @@ import {
   resolveBinary,
   runContext
 } from './spec'
-import { flattenTranscript } from './transcript'
 
 export const CODEX_SPEC: AgentCliSpec = {
   id: 'codex',
@@ -44,20 +43,20 @@ export const CODEX_SPEC: AgentCliSpec = {
 }
 
 /**
- * The persistent app-server keeps a thread alive and routes permission prompts
- * to OpenBOT's approval gate. If it cannot start, fail closed: silently falling
- * back to one-shot `exec` would hand approval decisions back to the CLI.
+ * Each turn spawns app-server, which routes permission prompts to OpenBOT's
+ * approval gate. The Codex thread id is resumed across those processes. If the
+ * server cannot start, fail closed: silently falling back to one-shot `exec`
+ * would hand approval decisions back to the CLI.
  */
 async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<ChatChunk> {
   const opts = readCliOptions(cfg, req.cwd)
   const binaryPath = await resolveBinary(CODEX_SPEC, cfg)
   const ctx = runContext(req.model, opts)
-  const prompt = flattenTranscript(req.messages)
   // Codex takes `-c` on both transports, so the same servers reach either path.
   const mcp = codexMcpConfig(req.mcpServers)
 
   try {
-    yield* runCodexAppServer({ binaryPath, ctx, prompt, req, mcp })
+    yield* runCodexAppServer({ binaryPath, ctx, req, mcp })
   } catch (err) {
     if (req.signal.aborted) throw err
     throw presentCodexError(err)

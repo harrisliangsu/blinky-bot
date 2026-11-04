@@ -2,6 +2,8 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Session, SessionSummary } from '../../shared/types'
+import { archiveAndClearSession, ensureBotHome } from '../store/botHome'
+import { defaultBotId, getBot, updateBot } from '../store/bots'
 import { getProject, unlinkSessionFromCards } from '../store/projects'
 import { removeRoom, sharedRooms } from '../store/rooms'
 import { stopCollaborationServer } from '../collaboration/server'
@@ -9,6 +11,7 @@ import {
   addBotToSession,
   archiveSession,
   unarchiveSession,
+  clearSessionTranscript,
   createSession,
   getSession,
   listSessions,
@@ -57,11 +60,42 @@ export function registerSessionIpc(): void {
   handle<Session>(
     CHANNELS.sessionsCreate,
     ([botIds]) => {
-      const session = createSession(asIdArray(botIds))
+      const requested = asIdArray(botIds)
+      // One bot has one home. Creating "a chat" returns that home instead of
+      // forking a second conversation the next launch would archive.
+      let session = requested.length <= 1 ? ensureBotHome(requested[0] || defaultBotId()) : null
+      if (!session) {
+        session = createSession(requested)
+        for (const botId of session.botIds) {
+          const bot = getBot(botId)
+          if (bot && !bot.activeConversationId) updateBot(botId, { activeConversationId: session.id })
+        }
+      }
       announce(session)
       return session
     },
     placeholderSession
+  )
+
+  handle<Session | null>(
+    CHANNELS.sessionsClear,
+    ([id]) => {
+      const session = clearSessionTranscript(asId(id))
+      announce(session)
+      return session
+    },
+    nullResult
+  )
+
+  handle<Session | null>(
+    CHANNELS.sessionsArchiveAndClear,
+    ([id]) => {
+      const { previous, next } = archiveAndClearSession(asId(id))
+      if (previous) broadcast({ type: 'session-updated', session: previous })
+      announce(next)
+      return next
+    },
+    nullResult
   )
 
   handleVoid(CHANNELS.sessionsRename, ([id, title]) => {

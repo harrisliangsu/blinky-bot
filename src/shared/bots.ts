@@ -31,6 +31,11 @@ export interface Bot {
   computerTarget: ComputerTarget
   archived?: boolean
   pinned?: boolean
+  /**
+   * This bot's one home conversation. Clicking the bot opens it. Clearing the
+   * chat empties this conversation; it does not point the bot somewhere else.
+   */
+  activeConversationId?: string
   createdAt: number
   updatedAt: number
 }

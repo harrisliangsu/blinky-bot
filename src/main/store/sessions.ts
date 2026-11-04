@@ -13,6 +13,7 @@ import { compactSession } from './compaction'
 import { JsonCollection } from './collection'
 import { sessionsDir } from './paths'
 import { defaultBotId } from './bots'
+import { forgetBindingsForSession } from './providerBindings'
 import { defaultCwd, normaliseSession, normaliseTodos, stringList } from './sessionSchema'
 
 const collection = new JsonCollection<Session>(sessionsDir, normaliseSession)
@@ -95,6 +96,20 @@ export function renameSession(id: string, title: string): Session | null {
 
 export function archiveSession(id: string): Session | null {
   return mutate(id, (session) => ({ ...session, archived: true }))
+}
+
+/**
+ * Empty the transcript and drop CLI resume ids.
+ *
+ * The conversation id, working directory, mode and project stay, and so does
+ * the bot's memory. The next turn starts a fresh CLI thread and can hand it
+ * whatever is still in this session — which, after this, is nothing until the
+ * user speaks again.
+ */
+export function clearSessionTranscript(id: string): Session | null {
+  const session = mutate(id, (current) => ({ ...current, messages: [], todos: [] }))
+  if (session) forgetBindingsForSession(id)
+  return session
 }
 
 export function unarchiveSession(id: string): Session | null {

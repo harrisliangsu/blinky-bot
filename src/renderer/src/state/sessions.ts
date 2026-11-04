@@ -1,5 +1,6 @@
 import type { AgentMode, Session } from '../../../shared/types'
 import { latestChatForBot } from '../lib/botChat'
+import { loadBots, updateBot } from './bots'
 import { bridge, errText } from './bridge'
 import { store } from './core'
 import { loadProjects } from './projects'
@@ -64,35 +65,98 @@ export async function selectSession(id: string): Promise<void> {
 }
 
 /**
- * Open this bot's newest conversation, or start one when it has none.
+ * Open this bot's home conversation, or start one when it has none.
  *
- * Sidebar navigation only. It does not change how a conversation is stored,
- * how a turn resumes, or what New chat (`newSession`) creates.
+ * The home is `bot.activeConversationId` when that chat is still open and
+ * still includes the bot. Otherwise the newest open chat is adopted and
+ * stored, which is the same choice the upgrade migration makes.
  */
 export async function openBotChat(botId: string): Promise<void> {
-  const existing = latestChatForBot(store.getState().sessions, botId)
+  const { bots, sessions } = store.getState()
+  const bot = bots.find((item) => item.id === botId)
+  const bound = bot?.activeConversationId
+    ? sessions.find(
+        (session) => session.id === bot.activeConversationId && !session.archived && session.botIds.includes(botId)
+      )
+    : undefined
+  if (bound) {
+    await selectSession(bound.id)
+    return
+  }
+  const existing = latestChatForBot(sessions, botId)
   if (existing) {
+    if (bot?.activeConversationId !== existing.id) await updateBot(botId, { activeConversationId: existing.id })
     await selectSession(existing.id)
     return
   }
   await newSession([botId])
 }
 
+/** Empty the open chat. The bot, its memory, skills and folder stay. */
+export async function clearChat(): Promise<void> {
+  const id = store.getState().currentSessionId
+  if (!id) {
+    const botId = store.getState().bots.find((bot) => !bot.archived)?.id
+    if (botId) await openBotChat(botId)
+    return
+  }
+  if (store.getState().streaming) return
+  try {
+    const session = await bridge().sessions.clear(id)
+    if (!session) {
+      store.toast('这则对话已经不在了。', 'error')
+      return
+    }
+    adoptSession(session)
+    store.patch({
+      sessions: store.getState().sessions.map((row) => (row.id === id ? { ...row, messageCount: 0 } : row))
+    })
+  } catch (e) {
+    store.toast(errText(e), 'error')
+  }
+}
+
+/** Keep the current transcript in 归档, then open an empty chat for the same bot. */
+export async function archiveAndClearChat(): Promise<void> {
+  const current = store.getState().session
+  if (!current || store.getState().streaming) return
+  try {
+    const session = await bridge().sessions.archiveAndClear(current.id)
+    if (!session) {
+      store.toast('这则对话已经不在了。', 'error')
+      return
+    }
+    adoptSession(session)
+    await loadSessions()
+    await loadBots()
+  } catch (e) {
+    store.toast(errText(e), 'error')
+  }
+}
+
 /**
- * Start a chat.
+ * Open a bot's home chat, creating it when the bot has none.
  *
- * When a project is selected the chat is filed into it — and inherits its
- * working folder and its bots — so "New chat" means "new chat in this project"
- * rather than silently creating a loose one the user then cannot find.
+ * A brand-new home filed under the selected project inherits that project's
+ * folder. An existing home is left where it is.
  */
 export async function newSession(botIds?: string[]): Promise<void> {
   const { currentProjectId, projects } = store.getState()
   const project = currentProjectId ? projects.find((p) => p.id === currentProjectId) : undefined
 
   try {
+    const known = new Set(store.getState().sessions.map((row) => row.id))
     const session = await bridge().sessions.create(botIds)
+    const fresh = !known.has(session.id) && session.messages.length === 0 && Date.now() - session.createdAt < 15_000
+    if (session.botIds.length === 1) {
+      store.patch({
+        bots: store.getState().bots.map((bot) =>
+          session.botIds.includes(bot.id) ? { ...bot, activeConversationId: session.id } : bot
+        )
+      })
+    }
 
-    if (project) {
+    if (project && fresh) {
       const api = bridge().sessions as { setProject?: (id: string, projectId: string | null) => Promise<void> }
       // Optional on the bridge: an older preload simply leaves the chat loose.
       if (api.setProject) {

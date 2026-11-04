@@ -15,7 +15,7 @@ import { DEFAULT_PRESET, fitPanes, isLayoutPreset, type LayoutPreset } from '../
 import { overlayOwnsKeys } from '../lib/shortcutRules'
 import { bridge } from './bridge'
 import { store } from './core'
-import { newSession, selectSession } from './sessions'
+import { openBotChat, selectSession } from './sessions'
 import type { WorkspaceUi } from './types'
 
 /** Renderer-local UI preference; deliberately not main-process settings. */
@@ -156,7 +156,9 @@ export async function fetchPaneSession(id: string): Promise<Session | null> {
 
 /** Starts a fresh chat directly in a slot. */
 export async function startPaneChat(index: number): Promise<void> {
-  await newSession()
+  const botId = store.getState().bots.find((bot) => !bot.archived)?.id
+  if (!botId) return
+  await openBotChat(botId)
   const id = store.getState().currentSessionId
   if (id) assignPane(index, id)
 }
