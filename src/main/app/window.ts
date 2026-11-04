@@ -3,6 +3,7 @@
 import { BrowserWindow } from 'electron'
 import { devServerUrl, preloadScript, rendererHtml } from './bundlePaths'
 import { hardenWebContents } from './security'
+import { markSmokeFailed, markSmokeReady } from './smoke'
 
 const WIDTH = 1200
 const HEIGHT = 820
@@ -40,6 +41,7 @@ export function createWindow(): BrowserWindow {
   hardenWebContents(window.webContents)
 
   window.once('ready-to-show', () => {
+    markSmokeReady()
     window.show()
   })
 
@@ -47,6 +49,7 @@ export function createWindow(): BrowserWindow {
   const load = dev ? window.loadURL(dev) : window.loadFile(rendererHtml())
   void load.catch((err) => {
     console.error('[openbot] failed to load renderer', err)
+    markSmokeFailed(err)
   })
 
   return window
