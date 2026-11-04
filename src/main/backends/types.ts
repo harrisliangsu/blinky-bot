@@ -7,6 +7,7 @@
  */
 
 import type { CliAuthInfo } from '../../shared/cliAuth'
+import type { ThinkingDepth } from '../../shared/thinking'
 import type {
   BackendConfig,
   BackendKind,
@@ -148,6 +149,11 @@ export interface ChatRequest {
   readOnly?: boolean
   /** Disable every CLI-owned tool; OpenBOT will execute supplied tools itself. */
   disableNativeTools?: boolean
+  /**
+   * How hard this turn should think. Adapters that cannot set a depth ignore
+   * it. Absent leaves the CLI or provider on its own default.
+   */
+  thinking?: ThinkingDepth
 }
 
 /**

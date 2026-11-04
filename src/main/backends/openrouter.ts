@@ -5,6 +5,7 @@
  * so vision and tool support come from the provider rather than inference.
  */
 
+import { openrouterReasoningBody } from '../../shared/thinking'
 import { detectCloud } from './cloudDetect'
 import { LIST_TIMEOUT_MS, withTimeout } from './httpClient'
 import { errorMessage } from './httpErrors'
@@ -77,6 +78,7 @@ export const openrouterBackend: Backend = {
       messages: req.messages,
       tools: req.tools,
       temperature: req.temperature,
+      extraBody: openrouterReasoningBody(req.thinking),
       signal: req.signal
     })
   }

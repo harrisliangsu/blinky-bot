@@ -82,6 +82,25 @@ export interface SettingsCopy {
     followHint: string
     model: string
     modelHint: string
+    source: string
+    sourceCli: string
+    sourceProvider: string
+    runtimeCli: string
+    runtimeProvider: string
+    runtimeModel: string
+    runtimeModelDefault: string
+    thinking: string
+    thinkingHint: string
+    thinkingDefault: string
+    thinkingOff: string
+    thinkingLow: string
+    thinkingMedium: string
+    thinkingHigh: string
+    thinkingXHigh: string
+    thinkingUnavailable: string
+    eachBot: string
+    eachBotHint: string
+    runtimeEmpty: string
     memory: string
     memoryHint: string
     memoryApi: string
@@ -372,9 +391,28 @@ const en: SettingsCopy = {
     backend: 'Default CLI',
     backendHint: 'Bots that are not pinned use this CLI and its default model.',
     follow: 'Use the default CLI',
-    followHint: 'This Bot uses the default CLI and its default model from Settings.',
+    followHint: 'This Bot uses the default CLI, its default model, and the default thinking depth from Settings.',
     model: 'Default model',
-    modelHint: 'Saved on the default CLI. Every Bot bound to that CLI uses it.',
+    modelHint: 'Saved on the default CLI. A Bot that follows the default uses it.',
+    source: 'Source',
+    sourceCli: 'Local CLI',
+    sourceProvider: 'Provider',
+    runtimeCli: 'Local CLI',
+    runtimeProvider: 'Provider',
+    runtimeModel: 'Model',
+    runtimeModelDefault: 'Default',
+    thinking: 'Thinking depth',
+    thinkingHint: 'How hard a Bot thinks before it answers. Hidden when that CLI or provider has no depth control.',
+    thinkingDefault: 'Default',
+    thinkingOff: 'Off',
+    thinkingLow: 'Low',
+    thinkingMedium: 'Medium',
+    thinkingHigh: 'High',
+    thinkingXHigh: 'Extra high',
+    thinkingUnavailable: 'This model has no thinking control.',
+    eachBot: 'Each Bot',
+    eachBotHint: 'A Bot can follow the defaults above, or pick its own local CLI or provider, model, and thinking depth.',
+    runtimeEmpty: 'No usable local CLI or provider yet. Add one under Local CLIs & providers.',
     memory: 'Learn from conversations',
     memoryHint: 'Where a short follow-up call may save durable facts.',
     memoryApi: 'Direct APIs only',
@@ -572,7 +610,7 @@ const en: SettingsCopy = {
   chat: {
     ready: 'Ready when you are',
     emptyTitle: 'What should Blinky work on?',
-    emptyBody: 'Ask a question or describe a task. Sending uses this Bot’s CLI and its default model. Files stay on this machine.',
+    emptyBody: 'Ask a question or describe a task. Sending uses the local CLI or provider, model, and thinking depth bound to this Bot in Settings. Files stay on this machine.',
     placeholder: 'Message this Bot…',
     running: 'Running — Esc to stop',
     openProviders: 'Open Settings → Providers'
@@ -682,9 +720,28 @@ const zh: SettingsCopy = {
     backend: '默认 CLI',
     backendHint: '没有单独指定的 Bot 使用这个 CLI 和它的默认模型。',
     follow: '使用默认 CLI',
-    followHint: '这个 Bot 使用设置里的默认 CLI 和它的默认模型。',
+    followHint: '这个 Bot 使用设置里的默认 CLI、默认模型和思考深度。',
     model: '默认模型',
-    modelHint: '写在默认 CLI 上。绑定到这个 CLI 的 Bot 都会用它。',
+    modelHint: '写在默认 CLI 上。沿用默认的 Bot 会用它。',
+    source: '来源',
+    sourceCli: '本地 CLI',
+    sourceProvider: '供应商',
+    runtimeCli: '本地 CLI',
+    runtimeProvider: '供应商',
+    runtimeModel: '模型',
+    runtimeModelDefault: '默认',
+    thinking: '思考深度',
+    thinkingHint: 'Bot 回答前思考多深。所选本地 CLI 或供应商没有这项时不显示。',
+    thinkingDefault: '默认',
+    thinkingOff: '关闭',
+    thinkingLow: '低',
+    thinkingMedium: '中',
+    thinkingHigh: '高',
+    thinkingXHigh: '极高',
+    thinkingUnavailable: '这个模型没有思考深度。',
+    eachBot: '每个 Bot',
+    eachBotHint: 'Bot 可以沿用上面的默认，也可以单独选择本地 CLI 或供应商、模型和思考深度。',
+    runtimeEmpty: '还没有可用的本地 CLI 或供应商。请先在「本地 CLI 与供应商」里添加。',
     memory: '从对话中学习',
     memoryHint: '允许在一轮结束后用一次短调用记下稳定事实。',
     memoryApi: '仅直接 API',
@@ -880,7 +937,7 @@ const zh: SettingsCopy = {
   chat: {
     ready: '可以开始了',
     emptyTitle: '让 Blinky 做什么？',
-    emptyBody: '直接提问或描述任务。发送时用这个 Bot 绑定的 CLI 和它的默认模型。文件留在这台电脑上。',
+    emptyBody: '直接提问或描述任务。发送时用这个 Bot 在设置里绑定的本地 CLI 或供应商、模型和思考深度。文件留在这台电脑上。',
     placeholder: '给这个 Bot 发消息…',
     running: '正在运行 — 按 Esc 停止',
     openProviders: '打开设置 → 供应商'

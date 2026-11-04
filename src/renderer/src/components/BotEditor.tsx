@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import type { BackendInfo, Bot } from '../../../shared/types'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { cancelComputerProvision, computerProvisionStatus } from '../state'
+import { cancelComputerProvision, computerProvisionStatus, useAppState } from '../state'
+import { BotRuntimeFields } from './BotRuntimeFields'
 import { BotEditorIdentity } from './BotEditorIdentity'
-import { BotEditorModel, BotEditorTools } from './BotEditorTools'
+import { BotEditorTools } from './BotEditorTools'
 import { BotMemory } from './BotMemory'
 import { BotTargetFields } from './BotTargetFields'
 import { BotSkills } from './BotSkills'
@@ -27,7 +28,7 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
     draft,
     set,
     toggleTool,
-    chooseModel,
+    chooseRuntime,
     saving,
     targetStatus,
     confirmDelete,
@@ -38,6 +39,7 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
     remove
   } = useBotDraft(bot, onClose, onSaved)
   const follow = useSettingsCopy().bots
+  const { settings } = useAppState()
 
   return (
     <div className="ob-bot-editor">
@@ -70,8 +72,10 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
               const followsDefault = e.target.checked
               set('followsDefault', followsDefault)
               if (followsDefault) {
-                set('backendId', '')
                 set('modelId', 'default')
+                set('thinking', undefined)
+              } else if (!draft.backendId) {
+                set('backendId', settings?.defaultBackendId || '')
               }
             }}
           />
@@ -82,15 +86,16 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
         </label>
 
         {draft.followsDefault === false ? (
-          <BotEditorModel
+          <BotRuntimeFields
             backends={backends}
-            backendsLoading={backendsLoading}
-            backendsError={backendsError}
+            configs={settings?.backends}
             backendId={draft.backendId}
             modelId={draft.modelId}
-            onSelect={chooseModel}
+            thinking={draft.thinking}
+            onChange={chooseRuntime}
           />
         ) : null}
+        {backendsError && !backendsLoading ? <p className="ob-hint">{backendsError}</p> : null}
 
         <BotEditorTools tools={draft.tools} onToggle={toggleTool} />
 

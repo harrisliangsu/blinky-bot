@@ -22,6 +22,7 @@ export function conversationKey(session: Session, bot: Bot): string {
     session.id ?? '',
     bot.id ?? '',
     session.cwd ?? '',
-    bot.modelId ?? ''
+    bot.modelId ?? '',
+    bot.thinking ?? ''
   ])
 }

@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react'
-import type { BackendInfo, ToolId } from '../../../shared/types'
-import { loadBackends } from '../state'
-import { ModelPicker } from './ModelPicker'
+import type { ToolId } from '../../../shared/types'
 
 /**
  * The groups follow the sections `TOOL_IDS` itself is written in. Typed as
@@ -30,40 +28,6 @@ const TOOL_GROUPS: Array<{ label: string; ids: ToolId[] }> = [
  * invisible, so the hint now names it instead of hiding it.
  */
 const GROUPED_IDS: ReadonlySet<string> = new Set(TOOL_GROUPS.flatMap((group) => group.ids))
-
-interface ModelProps {
-  backends: BackendInfo[]
-  backendsLoading: boolean
-  backendsError: string | null
-  backendId: string
-  modelId: string
-  onSelect: (backendId: string, modelId: string) => void
-}
-
-/** Which CLI this Bot is bound to. The model is that CLI’s default in Settings. */
-export function BotEditorModel({
-  backends,
-  backendsLoading,
-  backendsError,
-  backendId,
-  modelId,
-  onSelect
-}: ModelProps): ReactNode {
-  return (
-    <div className="ob-field">
-      <span className="ob-label">CLI</span>
-      <ModelPicker
-        backends={backends}
-        backendId={backendId}
-        modelId={modelId}
-        loading={backendsLoading}
-        error={backendsError}
-        onRefresh={() => void loadBackends(true)}
-        onSelect={onSelect}
-      />
-    </div>
-  )
-}
 
 interface ToolsProps {
   tools: string[]

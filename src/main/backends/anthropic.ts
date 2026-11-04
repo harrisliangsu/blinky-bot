@@ -1,5 +1,6 @@
 /** Anthropic — user-supplied API key only, talking to Anthropic's own endpoint. */
 
+import { anthropicThinking, modelAcceptsThinking } from '../../shared/thinking'
 import { needsKey } from './cloudDetect'
 import { DETECT_TIMEOUT_MS, LIST_TIMEOUT_MS, fetchJson, withTimeout } from './httpClient'
 import { errorMessage, isOffline, keyRejectionDetail } from './httpErrors'
@@ -103,11 +104,13 @@ export const anthropicBackend: Backend = {
     if (!key) throw new Error('Anthropic API key required — add one in Settings.')
 
     const { system, messages } = toAnthropicMessages(req.messages)
+    const thinking = modelAcceptsThinking('anthropic', req.model) ? anthropicThinking(req.thinking) : {}
     const body: Record<string, unknown> = {
       model: req.model,
-      max_tokens: maxTokensFor(req.model),
+      max_tokens: Math.max(maxTokensFor(req.model), thinking.minMaxTokens ?? 0),
       messages
     }
+    if (thinking.thinking) body.thinking = thinking.thinking
     if (system) body.system = system
     if (typeof req.temperature === 'number') body.temperature = req.temperature
     if (req.tools?.length) body.tools = toAnthropicTools(req.tools)

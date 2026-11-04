@@ -63,6 +63,7 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
   const { session, bot, settings, signal, mode, messages, tools } = input
   return {
     model: bot.modelId,
+    ...(bot.thinking ? { thinking: bot.thinking } : {}),
     messages,
     // A CLI brings its own tools; ours reach it through the MCP gateway.
     tools: mode === 'orchestrated' && tools?.length ? tools : undefined,

@@ -5,6 +5,7 @@
  * vision signal than guessing from the model id.
  */
 
+import { openaiReasoningBody } from '../../shared/thinking'
 import { detectCloud } from './cloudDetect'
 import { LIST_TIMEOUT_MS, withTimeout } from './httpClient'
 import { errorMessage } from './httpErrors'
@@ -82,6 +83,7 @@ export const xaiBackend: Backend = {
       messages: req.messages,
       tools: req.tools,
       temperature: req.temperature,
+      extraBody: openaiReasoningBody(req.thinking, req.model, 'xai'),
       signal: req.signal
     })
   }
