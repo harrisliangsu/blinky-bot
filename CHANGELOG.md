@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- **Backends are split into providers and local CLIs.** Settings opens 供应商 (API key and base URL) above 本地 CLI (command and terminal sign-in).
+- **The default bot is Blinky.** A seeded bot that is still named Assistant is renamed. A bot you renamed stays as you named it.
+- **Status lines follow the settings language.** A missing key or CLI is described in Chinese by default. English says “an OpenAI key”.
+
 ## 0.3.2
 
 - **The dated session list is hidden.** Today, Yesterday, and Older no longer appear on the main sidebar.
