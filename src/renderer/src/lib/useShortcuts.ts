@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { isEditableTarget, newSession, respondToApproval, store, stopTurn, useAppState } from '../state'
+import { archiveAndClearChat, clearChat, isEditableTarget, respondToApproval, store, stopTurn, useAppState } from '../state'
 import { onMenuCommand } from './menu'
 import { shortcutFor } from './shortcutRules'
 
@@ -25,7 +25,7 @@ function passesEscape(target: EventTarget | null): boolean {
 }
 
 /**
- * Global keys: Cmd/Ctrl+N new chat, Cmd+K switcher, Cmd+, settings,
+ * Global keys: Cmd/Ctrl+N clears the open chat, Cmd+K switcher, Cmd+, settings,
  * Esc rejects a pending approval, else closes a modal, else stops the run.
  * Native menu commands land on the same handlers.
  *
@@ -60,7 +60,7 @@ export function useShortcuts(): void {
       if (action === null) return
       e.preventDefault()
 
-      if (action === 'new-chat') void newSession()
+      if (action === 'new-chat') void clearChat()
       else if (action === 'toggle-palette') store.setModal(modal === 'palette' ? null : 'palette')
       else if (action === 'settings') store.setModal('settings')
       else if (action === 'reject-approval') void respondToApproval(approvals[0].id, 'reject')
@@ -83,7 +83,8 @@ export function useShortcuts(): void {
          * straight through a pending approval.
          */
         if (latest.current.approvals.length > 0) return
-        if (command === 'new-chat') void newSession()
+        if (command === 'new-chat') void clearChat()
+        if (command === 'archive-clear') void archiveAndClearChat()
         if (command === 'settings') store.setModal('settings')
       }),
     []

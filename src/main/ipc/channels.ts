@@ -13,7 +13,7 @@ export const EVENT_CHANNEL = 'openbot:event'
 /** main -> renderer: native menu commands. */
 export const MENU_CHANNEL = 'openbot:menu'
 
-export type MenuCommand = 'new-chat' | 'settings'
+export type MenuCommand = 'new-chat' | 'archive-clear' | 'settings'
 
 export const CHANNELS = {
   searchQuery: 'openbot:search:query',
@@ -33,6 +33,8 @@ export const CHANNELS = {
   sessionsList: 'openbot:sessions:list',
   sessionsGet: 'openbot:sessions:get',
   sessionsCreate: 'openbot:sessions:create',
+  sessionsClear: 'openbot:sessions:clear',
+  sessionsArchiveAndClear: 'openbot:sessions:archiveAndClear',
   sessionsRename: 'openbot:sessions:rename',
   sessionsArchive: 'openbot:sessions:archive',
   sessionsUnarchive: 'openbot:sessions:unarchive',

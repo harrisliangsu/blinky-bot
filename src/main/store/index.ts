@@ -7,7 +7,9 @@ import { adoptReadyDefaultBackend } from '../backends/adoptDefault'
 import { initSettings } from '../settings'
 import { flushAll, type FlushReport } from './jsonStore'
 import { ensureAllDirs } from './paths'
+import { migrateBotHomes } from './botHome'
 import { loadBots, seedBotsIfEmpty } from './bots'
+import { loadProviderBindings } from './providerBindings'
 import { loadMemory } from './memory'
 import { getProject, loadProjects, projectsLoadWasIncomplete } from './projects'
 import { loadRoutines } from './routines'
@@ -41,7 +43,10 @@ export async function initStore(): Promise<void> {
     loadActivity(),
     loadTasks(),
     loadGroups(),
-    loadRooms()
+    loadRooms(),
+    loadProviderBindings().catch((error) => {
+      console.warn('[openbot/store] provider bindings were not loaded', error)
+    })
   ])
   /*
    * Starter bots copy `defaultBackendId`. Choose a signed-in CLI first, and
@@ -68,11 +73,15 @@ export async function initStore(): Promise<void> {
    */
   if (projectsLoadWasIncomplete()) {
     console.warn('[openbot/store] some projects could not be read — leaving chat filing untouched')
-    return
+  } else {
+    const rescued = unfileOrphanedSessions((id) => getProject(id) !== null)
+    if (rescued.length > 0) {
+      console.warn('[openbot/store] unfiled', rescued.length, 'chat(s) from deleted projects')
+    }
   }
-  const rescued = unfileOrphanedSessions((id) => getProject(id) !== null)
-  if (rescued.length > 0) {
-    console.warn('[openbot/store] unfiled', rescued.length, 'chat(s) from deleted projects')
+  const homes = migrateBotHomes()
+  if (homes.assigned > 0 || homes.archived > 0) {
+    console.warn('[openbot/store] bound', homes.assigned, 'bot home(s); archived', homes.archived, 'older chat(s)')
   }
 }
 

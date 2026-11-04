@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SearchResult, SessionSummary } from '../../../shared/types'
 import { useFocusTrap } from '../lib/focusTrap'
-import { newSession, selectProject, selectSession, store, useAppState } from '../state'
+import { archiveAndClearChat, clearChat, selectProject, selectSession, store, useAppState } from '../state'
 import { relativeTime } from '../lib/format'
 import { IconBot, IconPlus, IconRoutine, IconSearch, IconSettings } from './Icons'
 import './CommandPalette.css'
@@ -73,7 +73,8 @@ function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode 
   const items = useMemo<PaletteItem[]>(() => {
     const needle = query.trim().toLowerCase()
     const actions: PaletteItem[] = [
-      { id: 'act-new', label: 'New chat', icon: <IconPlus size={12} />, run: () => void newSession() },
+      { id: 'act-clear', label: '清空对话', icon: <IconPlus size={12} />, run: () => void clearChat() },
+      { id: 'act-archive-clear', label: '归档当前再清空', run: () => void archiveAndClearChat() },
       { id: 'act-bots', label: 'Bots', icon: <IconBot size={12} />, run: () => store.setModal('bots') },
       { id: 'act-routines', label: 'Routines', icon: <IconRoutine size={12} />, run: () => store.setModal('routines') },
       { id: 'act-settings', label: 'Settings', icon: <IconSettings size={12} />, run: () => store.setModal('settings') }

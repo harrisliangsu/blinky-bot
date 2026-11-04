@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Project } from '../../../shared/types'
-import { fetchProject, newSession, openBoard, openProjectEditor, selectSession, useAppState } from '../state'
+import { fetchProject, openBoard, openBotChat, openProjectEditor, selectSession, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
-import { IconFolder, IconList, IconPlus, IconPencil } from './Icons'
+import { IconFolder, IconList, IconPencil } from './Icons'
 import { relativeTime } from '../lib/format'
 import './ProjectView.css'
 
@@ -74,9 +74,16 @@ export function ProjectView(): ReactNode {
         </header>
 
         <div className="ob-projview-actions">
-          <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => void newSession()}>
-            <IconPlus size={12} />
-            New chat
+          <button
+            type="button"
+            className="ob-btn ob-btn-sm ob-btn-primary"
+            disabled={!full?.botIds.some((id) => bots.some((bot) => bot.id === id && !bot.archived))}
+            onClick={() => {
+              const botId = full?.botIds.find((id) => bots.some((bot) => bot.id === id && !bot.archived))
+              if (botId) void openBotChat(botId)
+            }}
+          >
+            打开对话
           </button>
           <button type="button" className="ob-btn ob-btn-sm" onClick={() => void openBoard(project.id)}>
             <IconList size={12} />

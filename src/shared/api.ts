@@ -49,6 +49,10 @@ export interface OpenBotApi {
     list(): Promise<SessionSummary[]>
     get(id: string): Promise<Session | null>
     create(botIds?: string[]): Promise<Session>
+    /** Drop messages and CLI resume ids. The bot, its memory and the folder stay. */
+    clear(id: string): Promise<Session | null>
+    /** Archive this chat, then open an empty one with the same bot and folder. */
+    archiveAndClear(id: string): Promise<Session | null>
     rename(id: string, title: string): Promise<void>
     archive(id: string): Promise<void>
     /** Restore an archived chat. Archiving and restoring are separate: a

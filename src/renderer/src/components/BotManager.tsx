@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type { Bot } from '../../../shared/types'
-import { createBackgroundTask, createGroup, duplicateBot, newSession, removeGroup, store, updateBot, updateGroup, useAppState } from '../state'
+import { createBackgroundTask, createGroup, duplicateBot, openBotChat, removeGroup, store, updateBot, updateGroup, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
 import { BotEditor } from './BotEditor'
 import { IconArchive, IconCopy, IconPlay, IconPlus, IconTrash } from './Icons'
@@ -108,11 +108,11 @@ export function BotManager(): ReactNode {
                     <button
                       type="button"
                       className="ob-btn ob-btn-sm ob-bot-card-chat"
-                      onClick={() => void newSession([bot.id])}
+                      onClick={() => void openBotChat(bot.id)}
                       disabled={bot.archived === true}
                       title={bot.archived ? 'Restore this bot to chat with it.' : undefined}
                     >
-                      New chat
+                      打开对话
                     </button>
                     <div className="ob-bot-card-secondary">
                       {/* The only writer of `archived`, which five readers already

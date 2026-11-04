@@ -122,6 +122,9 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
   }
   if (value['archived'] === true) bot.archived = true
   if (value['pinned'] === true) bot.pinned = true
+  if (typeof value['activeConversationId'] === 'string' && value['activeConversationId']) {
+    bot.activeConversationId = value['activeConversationId']
+  }
   return bot
 }
 
@@ -290,6 +293,21 @@ export function updateBot(id: string, patch: Partial<Bot>): Bot | null {
   // back through the disk rules would strip a bot's isolation on a rename.
   if (patch.computerTarget && next.computerTarget.kind === 'vm') probedVms.add(id)
   return collection.put(normaliseBot(next, { probed: true }) ?? existing)
+}
+
+/** True when this conversation is some bot's home, so task cleanup must not archive it. */
+export function conversationIsHome(sessionId: string): boolean {
+  if (!sessionId) return false
+  return collection.all().some((bot) => bot.activeConversationId === sessionId)
+}
+
+/** Forget homes that point at `sessionId`. The bots stay; the chat is no longer theirs. */
+export function releaseConversation(sessionId: string): void {
+  if (!sessionId) return
+  for (const bot of collection.all()) {
+    if (bot.activeConversationId !== sessionId) continue
+    updateBot(bot.id, { activeConversationId: '' })
+  }
 }
 
 /** Delete a bot and its memory. */

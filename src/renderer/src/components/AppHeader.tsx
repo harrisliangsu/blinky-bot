@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { addBotToSession, removeBotFromSession, store, toggleWorkspace, useAppState } from '../state'
+import { addBotToSession, archiveAndClearChat, clearChat, removeBotFromSession, store, toggleWorkspace, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
 import { IconChat, IconGrid, IconNote, IconPanel, IconPlus, IconSettings } from './Icons'
 import { WorkingPill } from './WorkingPill'
@@ -62,6 +62,26 @@ export function AppHeader(): ReactNode {
       </div>
 
       <div className="ob-header-right ob-no-drag">
+        {session ? (
+          <>
+            <button
+              type="button"
+              className="ob-btn ob-btn-sm ob-btn-ghost ob-header-clear"
+              disabled={streaming}
+              onClick={() => void clearChat()}
+            >
+              清空对话
+            </button>
+            <button
+              type="button"
+              className="ob-btn ob-btn-sm ob-btn-ghost ob-header-clear"
+              disabled={streaming}
+              onClick={() => void archiveAndClearChat()}
+            >
+              归档当前再清空
+            </button>
+          </>
+        ) : null}
         {session ? (
           <div className="ob-header-bots" ref={pickerRef}>
             {participants.map((bot) => (

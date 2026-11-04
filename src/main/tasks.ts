@@ -1,10 +1,12 @@
 /** Background-task orchestration shared by the renderer and delegate_task. */
 
 import type { AgentTask } from '../shared/types'
+import { isRunning } from './agent/cancel'
 import { loopFn } from './ipc/agentRuntime'
 import { broadcast, postActivity } from './ipc/broadcast'
 import { getBot } from './store/bots'
-import { createSession, getSession, renameSession } from './store/sessions'
+import { ensureBotHome } from './store/botHome'
+import { getSession } from './store/sessions'
 import { countActiveTasks, createTaskRecord, getTask, setTaskStatus, trimTasks } from './store/tasks'
 
 /**
@@ -64,11 +66,10 @@ export function startBackgroundTask(botId: string, prompt: string, title = promp
     throw new TypeError(`${bot.name} already has ${MAX_ACTIVE_TASKS_PER_BOT} background tasks queued or running.`)
   }
   const label = title.trim().slice(0, 200) || 'Background task'
-  const created = createSession([botId])
-  // `renameSession` returns a NEW object rather than mutating this one, so
-  // broadcasting the pre-rename session showed every background task as
-  // "New Chat" in the sidebar until the next reload.
-  const session = renameSession(created.id, `Task: ${label}`) ?? created
+  // The result belongs in the bot's one chat. A side session would show up as
+  // a second conversation and the next launch would archive it.
+  const session = ensureBotHome(botId)
+  if (!session) throw new TypeError('That bot no longer exists.')
   const task = createTaskRecord(botId, session.id, body, label)
   broadcast({ type: 'session-updated', session })
   announce(task)
@@ -139,6 +140,11 @@ function pump(): void {
 
 async function run(task: AgentTask): Promise<void> {
   try {
+    // The run posts into the bot's home chat. Starting it on top of a turn
+    // that is already going would be rejected and reported as a missing reply.
+    if (isRunning(task.sessionId)) {
+      return fail(task.id, 'This bot is already in the middle of a turn. Try again when the chat is idle.')
+    }
     announce(setTaskStatus(task.id, 'running'))
     const send = await loopFn('sendMessage')
     if (!send) return fail(task.id, 'The agent runtime is unavailable.')

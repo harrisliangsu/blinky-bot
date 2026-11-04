@@ -7,6 +7,7 @@
  *
  *   <userData>/
  *     settings.json
+ *     provider-bindings.json          ← CLI thread ids keyed by conversation
  *     vm-secrets.json                 ← OS-encrypted bearer credentials
  *     backend-secrets.json            ← OS-encrypted model API credentials
  *     boxes/<vmId>/                    ← managed box workspace and guest runtime
@@ -100,6 +101,11 @@ export function backupsDir(): string {
 export function settingsFile(): string {
   ensureDir(dataRoot())
   return join(dataRoot(), 'settings.json')
+}
+
+export function providerBindingsFile(): string {
+  ensureDir(dataRoot())
+  return join(dataRoot(), 'provider-bindings.json')
 }
 
 export function vmSecretsFile(): string {

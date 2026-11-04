@@ -17,6 +17,7 @@ import type {
 } from '../types'
 import {
   adoptExistingSession,
+  confirmClaudeSession,
   continuityArgs,
   forgetSession,
   isSessionIdInUse,
@@ -199,6 +200,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
       continuity = continuityArgs(req.sessionKey)
     }
   }
+  confirmClaudeSession(req.sessionKey)
   rememberSent(req.sessionKey, marks)
 }
 

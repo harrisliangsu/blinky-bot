@@ -40,6 +40,10 @@
   gap: var(--ob-space-2);
   flex: none;
 }
+.ob-header-clear {
+  flex: none;
+  white-space: nowrap;
+}
 
 .ob-header-inbox { position: relative; }
 .ob-header-badge {

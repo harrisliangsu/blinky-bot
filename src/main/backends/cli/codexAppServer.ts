@@ -1,11 +1,19 @@
 /**
- * Codex over `app-server` — a persistent, session-based transport.
+ * Codex over `app-server` — one process per turn, one thread across turns.
  *
- * Unlike one-shot `codex exec`, the app server keeps a thread alive and asks
- * the CLIENT before running commands or editing files. Those requests are
- * routed to OpenBOT's approval gate, which is the entire reason for preferring
- * this path. It is marked experimental upstream, so `codex.ts` falls back to
- * `exec` when this fails to start.
+ * Unlike one-shot `codex exec`, the app server asks the CLIENT before running
+ * commands or editing files. Those requests are routed to OpenBOT's approval
+ * gate, which is the entire reason for preferring this path.
+ *
+ * The process is not kept alive between turns. Codex persists the thread
+ * itself; `thread/resume` loads it by id into the next process. A long-lived
+ * server is not required by the public API, and it would outlive this turn's
+ * abort signal and approval callback. The id is stored in provider bindings.
+ * The first turn calls `thread/start`. Later turns call `thread/resume`.
+ *
+ * A failed resume drops that binding and starts a fresh thread with the in-app
+ * transcript. Reconnect notifications (`error` with `willRetry: true`) are not
+ * resume failures — `codexEvents` keeps those turns alive and must not abort.
  */
 
 import { AsyncQueue } from '../asyncQueue'
@@ -21,12 +29,22 @@ import {
   isTurnEnd
 } from './codexEvents'
 import type { CliRunContext } from './spec'
+import {
+  codexThreadCall,
+  codexTurnPrompt,
+  forgetCodexThread,
+  rememberCodexThread,
+  rememberedCodexThread,
+  shouldRetryCodexThread,
+  threadIdOf
+} from './codexThread'
+import { fingerprints, rememberSent } from './resumePrompt'
 
 /**
- * Ceiling on the handshake. `codex.ts` falls back to one-shot `exec` when this
- * transport fails, but an app-server that starts and then never answers
- * `initialize` would leave the request pending forever and the fallback would
- * never run — the turn would just hang.
+ * Ceiling on the handshake. `codex.ts` fails the turn when this transport
+ * cannot start, but an app-server that starts and then never answers
+ * `initialize` would leave the request pending forever — the turn would hang
+ * instead of reporting that failure.
  */
 const HANDSHAKE_TIMEOUT_MS = 20_000
 
@@ -57,7 +75,7 @@ const APPROVAL_METHODS = [
   'execCommandApproval'
 ]
 
-interface ThreadStarted {
+interface ThreadOpened {
   threadId?: string
   thread?: { id?: string }
 }
@@ -65,7 +83,6 @@ interface ThreadStarted {
 export interface AppServerRun {
   binaryPath: string
   ctx: CliRunContext
-  prompt: string
   req: ChatRequest
   /** `-c` overrides and the token variables they name, from `mcpConfig`. */
   mcp?: { args: string[]; env: Record<string, string> }
@@ -177,23 +194,17 @@ export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<Chat
       'initialize'
     )
 
-    const started = await withDeadline(
-      peer.request<ThreadStarted>('thread/start', {
-        cwd: run.ctx.cwd,
-        ...(run.ctx.model && run.ctx.model !== 'default' ? { model: run.ctx.model } : {})
-      }),
-      HANDSHAKE_TIMEOUT_MS,
-      'thread/start'
-    )
-    const threadId = started?.threadId ?? started?.thread?.id
-    if (!threadId) throw new Error('codex app-server did not return a thread id')
+    const opened = await openCodexThread(peer, run, rememberedCodexThread(run.req.sessionKey))
+    const threadId = opened.threadId
+    const prompt = codexTurnPrompt(run.req.messages, run.req.sessionKey, opened.resumed)
+    if (!prompt.trim()) throw new Error('Codex was given an empty prompt.')
 
     // Not awaited: the turn's output arrives as notifications, and this request
     // only settles when the turn is already over.
     void peer
       .request('turn/start', {
         threadId,
-        input: [{ type: 'text', text: run.prompt }]
+        input: [{ type: 'text', text: prompt }]
       })
       .catch((err) => {
         failure = err
@@ -202,6 +213,7 @@ export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<Chat
 
     for await (const chunk of chunks) yield chunk
     if (failure) throw failure
+    rememberSent(run.req.sessionKey, fingerprints(run.req.messages))
     yield { type: 'done' }
   } finally {
     run.req.signal.removeEventListener('abort', abort)
@@ -209,6 +221,40 @@ export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<Chat
     handle.kill()
     await pump.catch(() => {})
   }
+}
+
+async function openCodexThread(
+  peer: { request: <T>(method: string, params?: unknown) => Promise<T> },
+  run: AppServerRun,
+  existingThreadId: string | undefined
+): Promise<{ threadId: string; resumed: boolean }> {
+  if (existingThreadId) {
+    const call = codexThreadCall({ threadId: existingThreadId, cwd: run.ctx.cwd, model: run.ctx.model })
+    try {
+      const resumed = await withDeadline(
+        peer.request<ThreadOpened>(call.method, call.params),
+        HANDSHAKE_TIMEOUT_MS,
+        call.method
+      )
+      const threadId = threadIdOf(resumed) ?? existingThreadId
+      rememberCodexThread(run.req.sessionKey, threadId)
+      return { threadId, resumed: true }
+    } catch (err) {
+      if (!shouldRetryCodexThread({ hadThread: true, aborted: run.req.signal.aborted })) throw err
+      forgetCodexThread(run.req.sessionKey)
+    }
+  }
+
+  const call = codexThreadCall({ cwd: run.ctx.cwd, model: run.ctx.model })
+  const started = await withDeadline(
+    peer.request<ThreadOpened>(call.method, call.params),
+    HANDSHAKE_TIMEOUT_MS,
+    call.method
+  )
+  const threadId = threadIdOf(started)
+  if (!threadId) throw new Error('codex app-server did not return a thread id')
+  rememberCodexThread(run.req.sessionKey, threadId)
+  return { threadId, resumed: false }
 }
 
 /** Readable reason for the fallback path to report if the server never starts. */

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { newSession, openBotChat, openProjectEditor, projectsReady, runRoutine, selectProject, store, useAppState } from '../state'
+import { clearChat, openBotChat, openProjectEditor, projectsReady, runRoutine, selectProject, store, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
 import {
   IconArchive,
@@ -50,7 +50,7 @@ function Section({ title, icon, action, children }: SectionProps): ReactNode {
 
 /** Conversations, bots and routines — the app's primary navigation. */
 export function Sidebar(): ReactNode {
-  const { sessions, sessionsLoading, sessionsError, currentSessionId, bots, routines, recording, projects, currentProjectId, settings } =
+  const { sessions, sessionsLoading, sessionsError, currentSessionId, bots, routines, recording, projects, currentProjectId, settings, streaming } =
     useAppState()
   const copy = useSettingsCopy()
   const [query, setQuery] = useState('')
@@ -78,12 +78,13 @@ export function Sidebar(): ReactNode {
         <span className="ob-side-brand">BlinkyBot</span>
         <button
           type="button"
-          className="ob-icon-btn ob-no-drag"
-          onClick={() => void newSession()}
-          title={currentProject ? `New chat in ${currentProject.name}` : 'New chat'}
-          aria-label={currentProject ? `New chat in ${currentProject.name} (Command N)` : 'New chat (Command N)'}
+          className="ob-btn ob-btn-sm ob-btn-ghost ob-no-drag"
+          onClick={() => void clearChat()}
+          disabled={streaming}
+          title="清空对话"
+          aria-label="清空对话"
         >
-          <IconPlus size={13} />
+          清空对话
         </button>
       </div>
 

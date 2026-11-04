@@ -1,10 +1,11 @@
 /** Durable in-app scheduler for recorded routines. */
 
 import type { Routine, Session } from '../../shared/types'
+import { isRunning } from '../agent/cancel'
 import { loopFn } from '../ipc/agentRuntime'
+import { ensureBotHome } from '../store/botHome'
 import { getBot } from '../store/bots'
 import { listRoutines, markRoutineRun } from '../store/routines'
-import { allSessions, createSession, renameSession } from '../store/sessions'
 import { cronIsDue } from './cron'
 
 const TICK_MS = 30_000
@@ -13,21 +14,10 @@ let timer: ReturnType<typeof setInterval> | undefined
 let ticking = false
 const running = new Set<string>()
 
-function targetSession(routine: Routine): Session {
-  // Include the routine identity so two same-named routines never race inside
-  // one session and cause one another to be rejected as "already busy".
-  const title = `Scheduled: ${routine.name} (${routine.id.slice(0, 8)})`
-  const existing = allSessions()
-    .filter((session) =>
-      !session.archived &&
-      session.title === title &&
-      session.botIds.length === 1 &&
-      session.botIds[0] === routine.botId
-    )
-    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
-  if (existing) return existing
-  const created = createSession([routine.botId])
-  return renameSession(created.id, title) ?? created
+function targetSession(routine: Routine): Session | null {
+  // One chat per bot. A second routine for the same bot waits until that
+  // chat is idle; it does not open a side conversation.
+  return ensureBotHome(routine.botId)
 }
 
 async function runScheduled(routine: Routine, now: number): Promise<void> {
@@ -42,8 +32,10 @@ async function runScheduled(routine: Routine, now: number): Promise<void> {
 
     // Stamp before starting. The 30-second timer can fire again while the replay
     // is waiting for approval; this makes that occurrence exactly-once in-process.
-    markRoutineRun(routine.id, now)
     const session = targetSession(routine)
+    if (!session) return
+    if (isRunning(session.id)) return
+    markRoutineRun(routine.id, now)
     await run(routine.id, session.id)
   } catch (err) {
     console.error(`[openbot/scheduler] routine "${routine.name}" failed`, err)

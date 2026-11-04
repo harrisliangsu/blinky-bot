@@ -28,10 +28,10 @@ export function WorkspacePicker({ index, taken }: WorkspacePickerProps): ReactNo
           type="button"
           className="ob-btn ob-btn-sm"
           onClick={() => void startPaneChat(index)}
-          aria-label={`Start a new conversation in pane ${index + 1}`}
+          aria-label={`打开对话到窗格 ${index + 1}`}
         >
           <IconPlus size={11} />
-          New chat
+          打开对话
         </button>
       </header>
 
