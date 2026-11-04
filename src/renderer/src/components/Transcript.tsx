@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
 import { showsJump, useStickyScroll } from '../lib/stickyScroll'
 import { store, useAppState } from '../state'
+import { BackendSetupLink } from './BackendSetupLink'
 import { EarlierMessages } from './EarlierMessages'
 import { IconArrowDown, IconSpinner, IconWarning } from './Icons'
 import { MessageView } from './Message'
@@ -92,6 +93,7 @@ export function Transcript(): ReactNode {
             <div className="ob-notice ob-notice-error ob-transcript-error" role="alert">
               <IconWarning size={13} />
               <span>{runError}</span>
+              <BackendSetupLink text={runError} />
               <button type="button" className="ob-btn ob-btn-sm" onClick={() => store.clearRunError()}>
                 Dismiss
               </button>

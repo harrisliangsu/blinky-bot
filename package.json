@@ -1,6 +1,6 @@
 {
   "name": "openbot",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "BlinkyBot: a local-first Mac app for the agent CLIs and API keys you already have. MIT fork of OpenBOT.",
   "keywords": [
     "electron",
@@ -38,6 +38,7 @@
     "pack": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac --dir",
     "package:mac": "bash Scripts/package-mac.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-strip-types --test src/main/backends/defaultBackend.test.ts",
     "test:cli-adapters": "node scripts/test-cli-adapters.mjs"
   },
   "build": {

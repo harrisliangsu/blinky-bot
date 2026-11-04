@@ -123,6 +123,13 @@
   background: var(--ob-danger-quaternary);
   border-radius: var(--ob-radius-3xl);
 }
+.ob-msg-error-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ob-space-2);
+  min-width: 0;
+}
 
 /*
  * The footer stays in the layout while hidden so revealing it on hover does not

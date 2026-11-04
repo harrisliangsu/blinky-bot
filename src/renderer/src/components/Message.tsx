@@ -2,6 +2,7 @@ import { memo, useState, type MouseEvent, type ReactNode } from 'react'
 import type { Bot, Message } from '../../../shared/types'
 import { clockTime } from '../lib/format'
 import { reactToMessage, store, useMessage } from '../state'
+import { BackendSetupLink } from './BackendSetupLink'
 import { BotAvatar } from './BotAvatar'
 import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconWarning } from './Icons'
 import { ReasoningBlock } from './ReasoningBlock'
@@ -203,7 +204,10 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot }: Mes
         {message.error ? (
           <p className="ob-msg-error">
             <IconWarning size={12} />
-            {message.error}
+            <span className="ob-msg-error-copy">
+              {message.error}
+              <BackendSetupLink text={message.error} />
+            </span>
           </p>
         ) : null}
       </div>

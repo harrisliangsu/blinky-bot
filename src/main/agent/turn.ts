@@ -14,12 +14,17 @@
  * `turnTypes.ts` holds the shapes. All of them are re-exported from here.
  */
 
+import {
+  backendStartBlock,
+  explainStartupFailure,
+  unavailableBackendMessage
+} from '../../shared/backendPrompt'
 import type { Message, Session } from '../../shared/types'
 import { assistantMessage, begin, commit } from './messages'
 import {
   backendConfigFor,
+  detectBackends,
   getBackend,
-  getBackendInfo,
   getModelInfo,
   openChatStream
 } from './backendGateway'
@@ -50,8 +55,11 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
   // Links this reply back to the teammate message that prompted it.
   if (input.replyTo) message.replyTo = input.replyTo
 
-  const info = await getBackendInfo(bot.backendId)
+  const infos = await detectBackends()
+  const info = infos.find((item) => item.id === bot.backendId) ?? null
   const mode = modeFor(info, bot.computerTarget)
+  const blocked = backendStartBlock(info, infos, bot.backendId)
+  if (blocked) return failTurn(session, message, mode, blocked, false)
 
   const backend = await getBackend(bot.backendId)
   if (!backend) {
@@ -59,8 +67,10 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       session,
       message,
       mode,
-      `Backend "${bot.backendId}" is not available. Check it is installed, running and ` +
-        `enabled in Settings, then try again.`,
+      unavailableBackendMessage({
+        label: info?.label ?? bot.backendId,
+        nothingReady: !infos.some((item) => item.status === 'available')
+      }),
       false
     )
   }
@@ -134,11 +144,19 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       await commit(session, message)
       return { status: 'aborted', message, mode }
     }
+    const raw = errorMessage(err)
     return failTurn(
       session,
       message,
       mode,
-      `${bot.name} could not reach the model: ${errorMessage(err)}`,
+      explainStartupFailure(
+        raw,
+        unavailableBackendMessage({
+          label: info?.label ?? bot.backendId,
+          nothingReady: !infos.some((item) => item.status === 'available')
+        }),
+        `${bot.name} could not reach the model: ${raw}`
+      ),
       true
     )
   }
@@ -161,7 +179,15 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
    * silently is how a truncated answer reaches the user looking complete.
    */
   if (live && streamed.error !== undefined) {
-    const detail = `${bot.name} stopped early: ${errorMessage(streamed.error)}`
+    const raw = errorMessage(streamed.error)
+    const detail = explainStartupFailure(
+      raw,
+      unavailableBackendMessage({
+        label: info?.label ?? bot.backendId,
+        nothingReady: !infos.some((item) => item.status === 'available')
+      }),
+      `${bot.name} stopped early: ${raw}`
+    )
     return failTurn(session, message, mode, detail, true)
   }
 
