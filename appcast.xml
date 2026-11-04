@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-            <item>
-            <title>0.2.0</title>
-            <pubDate>Wed, 04 Nov 2026 03:45:53 -0000</pubDate>
-            <sparkle:version>0.2.0</sparkle:version>
-            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+                <item>
+            <title>0.2.2</title>
+            <pubDate>Wed, 04 Nov 2026 04:37:10 -0000</pubDate>
+            <sparkle:version>0.2.2</sparkle:version>
+            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.2</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot 打包的是 OpenBOT 桌面应用。</strong> Mac 上的应用名是 BlinkyBot，源码是这棵 OpenBOT 树。</li><li><strong>磁盘映像和 zip。</strong> 发布物是 Apple 芯片的 <code>BlinkyBot-0.2.0.dmg</code> 和 <code>BlinkyBot-0.2.0.zip</code>。不需要 Docker。</li><li><strong>签名的更新源。</strong> zip 使用 BlinkyBot 现有的更新密钥签名。这一版还没有应用内更新，请安装磁盘映像。</li><li><strong>MIT 许可。</strong> 这一版的源代码是 git tag <code>v0.2.0</code>。协议全文是 <code>LICENSE</code>。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.2.2</h2><ul><li><strong>默认 Bot 使用已登录的 CLI。</strong> BlinkyBot 会在图形界面也能看见的 PATH 里查找，包括 <code>/opt/homebrew/bin</code>、<code>~/.local/bin</code>、<code>~/.kimi-code/bin</code>、<code>~/.grok/bin</code>、npm 全局目录和 nvm 的版本目录，并把默认 Bot 指到已安装且已登录的后端。顺序是 Codex、Claude Code、Kimi Code、Grok，然后是 OpenCode 和其他 CLI，最后是 API key。</li><li><strong>缺少 CLI 时会说明原因。</strong> 没有任何已登录的后端时，对话会说明这一点，并打开设置里的 Backends，而不是显示 <code>spawn opencode ENOENT</code>。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.2">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot 打包的是 OpenBOT 桌面应用。</strong> Mac 上的应用名是 BlinkyBot，源码是这棵 OpenBOT 树。</li><li><strong>磁盘映像和 zip。</strong> 发布物是 Apple 芯片的 <code>BlinkyBot-0.2.0.dmg</code> 和 <code>BlinkyBot-0.2.0.zip</code>。不需要 Docker。</li><li><strong>签名的更新源。</strong> zip 使用 BlinkyBot 现有的更新密钥签名。这一版还没有应用内更新，请安装磁盘映像。</li><li><strong>MIT 许可。</strong> 这一版的源代码是 git tag <code>v0.2.0</code>。协议全文是 <code>LICENSE</code>。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.2.2</h2><ul><li><strong>默认 Bot 使用已登录的 CLI。</strong> BlinkyBot 会在图形界面也能看见的 PATH 里查找，包括 <code>/opt/homebrew/bin</code>、<code>~/.local/bin</code>、<code>~/.kimi-code/bin</code>、<code>~/.grok/bin</code>、npm 全局目录和 nvm 的版本目录，并把默认 Bot 指到已安装且已登录的后端。顺序是 Codex、Claude Code、Kimi Code、Grok，然后是 OpenCode 和其他 CLI，最后是 API key。</li><li><strong>缺少 CLI 时会说明原因。</strong> 没有任何已登录的后端时，对话会说明这一点，并打开设置里的 Backends，而不是显示 <code>spawn opencode ENOENT</code>。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.2">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot packages the OpenBOT desktop.</strong> The Mac app name is BlinkyBot. The source is this OpenBOT tree.</li><li><strong>Disk image and zip.</strong> The release is <code>BlinkyBot-0.2.0.dmg</code> and <code>BlinkyBot-0.2.0.zip</code> for Apple Silicon. Docker is not required.</li><li><strong>Signed update feed.</strong> The zip is signed for BlinkyBot&#x27;s existing update key. This build has no in-app updater yet, so install the disk image.</li><li><strong>MIT license.</strong> Source for this version is git tag <code>v0.2.0</code>. The license text is <code>LICENSE</code>.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.0/BlinkyBot-0.2.0.zip"
-                       length="122406356"
+</style><h2>BlinkyBot 0.2.2</h2><ul><li><strong>Default bots use a signed-in CLI.</strong> BlinkyBot searches a GUI-safe PATH, including <code>/opt/homebrew/bin</code>, <code>~/.local/bin</code>, <code>~/.kimi-code/bin</code>, <code>~/.grok/bin</code>, npm global bins, and nvm version bins, and points the default bots at an installed, signed-in backend. Codex, Claude Code, Kimi Code, and Grok come before OpenCode, then the other agent CLIs, then an API key.</li><li><strong>A missing CLI explains itself.</strong> When nothing is signed in, the chat says so and links to Settings → Backends instead of showing <code>spawn opencode ENOENT</code>.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.2">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.2/BlinkyBot-0.2.2.zip"
+                       length="122415398"
                        type="application/octet-stream"
-                       sparkle:edSignature="rP/35/+afCSrQ2yYcRT6g/prMn266mTb+PX7GYruD5B5Q0MWj5AldgONI3i4sv1lin29lkJZWrW/T9qWVJNVBg==" />
+                       sparkle:edSignature="dNVwLWjczeYqGA5bJ9dNA3gcA23F5ifdyoFht/1MMVTmJ2h/6VUeLJM3NIREjvNGfGFBuZu28l7S6rph4tOqAw==" />
         </item>
     </channel>
 </rss>
