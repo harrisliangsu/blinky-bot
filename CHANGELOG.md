@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4
+
+- **Each local CLI shows whether it is signed in.** The row says not installed, not signed in, signed in, or unknown. Sign in opens that CLI’s own login in Terminal. BlinkyBot does not keep the token.
+- **Providers are added one at a time.** The provider list starts empty. Add provider offers OpenAI, Anthropic, xAI, and OpenRouter. Removing one clears the key saved for it.
+
 ## 0.3.3
 
 - **Backends are split into providers and local CLIs.** Settings opens 供应商 (API key and base URL) above 本地 CLI (command and terminal sign-in).
