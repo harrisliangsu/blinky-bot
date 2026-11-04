@@ -10,7 +10,7 @@ import { KNOWN_BACKEND_IDS } from '../settingsSchema'
 import { JsonCollection } from './collection'
 import { botsDir } from './paths'
 import { clearBotMemory } from './memory'
-import { DEFAULT_BOT_TOOLS, LOCAL_TARGET, starterBots } from './starterBots'
+import { DEFAULT_BOT_TOOLS, LOCAL_TARGET, migrateSeededAssistant, starterBots } from './starterBots'
 import { clearVmToken, hasVmToken, setVmToken } from './vmSecrets'
 
 function stringList(value: unknown): string[] {
@@ -46,6 +46,8 @@ function resolveBackend(
 let retiredBackendSeen = false
 /** Set during load when a legacy bot carried a plaintext VM bearer token. */
 let plaintextVmTokenSeen = false
+/** Set during load when the seeded general-purpose bot was still named Assistant. */
+let seededAssistantSeen = false
 
 interface TargetOptions {
   /**
@@ -122,7 +124,10 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
   }
   if (value['archived'] === true) bot.archived = true
   if (value['pinned'] === true) bot.pinned = true
-  return bot
+  const renamed = migrateSeededAssistant(bot)
+  if (!renamed) return bot
+  seededAssistantSeen = true
+  return { ...renamed, updatedAt: now }
 }
 
 const collection = new JsonCollection<Bot>(botsDir, (raw) => normaliseBot(raw))
@@ -182,9 +187,10 @@ function verifyVmCapabilities(bot: Bot): void {
 export async function loadBots(): Promise<void> {
   retiredBackendSeen = false
   plaintextVmTokenSeen = false
+  seededAssistantSeen = false
   await collection.load()
   // Persist the normalised values so the migration happens exactly once.
-  if (retiredBackendSeen || plaintextVmTokenSeen) {
+  if (retiredBackendSeen || plaintextVmTokenSeen || seededAssistantSeen) {
     for (const bot of collection.all()) collection.put(bot)
   }
 }
@@ -309,6 +315,7 @@ export function seedBotsIfEmpty(): Bot[] {
   if (collection.size > 0) return []
   return starterBots(getSettings()).map((seed, index) => {
     const now = Date.now() + index
-    return collection.put({ ...seed, id: randomUUID(), createdAt: now, updatedAt: now })
+    const { seedId, ...persona } = seed
+    return collection.put({ ...persona, id: seedId ?? randomUUID(), createdAt: now, updatedAt: now })
   })
 }

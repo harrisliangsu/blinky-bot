@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { backendFieldPlan, orderedBackendSections, type BackendSectionId } from '../../../shared/backendSections'
 import type { BackendConfig, BackendInfo, Settings } from '../../../shared/types'
+import { localizeBackendDetail } from '../lib/backendDetail'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { loadBackends, updateSettings } from '../state'
 import { IconRefresh, IconSpinner } from './Icons'
@@ -81,7 +82,7 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
           </span>
         </div>
 
-        {backend.statusDetail ? <p className="ob-hint">{backend.statusDetail}</p> : null}
+        {backend.statusDetail ? <p className="ob-hint">{localizeBackendDetail(backend.statusDetail, copy.detail)}</p> : null}
 
         <div className={`ob-backend-fields${plan.command && !plan.baseUrl ? ' is-stack' : ''}`}>
           {plan.command ? (

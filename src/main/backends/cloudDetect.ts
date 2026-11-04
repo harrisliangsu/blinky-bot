@@ -8,6 +8,7 @@
  * request to a host the user never chose.
  */
 
+import { englishArticle } from '../../shared/englishArticle'
 import { DETECT_TIMEOUT_MS, withTimeout } from './httpClient'
 import { errorMessage, isOffline, keyRejectionDetail } from './httpErrors'
 import { type OaEndpoint, listOpenAiModels } from './openaiCompat'
@@ -26,7 +27,7 @@ export interface CloudProbeOptions {
 export function needsKey(label: string, keyHint: string): DetectResult {
   return {
     status: 'needs-key',
-    detail: `API key required — add a ${label} key in Settings (${keyHint}). It is stored locally, encrypted by the OS credential store, and sent only to ${label}'s own API host.`
+    detail: `API key required — add ${englishArticle(label)} ${label} key in Settings (${keyHint}). It is stored locally, encrypted by the OS credential store, and sent only to ${label}'s own API host.`
   }
 }
 

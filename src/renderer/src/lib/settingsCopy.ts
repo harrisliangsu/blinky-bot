@@ -121,6 +121,28 @@ export interface SettingsCopy {
     optionalKey: string
     optionalKeyPlaceholder: string
     sectionEmpty: string
+    detail: {
+      needsKey: string
+      notFound: string
+      installWith: string
+      installOr: string
+      installFrom: string
+      notInstalled: string
+      setCommand: string
+      versionTimeout: string
+      needsSignIn: string
+      found: string
+      keyAccepted: string
+      keyAcceptedModels: string
+      disabled: string
+      timedOut: string
+      notChecked: string
+      kimiSignIn: string
+      grokSignIn: string
+      grokKey: string
+      unreachable: string
+      checkFailed: string
+    }
     status: Record<'available' | 'not-installed' | 'not-running' | 'needs-key' | 'error', string>
   }
   mcp: {
@@ -302,6 +324,31 @@ const en: SettingsCopy = {
     optionalKey: 'API key (optional)',
     optionalKeyPlaceholder: 'Only if the CLI is not signed in',
     sectionEmpty: 'Nothing in this section.',
+    detail: {
+      needsKey:
+        'API key required — add {article} {label} key in Settings ({hint}). It is stored locally, encrypted by the OS credential store, and sent only to {label}’s own API host.',
+      notFound: '`{command}` was not found on your PATH. {install}',
+      installWith: 'Install with {options}.',
+      installOr: ' or ',
+      installFrom: 'Install it from {url}.',
+      notInstalled: 'Not installed.',
+      setCommand: 'Set a command for {name} in Settings — any binary speaking its protocol works.',
+      versionTimeout:
+        '{name} did not answer a version check within the probe window — it may be waiting on first-run setup. Run `{command}` once in a terminal.',
+      needsSignIn: '{name} is installed{where} but has no configuration yet — run `{command}` once and sign in.',
+      found: '{name} found{where}.',
+      keyAccepted: 'Key accepted.',
+      keyAcceptedModels: 'Key accepted — {count} model{suffix} available.',
+      disabled: 'Disabled in Settings.',
+      timedOut: 'Detection timed out.',
+      notChecked: 'Not checked yet.',
+      kimiSignIn: '{name} is installed but not signed in. Run `{command} login` in a terminal, then refresh.',
+      grokSignIn:
+        '{name} is installed but not signed in. Run `{command} login` in a terminal, or save an xAI API key on this row.',
+      grokKey: '{name} is installed. The API key saved on this row is passed as XAI_API_KEY.',
+      unreachable: 'Could not reach {host} — check your network connection.',
+      checkFailed: '{label} check failed: {error}'
+    },
     status: {
       available: 'signed in',
       'not-installed': 'not installed',
@@ -495,6 +542,29 @@ const zh: SettingsCopy = {
     optionalKey: 'API key（可选）',
     optionalKeyPlaceholder: 'CLI 未登录时才需要',
     sectionEmpty: '这一组里还没有。',
+    detail: {
+      needsKey:
+        '需要 API key — 请在设置里添加 {label} 的密钥（{hint}）。密钥保存在这台电脑上，由系统凭据库加密，并且只发给 {label} 自己的 API 地址。',
+      notFound: '在 PATH 上找不到 `{command}`。{install}',
+      installWith: '可以用 {options} 安装。',
+      installOr: ' 或 ',
+      installFrom: '请从 {url} 安装。',
+      notInstalled: '未安装。',
+      setCommand: '请在设置里为 {name} 填写命令。任何使用同一协议的可执行文件都可以。',
+      versionTimeout: '{name} 在探测时间内没有回应版本检查，可能停在首次设置。请在终端运行一次 `{command}`。',
+      needsSignIn: '{name} 已安装{where}，但还没有配置。请在终端运行一次 `{command}` 并登录。',
+      found: '已找到 {name}{where}。',
+      keyAccepted: '密钥可用。',
+      keyAcceptedModels: '密钥可用 — 有 {count} 个模型。',
+      disabled: '已在设置中停用。',
+      timedOut: '检测超时。',
+      notChecked: '尚未检查。',
+      kimiSignIn: '{name} 已安装，但还没有登录。请在终端运行 `{command} login`，然后刷新。',
+      grokSignIn: '{name} 已安装，但还没有登录。请在终端运行 `{command} login`，或在这一行保存 xAI API key。',
+      grokKey: '{name} 已安装。这一行保存的 API key 会作为 XAI_API_KEY 传给它。',
+      unreachable: '无法连接 {host} — 请检查网络。',
+      checkFailed: '{label} 检查失败：{error}'
+    },
     status: {
       available: '已登录',
       'not-installed': '未安装',
