@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- **The dated session list is hidden.** Today, Yesterday, and Older no longer appear on the main sidebar.
+- **Clicking a bot opens its newest chat.** If that bot has no chat yet, one is created.
+
 ## 0.3.1
 
 - **Codex keeps going when the connection blips.** A notice such as "Reconnecting... 2/5" is shown while Codex retries, and the reply still arrives. A real failure shows Codex's own message, including the extra detail.
