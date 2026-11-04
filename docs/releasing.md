@@ -4,19 +4,29 @@ Pushing a `v*` tag builds the Mac app and publishes a GitHub Release. The app id
 
 中文：先把版本改动合并进 `main`，再给这个提交打 tag。不要直接 push `main`。私钥不要换。
 
-## Cut v0.2.0
+## Cut v0.2.1
 
-`package.json` is already `0.2.0`, and both changelogs already have `## 0.2.0`. After this packaging change is on `main`:
+`package.json` is `0.2.1`. `productName` is BlinkyBot. `appId` is `bot.blinky.shell`. Both changelogs have `## 0.2.1`: Kimi Code and Grok as local CLI backends, and a note that 0.2.0 was the BlinkyBot disk image restored on this OpenBOT tree. There is no separate `VERSION` file; electron-builder reads `package.json`.
+
+After this bump is on `main`:
 
 ```bash
 git checkout main
 git pull origin main
-node -p "require('./package.json').version"   # 0.2.0
-git tag v0.2.0
-git push origin v0.2.0
+node -p "require('./package.json').version"   # 0.2.1
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
-Tag the merge commit on `main`, not the pull request branch. The workflow refuses the tag when it does not match `package.json` `"version"`, or when `CHANGELOG.md` / `CHANGELOG.zh-CN.md` has no `##` section for that version.
+Tag the merge commit on `main`, not the pull request branch. Then merge the `appcast-v0.2.1` pull request the workflow opens.
+
+中文：合并后再打 `v0.2.1`。这一版加上 Kimi Code 和 Grok 本机 CLI。0.2.0 是把 BlinkyBot 安装包恢复到这棵 OpenBOT 树上的那一版。
+
+## v0.2.0 (already published)
+
+`package.json` was `0.2.0`, and both changelogs have `## 0.2.0`. That tag is already published. It is the OpenBOT-tree packaging restore. Do not push `v0.2.0` again.
+
+The workflow refuses a tag when it does not match `package.json` `"version"`, or when `CHANGELOG.md` / `CHANGELOG.zh-CN.md` has no `##` section for that version.
 
 Watch it:
 
