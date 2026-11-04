@@ -24,7 +24,7 @@ Tag the merge commit on `main`, not the pull request branch. Then merge the `app
 
 ## v0.2.2, v0.2.1 and v0.2.0
 
-`v0.2.2` points default bots at a signed-in CLI. Do not push `v0.2.2` until that pull request is on `main`.
+`v0.2.2` points default bots at a signed-in CLI. Tag that from `main` after its pull request merges if you want it to ship before 0.3.0. Do not tag `v0.2.2` from a tree whose `package.json` is already `0.3.0`.
 
 ## v0.2.1 and v0.2.0 (already published)
 
