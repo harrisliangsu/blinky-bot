@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { newSession, openProjectEditor, projectsReady, runRoutine, selectProject, store, useAppState } from '../state'
+import { newSession, openBotChat, openProjectEditor, projectsReady, runRoutine, selectProject, store, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
 import {
   IconArchive,
@@ -58,6 +58,17 @@ export function Sidebar(): ReactNode {
 
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
   const activeBots = useMemo(() => bots.filter((b) => !b.archived), [bots])
+  const visibleBots = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return activeBots
+    return activeBots.filter(
+      (bot) => bot.name.toLowerCase().includes(needle) || (bot.description ?? '').toLowerCase().includes(needle)
+    )
+  }, [activeBots, query])
+  const openBotIds = useMemo(() => {
+    const current = sessions.find((session) => session.id === currentSessionId)
+    return new Set(current?.botIds ?? [])
+  }, [sessions, currentSessionId])
   const archivedCount = sessions.filter((s) => s.archived).length
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null
 
@@ -82,8 +93,8 @@ export function Sidebar(): ReactNode {
           className="ob-side-search-input"
           type="search"
           value={query}
-          placeholder="Search conversations"
-          aria-label="Search conversations"
+          placeholder="Search bots"
+          aria-label="Search bots"
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
@@ -110,16 +121,24 @@ export function Sidebar(): ReactNode {
           icon={<IconBot size={12} />}
           action={{ label: 'Create a bot', onClick: () => store.setModal('bots', 'new') }}
         >
+          {sessionsError && !showArchived ? (
+            <p className="ob-notice ob-notice-error ob-sessions-notice" role="alert">
+              {sessionsError}
+            </p>
+          ) : null}
           {activeBots.length === 0 ? (
             <p className="ob-side-note">No bots yet. Create one to give the agent a persona and its own memory.</p>
+          ) : visibleBots.length === 0 ? (
+            <p className="ob-side-note">No bots match that search.</p>
           ) : (
             <ul className="ob-side-list">
-              {activeBots.map((bot) => (
-                <li key={bot.id} className="ob-side-item">
+              {visibleBots.map((bot) => (
+                <li key={bot.id} className={`ob-side-item${openBotIds.has(bot.id) ? ' is-current' : ''}`}>
                   <button
                     type="button"
                     className="ob-side-item-main"
-                    onClick={() => void newSession([bot.id])}
+                    aria-current={openBotIds.has(bot.id) ? 'true' : undefined}
+                    onClick={() => void openBotChat(bot.id)}
                     title={bot.description || bot.name}
                   >
                     <BotAvatar bot={bot} size="sm" />
@@ -138,18 +157,6 @@ export function Sidebar(): ReactNode {
             </ul>
           )}
         </Section>
-
-        <SessionList
-          sessions={sessions}
-          bots={botMap}
-          currentId={currentSessionId}
-          query={query}
-          showArchived={showArchived}
-          loading={sessionsLoading}
-          error={sessionsError}
-          projectId={currentProjectId}
-          projectName={currentProject?.name}
-        />
 
         <details className="ob-side-more">
           <summary>{copy.more.title}</summary>
@@ -211,6 +218,19 @@ export function Sidebar(): ReactNode {
           {showArchived ? copy.more.chats : copy.more.archived}
           {!showArchived && archivedCount > 0 ? <span className="ob-side-count">{archivedCount}</span> : null}
         </button>
+        {showArchived ? (
+          <SessionList
+            sessions={sessions}
+            bots={botMap}
+            currentId={currentSessionId}
+            query={query}
+            showArchived
+            loading={sessionsLoading}
+            error={sessionsError}
+            projectId={currentProjectId}
+            projectName={currentProject?.name}
+          />
+        ) : null}
         </details>
       </div>
 
