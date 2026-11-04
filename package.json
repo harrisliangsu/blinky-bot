@@ -1,6 +1,6 @@
 {
   "name": "openbot",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "BlinkyBot: a local-first Mac app for the agent CLIs and API keys you already have. MIT fork of OpenBOT.",
   "keywords": [
     "electron",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- **Codex keeps going when the connection blips.** A notice such as "Reconnecting... 2/5" is shown while Codex retries, and the reply still arrives. A real failure shows Codex's own message, including the extra detail.
+
 ## 0.3.0
 
 - **Settings has a sidebar.** General, assistants, profile, notifications, permissions, backends, MCP, updates, and about. Search filters the list. Labels are Chinese by default and English is one menu away.
