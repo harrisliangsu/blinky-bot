@@ -5,35 +5,35 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                    <item>
-            <title>0.3.0</title>
-            <pubDate>Wed, 04 Nov 2026 04:50:28 -0000</pubDate>
-            <sparkle:version>0.3.0</sparkle:version>
-            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+                        <item>
+            <title>0.3.1</title>
+            <pubDate>Wed, 04 Nov 2026 05:15:12 -0000</pubDate>
+            <sparkle:version>0.3.1</sparkle:version>
+            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.0</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.1</link>
             <description xml:lang="zh-Hans"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.0</h2><ul><li><strong>设置改成侧边栏。</strong> 通用、助手、个人资料、通知、权限、后端、MCP、更新和关于。搜索可以过滤。默认是中文，也可以改成英文。</li><li><strong>每个开关都会保存。</strong> 主题、透明窗口、语言、界面大小、标志颜色、发送快捷键、助手步骤、外部链接、登录时启动和后台运行都写在这台 Mac 上。立即检查会读取 Sparkle 更新源或 GitHub 测试版。</li><li><strong>主窗口以助手为主。</strong> 项目、例程和已归档对话收进「更多」。活动面板默认关闭。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.0">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.1</h2><ul><li><strong>Codex 断线重连时对话会继续。</strong> 「Reconnecting... 2/5」这类提示只表示 Codex 正在重试，回复仍会回来。真正失败时会显示 Codex 自己的说明，包括补充细节。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.1">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="zh-Hant"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.0</h2><ul><li><strong>设置改成侧边栏。</strong> 通用、助手、个人资料、通知、权限、后端、MCP、更新和关于。搜索可以过滤。默认是中文，也可以改成英文。</li><li><strong>每个开关都会保存。</strong> 主题、透明窗口、语言、界面大小、标志颜色、发送快捷键、助手步骤、外部链接、登录时启动和后台运行都写在这台 Mac 上。立即检查会读取 Sparkle 更新源或 GitHub 测试版。</li><li><strong>主窗口以助手为主。</strong> 项目、例程和已归档对话收进「更多」。活动面板默认关闭。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.0">在 GitHub 查看更新说明</a></p>]]></description>
+</style><h2>BlinkyBot 0.3.1</h2><ul><li><strong>Codex 断线重连时对话会继续。</strong> 「Reconnecting... 2/5」这类提示只表示 Codex 正在重试，回复仍会回来。真正失败时会显示 Codex 自己的说明，包括补充细节。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.1">在 GitHub 查看更新说明</a></p>]]></description>
             <description xml:lang="en"><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.0</h2><ul><li><strong>Settings has a sidebar.</strong> General, assistants, profile, notifications, permissions, backends, MCP, updates, and about. Search filters the list. Labels are Chinese by default and English is one menu away.</li><li><strong>The controls persist.</strong> Theme, translucent window, language, interface size, accent, send shortcut, assistant steps, external links, launch at login, and running in the background are saved on this Mac. Check now reads the Sparkle feed or a GitHub beta.</li><li><strong>The main window leads with bots.</strong> Projects, routines, and archived chats sit under More. The activity panel stays closed until you open it.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.0">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.0/BlinkyBot-0.3.0.zip"
-                       length="122432565"
+</style><h2>BlinkyBot 0.3.1</h2><ul><li><strong>Codex keeps going when the connection blips.</strong> A notice such as &quot;Reconnecting... 2/5&quot; is shown while Codex retries, and the reply still arrives. A real failure shows Codex&#x27;s own message, including the extra detail.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.1">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.1/BlinkyBot-0.3.1.zip"
+                       length="122434489"
                        type="application/octet-stream"
-                       sparkle:edSignature="nVHOXjebevnsadkfceoO83XNqewb8Ma/xV6o2IzmrIKhGCN7NFyCYVCzThcX6Jt1oH3LeGl0sGqQkNzwZhbtCg==" />
+                       sparkle:edSignature="DlFS0caTOBvac7tsDt/vYFzza1fdZwAfhoFrbCWZuNxx2AmZtwpukYDQusBIgbYg5yeekcjwzqIe2rhVYthqCg==" />
         </item>
     </channel>
 </rss>
