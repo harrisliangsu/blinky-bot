@@ -139,7 +139,7 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
   const repliedTo = answered?.botId ? bots.get(answered.botId) : undefined
 
   return (
-    <article className={`ob-msg ob-msg-${isUser ? 'user' : 'assistant'}`} aria-label={isUser ? 'You' : bot?.name ?? 'Assistant'}>
+    <article className={`ob-msg ob-msg-${isUser ? 'user' : 'assistant'}`} aria-label={isUser ? 'You' : bot?.name ?? 'Bot'}>
       {showAuthor ? (
         <header className="ob-msg-author">
           <BotAvatar bot={bot} size="sm" />

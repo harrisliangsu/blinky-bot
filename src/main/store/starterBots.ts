@@ -43,18 +43,46 @@ const RESEARCH_TOOLS: readonly string[] = [
 
 export type BotSeed = Omit<Bot, 'id' | 'createdAt' | 'updatedAt'>
 
-export function starterBots(settings: Settings): BotSeed[] {
+/** Stable id for the general-purpose starter. Older files used a random id. */
+export const SEEDED_GENERAL_BOT_ID = 'blinky'
+
+/** Opening line of the general-purpose seed before it was renamed. */
+export const SEEDED_ASSISTANT_LINE =
+  'You are Assistant, the general-purpose bot inside BlinkyBot, a local-first desktop agent.'
+
+const SEEDED_BLINKY_LINE =
+  'You are Blinky, the general-purpose bot inside BlinkyBot, a local-first desktop agent.'
+
+export type NamedSeed = BotSeed & { seedId?: string }
+
+/**
+ * Rename the seeded general-purpose bot from Assistant to Blinky.
+ *
+ * A bot the user renamed is left alone. A bot they created and happened to
+ * call Assistant is left alone too: it has to be this seed's id, or — for a
+ * file written before that id existed — still carry the original prompt line.
+ */
+export function migrateSeededAssistant<T extends { id: string; name: string; systemPrompt: string }>(bot: T): T | null {
+  if (bot.name !== 'Assistant') return null
+  const legacyPrompt = bot.systemPrompt.includes(SEEDED_ASSISTANT_LINE)
+  if (bot.id !== SEEDED_GENERAL_BOT_ID && !legacyPrompt) return null
+  const systemPrompt = legacyPrompt ? bot.systemPrompt.replaceAll(SEEDED_ASSISTANT_LINE, SEEDED_BLINKY_LINE) : bot.systemPrompt
+  return { ...bot, name: 'Blinky', systemPrompt }
+}
+
+export function starterBots(settings: Settings): NamedSeed[] {
   const shared = { backendId: settings.defaultBackendId, modelId: settings.defaultModelId }
 
   return [
     {
       ...shared,
-      name: 'Assistant',
-      description: 'A general-purpose helper for everyday work.',
+      seedId: SEEDED_GENERAL_BOT_ID,
+      name: 'Blinky',
+      description: 'The default general-purpose bot.',
       emoji: '✨',
       color: '#7c9cff',
       systemPrompt: [
-        'You are Assistant, the general-purpose bot inside BlinkyBot, a local-first desktop agent.',
+        SEEDED_BLINKY_LINE,
         '',
         'Be direct and concise. Answer the question that was asked, then stop.',
         'Reach for a tool whenever it beats guessing: read the file, list the directory,',
