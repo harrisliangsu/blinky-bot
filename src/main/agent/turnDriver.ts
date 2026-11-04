@@ -32,6 +32,7 @@ import { getBackendInfo } from './backendGateway'
 import { modeFor } from './backendMode'
 import { runSupervisedTurn } from './supervisedTurn'
 import { runTurn, type TurnResult } from './turn'
+import { applyBotBinding } from '../store/bots'
 import { settingsStore } from './settingsGateway'
 
 /** How many times per user message the moderator will ask for a missing ACTION line. */
@@ -111,14 +112,14 @@ async function runTurns(
     const speaker = bot
     const teammates = roster.filter((other) => other.id !== speaker.id).map((other) => other.name)
 
-    const mode = modeFor(await getBackendInfo(bot.backendId), bot.computerTarget)
     const settings = await settingsStore.get()
+    bot = applyBotBinding(bot)
+    const mode = modeFor(await getBackendInfo(bot.backendId), bot.computerTarget)
 
     if (mode === 'supervised' && bot.computerTarget?.kind === 'vm') {
       const message =
-        `Backend "${bot.backendId}" is an agent CLI, but VM ${bot.computerTarget.vmId} does not ` +
-        'support model-only VM orchestration. BlinkyBot refused to give that CLI access to this Mac. ' +
-        'Choose a VM-compatible backend or explicitly switch the bot to This Mac.'
+        `"${bot.backendId}" cannot drive a VM from this Mac. BlinkyBot refused to give that CLI access to this Mac. ` +
+        'Choose another CLI, or switch this Bot to This Mac.'
       await addNotice(session, bot, message)
       broadcastError(session.id, message)
       return

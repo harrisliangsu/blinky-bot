@@ -43,13 +43,14 @@ export function cliIsUsable(backend: { status?: string; cliAuth?: { state: strin
 }
 
 /**
- * Default CLI list: usable rows only. `added` keeps a row the user picked,
- * including one that still needs install or sign-in.
+ * Default CLI list: signed-in rows, plus any the user added from search.
+ * `added: false` hides a row again, including one that is still signed in.
  */
 export function cliIsListed(
   backend: { status?: string; cliAuth?: { state: string } },
   config: Pick<BackendConfig, 'added'> | undefined
 ): boolean {
+  if (config?.added === false) return false
   if (config?.added === true) return true
   return cliIsUsable(backend)
 }

@@ -67,7 +67,7 @@ expect=(
   chat-no-backend-light.png
   chat-no-backend-dark.png
 )
-for section in general bots profile notifications permissions backends mcp updates about; do
+for section in general bots profile notifications permissions backends apps updates about; do
   expect+=("settings-light-${section}.png" "settings-dark-${section}.png")
 done
 for file in "${expect[@]}"; do
@@ -76,8 +76,8 @@ for file in "${expect[@]}"; do
     missing=1
   fi
 done
-if ! grep -q "Settings → Backends" "$SHOTS/chat-no-backend.txt"; then
-  echo "the chat did not show the Settings → Backends message" >&2
+if ! grep -q "设置 → 供应商" "$SHOTS/chat-no-backend.txt"; then
+  echo "the chat did not show the 设置 → 供应商 message" >&2
   cat "$SHOTS/chat-no-backend.txt" >&2 || true
   missing=1
 fi

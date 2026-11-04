@@ -7,6 +7,8 @@ import './SettingsMcp.css'
 
 interface SettingsMcpProps {
   settings: Settings
+  /** Apps owns the primary connect path. Custom servers stay, preset cards do not. */
+  hideCatalog?: boolean
 }
 
 const blank = (): McpServerConfig => ({
@@ -44,7 +46,7 @@ const CONNECTORS = [
 ] as const
 
 /** MCP server list: enable, edit connection details, remove. */
-export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
+export function SettingsMcp({ settings, hideCatalog = false }: SettingsMcpProps): ReactNode {
   const copy = useSettingsCopy().mcp
   const [draft, setDraft] = useState<McpServerConfig | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -99,7 +101,7 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
 
       <p className="ob-hint">{copy.intro}</p>
 
-      <div className="ob-connector-catalog" aria-label="Connector catalogue">
+      {hideCatalog ? null : <div className="ob-connector-catalog" aria-label="Connector catalogue">
         {CONNECTORS.map((connector) => (
           <button
             key={connector.id}
@@ -117,9 +119,9 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
             <em>{copy.addEndpoint}</em>
           </button>
         ))}
-      </div>
+      </div>}
 
-      <p className="ob-hint">{copy.catalogHint}</p>
+      {hideCatalog ? null : <p className="ob-hint">{copy.catalogHint}</p>}
 
       {servers.length === 0 && !draft ? <p className="ob-hint">{copy.empty}</p> : null}
 

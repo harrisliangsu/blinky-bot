@@ -6,7 +6,7 @@
 
 import { DEFAULT_MODEL_ID } from '../settingsSchema'
 import { getSettings, updateSettings } from '../settings'
-import { listBots, updateBot } from '../store/bots'
+import { listBots, syncBotBindings, updateBot } from '../store/bots'
 import { hasBackendApiKey } from '../store/backendSecrets'
 import { DEFAULT_BASE_URLS } from './backendDefaults'
 import { AGENT_CLI_SPECS } from './cli'
@@ -79,7 +79,8 @@ export async function adoptReadyDefaultBackend(): Promise<string | null> {
     )
   }
   for (const change of plan.bots) {
-    updateBot(change.id, { backendId: change.backendId, modelId: DEFAULT_MODEL_ID })
+    updateBot(change.id, { backendId: change.backendId, modelId: DEFAULT_MODEL_ID, followsDefault: true })
   }
+  syncBotBindings()
   return readyIds.has(plan.defaultBackendId) ? plan.defaultBackendId : null
 }

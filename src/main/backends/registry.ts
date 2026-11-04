@@ -6,6 +6,8 @@
  * last-known state instantly while a fresh pass runs.
  */
 
+import { PROVIDER_CATALOG } from '../../shared/providerCatalog'
+import type { BackendInfo } from '../../shared/types'
 import { anthropicBackend } from './anthropic'
 import { configFor } from './backendDefaults'
 import { agentCliBackends } from './cli'
@@ -13,13 +15,13 @@ import { raceTimeout } from './httpClient'
 import { errorMessage } from './httpErrors'
 import { resetHydratedEnv } from './loginShellEnv'
 import { openaiBackend } from './openai'
+import { openAiCompatibleBackend } from './openaiCompatible'
 import { openrouterBackend } from './openrouter'
 import { readStatusCache, rememberStatuses } from './statusCache'
 import type { Backend, BackendConfig, ModelInfo } from './types'
+import { UNCHECKED_BACKEND_DETAIL } from '../../shared/backendPrompt'
 import { clearWhichCache } from './which'
 import { xaiBackend } from './xai'
-import { UNCHECKED_BACKEND_DETAIL } from '../../shared/backendPrompt'
-import type { BackendInfo } from '../../shared/types'
 
 /** Hard ceiling per backend, covering detection plus its model listing. */
 const BACKEND_BUDGET_MS = 8000
@@ -29,12 +31,17 @@ const BACKEND_BUDGET_MS = 8000
  * auth. The direct cloud adapters are the fallback for users with a bare API
  * key and no CLI installed.
  */
+const DEDICATED_PROVIDER_IDS = new Set(['openai', 'anthropic', 'xai', 'openrouter'])
+
 export const BACKENDS: Backend[] = [
   ...agentCliBackends,
   openaiBackend,
   anthropicBackend,
   xaiBackend,
-  openrouterBackend
+  openrouterBackend,
+  ...PROVIDER_CATALOG.filter((entry) => entry.protocol === 'openai' && !DEDICATED_PROVIDER_IDS.has(entry.id)).map(
+    (entry) => openAiCompatibleBackend(entry)
+  )
 ]
 
 const BY_ID = new Map(BACKENDS.map((b) => [b.id, b]))

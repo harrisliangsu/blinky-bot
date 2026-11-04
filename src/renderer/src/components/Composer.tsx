@@ -1,9 +1,9 @@
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { Attachment } from '../../../shared/types'
-import { sendTurn, updateBot, updateSettings, useAppState } from '../state'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
+import { sendTurn, useAppState } from '../state'
 import { ComposerAttachments, chooseAttachments } from './ComposerAttachments'
 import { ComposerBar } from './ComposerBar'
-import { ComposerContext } from './ComposerContext'
 import { ComposerMention, type MentionState } from './ComposerMention'
 import { matchBots, mentionQuery } from './MentionPopup'
 import { useVoiceInput } from './useVoiceInput'
@@ -11,9 +11,10 @@ import './Composer.css'
 
 const MAX_HEIGHT = 320
 
-/** Prompt input, mode switcher, model picker and run controls. */
+/** Prompt input and run controls. The Bot’s CLI and model come from Settings. */
 export function Composer(): ReactNode {
-  const { session, bots, backends, backendsLoading, backendsError, settings, streaming, bootError } = useAppState()
+  const chat = useSettingsCopy().chat
+  const { session, bots, settings, streaming, bootError } = useAppState()
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const voice = useVoiceInput((spoken) =>
@@ -30,10 +31,6 @@ export function Composer(): ReactNode {
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
   }, [text])
 
-  const activeBot = bots.find((b) => b.id === session?.activeBotId) ?? bots.find((b) => b.id === session?.botIds[0])
-  const backendId = activeBot?.backendId ?? settings?.defaultBackendId ?? ''
-  const modelId = activeBot?.modelId ?? settings?.defaultModelId ?? ''
-  const mode = session?.mode ?? settings?.defaultMode ?? 'agent'
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !streaming && bootError === null
   // Only bots in this session can be addressed — mentioning an absent bot does nothing.
   const mentionable = bots.filter((b) => session?.botIds.includes(b.id))
@@ -79,11 +76,6 @@ export function Composer(): ReactNode {
     setAttachments((prev) => [...prev, ...chosen])
   }
 
-  const chooseModel = (nextBackendId: string, nextModelId: string): void => {
-    if (activeBot) void updateBot(activeBot.id, { backendId: nextBackendId, modelId: nextModelId })
-    else void updateSettings({ defaultBackendId: nextBackendId, defaultModelId: nextModelId })
-  }
-
   return (
     <div className="ob-composer">
       <ComposerAttachments
@@ -116,7 +108,7 @@ export function Composer(): ReactNode {
           className="ob-composer-input"
           rows={1}
           value={text}
-          placeholder={streaming ? 'Running — Esc to stop' : voice.interim ? voice.interim : 'Ask anything…'}
+          placeholder={streaming ? chat.running : voice.interim ? voice.interim : chat.placeholder}
           onChange={(e) => {
             const next = e.target.value
             setText(next)
@@ -137,27 +129,12 @@ export function Composer(): ReactNode {
           onAttach={() => void attach()}
           listening={voice.listening}
           onToggleVoice={voice.toggle}
-          mode={mode}
-          hasSession={Boolean(session)}
-          backends={backends}
-          backendId={backendId}
-          modelId={modelId}
-          backendsLoading={backendsLoading}
-          backendsError={backendsError}
-          onChooseModel={chooseModel}
           streaming={streaming}
           blocked={bootError !== null}
           canSend={canSend}
           onSend={submit}
         />
       </div>
-
-      {/*
-        Working context sits under the composer, where the reference apps put it:
-        it is a property of the next message, so it belongs beside the input
-        rather than in the window chrome where it read as a static label.
-      */}
-      {session ? <ComposerContext cwd={session.cwd} /> : null}
     </div>
   )
 }

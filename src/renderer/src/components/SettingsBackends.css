@@ -191,3 +191,38 @@
   align-items: center;
   gap: var(--ob-space-1);
 }
+
+.ob-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ob-space-2);
+}
+
+.ob-catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ob-space-1);
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.ob-catalog-choice {
+  width: 100%;
+  padding: var(--ob-space-2);
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--ob-border-subtle);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ob-cli-model {
+  display: flex;
+  align-items: center;
+  gap: var(--ob-space-2);
+  flex-basis: 100%;
+}

@@ -1,0 +1,20 @@
+.ob-apps-toolbar,
+.ob-apps-git {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ob-space-2);
+  margin-top: var(--ob-space-2);
+}
+
+.ob-apps-git .ob-input {
+  flex: 1 1 140px;
+}
+
+.ob-apps-advanced {
+  margin-top: var(--ob-space-2);
+}
+
+.ob-apps-advanced summary {
+  cursor: pointer;
+  font-weight: var(--ob-weight-semibold);
+}

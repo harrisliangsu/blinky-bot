@@ -151,7 +151,6 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
               <span aria-hidden="true">↳</span> replying to <strong>{repliedTo.name}</strong>
             </span>
           ) : null}
-          {message.model ? <span className="ob-msg-model">{message.model}</span> : null}
         </header>
       ) : null}
 
@@ -215,7 +214,6 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
 
       <footer className="ob-msg-foot">
         <time dateTime={new Date(message.createdAt).toISOString()}>{clockTime(message.createdAt)}</time>
-        {!multiBot && message.model ? <span className="ob-msg-model">{message.model}</span> : null}
         <CopyButton text={message.content} />
         {!isUser ? <span className="ob-msg-reactions">
           {['👍', '❤️', '👀'].map((emoji) => {

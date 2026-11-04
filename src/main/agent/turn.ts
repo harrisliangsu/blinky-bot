@@ -40,6 +40,7 @@ import { noteGatewayMessage } from './mcpGateway'
 import { applyAction, readAction } from './turnAction'
 import { takePendingNote } from './handoff'
 import { bots } from './sessionGateway'
+import { applyBotBinding } from '../store/bots'
 import { runCalls } from './calls'
 import { schemasFor } from './toolGateway'
 import { skillsSection } from './skillsGateway'
@@ -50,7 +51,8 @@ export type { TurnStatus, TurnInput, TurnResult } from './turnTypes'
 import type { TurnInput, TurnResult } from './turnTypes'
 
 export async function runTurn(input: TurnInput): Promise<TurnResult> {
-  const { session, bot, settings, signal } = input
+  const { session, settings, signal } = input
+  const bot = applyBotBinding(input.bot)
   const message = assistantMessage(bot)
   // Links this reply back to the teammate message that prompted it.
   if (input.replyTo) message.replyTo = input.replyTo
@@ -58,7 +60,7 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
   const infos = await detectBackends()
   const info = infos.find((item) => item.id === bot.backendId) ?? null
   const mode = modeFor(info, bot.computerTarget)
-  const blocked = chatStartBlock(info, infos, bot.backendId)
+  const blocked = chatStartBlock(info, infos, bot.backendId, settings.language)
   if (blocked) return failTurn(session, message, mode, blocked, false)
 
   const backend = await getBackend(bot.backendId)
@@ -69,7 +71,8 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       mode,
       unavailableBackendMessage({
         label: info?.label ?? bot.backendId,
-        nothingReady: !infos.some((item) => item.status === 'available')
+        nothingReady: !infos.some((item) => item.status === 'available'),
+        language: settings.language
       }),
       false
     )
@@ -157,7 +160,8 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
         raw,
         unavailableBackendMessage({
           label: info?.label ?? bot.backendId,
-          nothingReady: !infos.some((item) => item.status === 'available')
+          nothingReady: !infos.some((item) => item.status === 'available'),
+          language: settings.language
         }),
         `${bot.name} could not reach the model: ${raw}`
       ),
@@ -188,7 +192,8 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       raw,
       unavailableBackendMessage({
         label: info?.label ?? bot.backendId,
-        nothingReady: !infos.some((item) => item.status === 'available')
+        nothingReady: !infos.some((item) => item.status === 'available'),
+        language: settings.language
       }),
       `${bot.name} stopped early: ${raw}`
     )

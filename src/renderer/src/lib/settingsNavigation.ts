@@ -8,7 +8,7 @@
 
 import { store } from '../state'
 
-export type SettingsTab = 'general' | 'permissions' | 'backends' | 'mcp'
+export type SettingsTab = 'general' | 'permissions' | 'backends' | 'apps' | 'mcp'
 
 let initialTab: SettingsTab = 'general'
 
@@ -17,8 +17,8 @@ export function openSettings(tab: SettingsTab = 'general'): void {
   store.setModal('settings')
 }
 
-export function takeSettingsTab(): SettingsTab {
+export function takeSettingsTab(): Exclude<SettingsTab, 'mcp'> {
   const tab = initialTab
   initialTab = 'general'
-  return tab
+  return tab === 'mcp' ? 'apps' : tab
 }

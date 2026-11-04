@@ -12,6 +12,7 @@ import type {
   VmProvisionStatus,
   VmProvisionResult
 } from './computer'
+import type { AppStatus } from './apps'
 import type { BackendInfo } from './backends'
 import type { AgentEvent } from './events'
 import type { Board, BoardCard, Project, ProjectSummary } from './projects'
@@ -153,6 +154,13 @@ export interface OpenBotApi {
     recheck(id: string): Promise<BackendInfo[]>
     /** Open Terminal with that CLI's own login. No credential is stored here. */
     login(id: string): Promise<{ started: boolean }>
+  }
+  /** GitHub, Git, and Gmail. One connection, shared by every Bot. */
+  apps: {
+    status(): Promise<AppStatus[]>
+    connectGitHub(): Promise<{ started: boolean }>
+    connectGit(name: string, email: string): Promise<AppStatus>
+    requestGmail(): Promise<AppStatus>
   }
   skills: {
     /** Everything installed, across every CLI's directory plus the shared one. */

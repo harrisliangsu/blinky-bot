@@ -19,7 +19,7 @@ const SECTIONS = [
   'notifications',
   'permissions',
   'backends',
-  'mcp',
+  'apps',
   'updates',
   'about'
 ] as const
@@ -262,7 +262,7 @@ export async function captureScreenshots(window: BrowserWindow): Promise<void> {
     await shot(window, 'chat-no-backend-dark.png', 1440, 900)
 
     writeFileSync(join(dir, 'chat-no-backend.txt'), `${text}\n`)
-    if (!text.includes('Settings → Backends') || text.includes('ENOENT')) {
+    if (!text.includes('设置 → 供应商') || text.includes('ENOENT')) {
       throw new Error(`unexpected chat message:\n${text}`)
     }
     writeFileSync(join(dir, 'done'), 'done\n')

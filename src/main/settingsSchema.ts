@@ -7,6 +7,9 @@
  * checked — the renderer is never trusted.
  */
 
+import type { AppId, AppLinks } from '../shared/apps'
+import { CLI_CATALOG } from '../shared/cliCatalog'
+import { PROVIDER_CATALOG } from '../shared/providerCatalog'
 import type {
   AccentColor,
   AgentMode,
@@ -51,22 +54,21 @@ const MAX_FONT_SIZE = 24
  * this is only the persisted per-backend configuration. Local and cloud are
  * peers — identical interface, identical tool support.
  */
+const APP_IDS: readonly AppId[] = ['github', 'git', 'gmail']
+
+function defaultApps(): AppLinks {
+  return { github: {}, git: {}, gmail: {} }
+}
+
 function defaultBackends(): Record<string, BackendConfig> {
-  return {
-    // Agent CLIs — located by binary, not by endpoint.
-    opencode: { enabled: true, command: 'opencode', extraArgs: [] },
-    claude: { enabled: true, command: 'claude', extraArgs: [] },
-    codex: { enabled: true, command: 'codex', extraArgs: [] },
-    kimi: { enabled: true, command: 'kimi', extraArgs: [] },
-    grok: { enabled: true, command: 'grok', extraArgs: [] },
-    pi: { enabled: true, command: 'pi', extraArgs: [] },
-    droid: { enabled: true, command: 'droid', extraArgs: [] },
-    // Direct API — the fallback for a bare key with no CLI installed.
-    anthropic: { enabled: true, added: false, baseUrl: 'https://api.anthropic.com', apiKey: '' },
-    openai: { enabled: true, added: false, baseUrl: 'https://api.openai.com/v1', apiKey: '' },
-    xai: { enabled: true, added: false, baseUrl: 'https://api.x.ai/v1', apiKey: '' },
-    openrouter: { enabled: true, added: false, baseUrl: 'https://openrouter.ai/api/v1', apiKey: '' }
+  const configs: Record<string, BackendConfig> = {}
+  for (const cli of CLI_CATALOG) {
+    configs[cli.id] = { enabled: true, command: cli.command, extraArgs: [] }
   }
+  for (const provider of PROVIDER_CATALOG) {
+    configs[provider.id] = { enabled: true, added: false, baseUrl: provider.baseUrl, apiKey: '' }
+  }
+  return configs
 }
 
 /**
@@ -108,6 +110,7 @@ export function defaultSettings(): Settings {
     rules: '',
     backends: defaultBackends(),
     mcpServers: [],
+    apps: defaultApps(),
     computerUseAllowedApps: [],
     telemetry: false
   }
@@ -182,7 +185,21 @@ function normaliseBackends(
     if (typeof raw['added'] === 'boolean') config.added = raw['added']
     else if (hasSecret) config.added = true
     else if (typeof base.added === 'boolean') config.added = base.added
+    const defaultModelId = raw['defaultModelId'] ?? base.defaultModelId
+    if (typeof defaultModelId === 'string' && /^[A-Za-z0-9._:@/-]{1,120}$/.test(defaultModelId)) {
+      config.defaultModelId = defaultModelId
+    }
     out[id] = config
+  }
+  return out
+}
+
+function normaliseApps(value: unknown): AppLinks {
+  const out = defaultApps()
+  if (!isPlainObject(value)) return out
+  for (const id of APP_IDS) {
+    const raw = value[id]
+    if (isPlainObject(raw) && raw['pending'] === true) out[id] = { pending: true }
   }
   return out
 }
@@ -315,6 +332,7 @@ export function normaliseSettings(raw: unknown): Settings {
       )
     ),
     mcpServers: normaliseMcpServers(merged['mcpServers']),
+    apps: normaliseApps(Object.prototype.hasOwnProperty.call(rawObj, 'apps') ? rawObj['apps'] : defaults.apps),
     computerUseAllowedApps: stringList(merged['computerUseAllowedApps']),
     // OpenBOT never phones home. Not user-configurable, by design.
     telemetry: false

@@ -103,6 +103,11 @@ export const CHANNELS = {
   backendsRecheck: 'openbot:backends:recheck',
   backendsLogin: 'openbot:backends:login',
 
+  appsStatus: 'openbot:apps:status',
+  appsConnectGitHub: 'openbot:apps:connectGitHub',
+  appsConnectGit: 'openbot:apps:connectGit',
+  appsRequestGmail: 'openbot:apps:requestGmail',
+
   settingsGet: 'openbot:settings:get',
   settingsUpdate: 'openbot:settings:update',
 

@@ -23,7 +23,8 @@ const emptyDraft = (): Omit<Bot, 'id' | 'createdAt' | 'updatedAt'> => ({
   emoji: EMOJI[0]!,
   color: SWATCHES[0]!,
   backendId: '',
-  modelId: '',
+  modelId: 'default',
+  followsDefault: true,
   tools: ['read_file', 'list_dir', 'glob', 'grep', 'request_help'],
   computerUse: false,
   computerTarget: { kind: 'local' }
@@ -88,7 +89,8 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
   const toggleTool = (id: string): void =>
     setDraft((d) => ({ ...d, tools: d.tools.includes(id) ? d.tools.filter((t) => t !== id) : [...d.tools, id] }))
 
-  const chooseModel = (backendId: string, modelId: string): void => setDraft((d) => ({ ...d, backendId, modelId }))
+  const chooseModel = (backendId: string, modelId: string): void =>
+    setDraft((d) => ({ ...d, backendId, modelId, followsDefault: false }))
 
   const save = async (): Promise<void> => {
     if (!draft.name.trim()) return
@@ -117,6 +119,7 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
       color: draft.color,
       backendId: draft.backendId,
       modelId: draft.modelId,
+      followsDefault: draft.followsDefault === false ? false : true,
       tools: draft.tools,
       skills: draft.skills ?? [],
       computerUse: draft.computerUse,

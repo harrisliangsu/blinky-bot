@@ -71,7 +71,11 @@ export function migrateSeededAssistant<T extends { id: string; name: string; sys
 }
 
 export function starterBots(settings: Settings): NamedSeed[] {
-  const shared = { backendId: settings.defaultBackendId, modelId: settings.defaultModelId }
+  const shared = {
+    backendId: settings.defaultBackendId,
+    modelId: settings.defaultModelId,
+    followsDefault: true
+  }
 
   return [
     {

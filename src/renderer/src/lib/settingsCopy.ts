@@ -10,7 +10,7 @@ export interface SettingsCopy {
   subtitle: string
   search: string
   close: string
-  nav: Record<'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'mcp' | 'updates' | 'about', string>
+  nav: Record<'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'apps' | 'updates' | 'about', string>
   general: {
     appearance: string
     theme: string
@@ -49,8 +49,13 @@ export interface SettingsCopy {
   bots: {
     mode: string
     modeHint: string
+    modeAgent: string
+    modeAsk: string
+    modePlan: string
     backend: string
     backendHint: string
+    follow: string
+    followHint: string
     model: string
     modelHint: string
     memory: string
@@ -135,6 +140,13 @@ export interface SettingsCopy {
     loginPending: string
     loginFailed: string
     slashLoginHint: string
+    searchCatalog: string
+    removeCli: string
+    removeCliConfirm: string
+    defaultModel: string
+    cliDefaultModel: string
+    catalogEmpty: string
+    isDefault: string
     cliAuth: Record<'not-installed' | 'logged-out' | 'logged-in' | 'unknown', string>
     detail: {
       needsKey: string
@@ -193,6 +205,43 @@ export interface SettingsCopy {
     connected: string
     removed: string
   }
+  apps: {
+    title: string
+    intro: string
+    shared: string
+    confirm: string
+    refresh: string
+    connect: string
+    connected: string
+    disconnected: string
+    unavailable: string
+    pending: string
+    githubTitle: string
+    githubHint: string
+    githubMissing: string
+    githubLoginFailed: string
+    gitTitle: string
+    gitHint: string
+    gitName: string
+    gitEmail: string
+    gitSave: string
+    gitMissing: string
+    gitInvalid: string
+    gitFailed: string
+    gmailTitle: string
+    gmailHint: string
+    gmailPending: string
+    advanced: string
+    advancedHint: string
+  }
+  chat: {
+    ready: string
+    emptyTitle: string
+    emptyBody: string
+    placeholder: string
+    running: string
+    openProviders: string
+  }
   updates: {
     version: string
     channel: string
@@ -224,8 +273,8 @@ const en: SettingsCopy = {
     profile: 'Profile',
     notifications: 'Notifications',
     permissions: 'Permissions',
-    backends: 'Backends',
-    mcp: 'MCP',
+    backends: 'Providers & CLIs',
+    apps: 'Apps',
     updates: 'Updates',
     about: 'About'
   },
@@ -262,19 +311,24 @@ const en: SettingsCopy = {
     loginHint: 'Opens BlinkyBot when you sign in to this Mac. Applies to the installed app.',
     background: 'Run in background',
     backgroundHint: 'Keep scheduled routines alive after the window closes.',
-    privacy: 'No account. No telemetry. Nothing leaves this machine except calls to the model backend you configure.'
+    privacy: 'No account. No telemetry. Nothing leaves this machine except calls to the CLI or provider you configure.'
   },
   bots: {
     mode: 'Default mode for new chats',
-    modeHint: 'Agent can use tools. Ask and Plan stay read-only.',
-    backend: 'Default backend',
-    backendHint: 'New bots start here. A signed-in CLI is chosen automatically when this one is missing.',
+    modeHint: 'Bot can use tools. Ask and Plan stay read-only.',
+    modeAgent: 'Bot',
+    modeAsk: 'Ask',
+    modePlan: 'Plan',
+    backend: 'Default CLI',
+    backendHint: 'Bots that are not pinned use this CLI and its default model.',
+    follow: 'Use the default CLI',
+    followHint: 'This Bot uses the default CLI and its default model from Settings.',
     model: 'Default model',
-    modelHint: 'Used with the default backend.',
+    modelHint: 'Saved on the default CLI. Every Bot bound to that CLI uses it.',
     memory: 'Learn from conversations',
     memoryHint: 'Where a short follow-up call may save durable facts.',
     memoryApi: 'Direct APIs only',
-    memoryAll: 'Every backend',
+    memoryAll: 'Every CLI and provider',
     memoryOff: 'Off'
   },
   profile: {
@@ -314,9 +368,9 @@ const en: SettingsCopy = {
     computerEmpty: 'No apps are granted yet, so computer use is off. Add an app above before asking a bot to drive one.'
   },
   backends: {
-    title: 'Backends and models',
+    title: 'Providers and local CLIs',
     refresh: 'Refresh',
-    empty: 'No backends detected. Install a CLI or add an API key, then refresh.',
+    empty: 'Nothing is configured yet. Add a provider or a local CLI.',
     local: 'local',
     cloud: 'cloud',
     tools: 'tools',
@@ -353,6 +407,13 @@ const en: SettingsCopy = {
     loginPending: 'Finish sign-in in Terminal. This row checks again when you come back.',
     loginFailed: 'Could not open Terminal for this CLI.',
     slashLoginHint: 'Terminal opens this CLI. Type /login there to sign in.',
+    searchCatalog: 'Search',
+    removeCli: 'Remove from list',
+    removeCliConfirm: 'This only hides the CLI. The program stays installed on this Mac.',
+    defaultModel: 'Default model',
+    cliDefaultModel: 'CLI default',
+    catalogEmpty: 'No match.',
+    isDefault: 'Default',
     cliAuth: {
       'not-installed': 'not installed',
       'logged-out': 'not signed in',
@@ -407,12 +468,12 @@ const en: SettingsCopy = {
     url: 'Remote MCP URL',
     auth: 'Authentication',
     none: 'None',
-    oauth: 'OAuth (handled by the agent CLI)',
+    oauth: 'OAuth (handled by the local CLI)',
     bearer: 'Bearer token',
     token: 'Bearer token',
     tokenStored: 'Stored securely — leave blank to keep',
     tokenPlaceholder: 'Stored in the OS keychain',
-    oauthHint: 'A compatible agent CLI opens the provider’s sign-in the first time it connects.',
+    oauthHint: 'A compatible local CLI opens the provider’s sign-in the first time it connects.',
     command: 'Command',
     args: 'Arguments',
     argsPlaceholder: 'Space separated',
@@ -424,6 +485,43 @@ const en: SettingsCopy = {
     noCommand: 'No command set',
     connected: 'connected',
     removed: 'That MCP server was removed, so the editor closed without saving.'
+  },
+  apps: {
+    title: 'Apps',
+    intro: 'Connect once. Every Bot can use the connection.',
+    shared: 'GitHub, Git, and Gmail are shared. They are not chosen per Bot.',
+    confirm: 'Sending mail, pushing, and opening a pull request still wait for you to confirm.',
+    refresh: 'Check again',
+    connect: 'Connect',
+    connected: 'Connected',
+    disconnected: 'Not connected',
+    unavailable: 'Not installed',
+    pending: 'Waiting for sign-in',
+    githubTitle: 'GitHub',
+    githubHint: 'Signs in with the GitHub CLI. BlinkyBot does not keep the token.',
+    githubMissing: 'Install GitHub CLI (gh), then connect.',
+    githubLoginFailed: 'Could not open Terminal for GitHub sign-in.',
+    gitTitle: 'Git',
+    gitHint: 'Saves the global Git name and email on this Mac. Every Bot uses that identity.',
+    gitName: 'Name',
+    gitEmail: 'Email',
+    gitSave: 'Save Git identity',
+    gitMissing: 'Git is not installed.',
+    gitInvalid: 'Enter a name and an email address.',
+    gitFailed: 'Git could not save that identity.',
+    gmailTitle: 'Gmail',
+    gmailHint: 'One Google sign-in for every Bot. Sending mail will ask you first.',
+    gmailPending: 'Google sign-in is not in this build yet. Connect only records that you want Gmail. It does not open Google and it is not connected.',
+    advanced: 'Advanced: custom MCP',
+    advancedHint: 'A custom MCP server, if you already have an endpoint. Apps above are the usual path.'
+  },
+  chat: {
+    ready: 'Ready when you are',
+    emptyTitle: 'What should Blinky work on?',
+    emptyBody: 'Ask a question or describe a task. Sending uses this Bot’s CLI and its default model. Files stay on this machine.',
+    placeholder: 'Message this Bot…',
+    running: 'Running — Esc to stop',
+    openProviders: 'Open Settings → Providers'
   },
   updates: {
     version: 'Installed version',
@@ -437,7 +535,7 @@ const en: SettingsCopy = {
     hint: 'BlinkyBot does not install the update by itself. Check now looks, and Open release downloads it.'
   },
   about: {
-    blurb: 'BlinkyBot is a local-first Mac app for the agent CLIs and API keys you already have.',
+    blurb: 'BlinkyBot is a local-first Mac app for the local CLIs and API keys you already have.',
     license: 'MIT License',
     source: 'Source on GitHub',
     credits: 'An MIT fork of OpenBOT. Not affiliated with or endorsed by the OpenBOT authors.'
@@ -459,8 +557,8 @@ const zh: SettingsCopy = {
     profile: '个人资料',
     notifications: '通知',
     permissions: '权限',
-    backends: '后端',
-    mcp: 'MCP',
+    backends: '供应商与 CLI',
+    apps: '应用',
     updates: '更新',
     about: '关于'
   },
@@ -497,19 +595,24 @@ const zh: SettingsCopy = {
     loginHint: '登录这台 Mac 时打开 BlinkyBot。对已安装的应用生效。',
     background: '后台运行',
     backgroundHint: '窗口关闭后，定时例程仍然继续。',
-    privacy: '没有账号，没有遥测。除了你配置的模型后端，不会有数据离开这台电脑。'
+    privacy: '没有账号，没有遥测。除了你配置的 CLI 或供应商，不会有数据离开这台电脑。'
   },
   bots: {
     mode: '新对话的默认模式',
-    modeHint: 'Agent 可以使用工具。Ask 和 Plan 只读。',
-    backend: '默认后端',
-    backendHint: '新建的 Bot 从这里开始。当前后端不可用时，会自动改用已登录的 CLI。',
+    modeHint: 'Bot 可以使用工具。Ask 和 Plan 只读。',
+    modeAgent: 'Bot',
+    modeAsk: 'Ask',
+    modePlan: 'Plan',
+    backend: '默认 CLI',
+    backendHint: '没有单独指定的 Bot 使用这个 CLI 和它的默认模型。',
+    follow: '使用默认 CLI',
+    followHint: '这个 Bot 使用设置里的默认 CLI 和它的默认模型。',
     model: '默认模型',
-    modelHint: '与默认后端一起使用。',
+    modelHint: '写在默认 CLI 上。绑定到这个 CLI 的 Bot 都会用它。',
     memory: '从对话中学习',
     memoryHint: '允许在一轮结束后用一次短调用记下稳定事实。',
     memoryApi: '仅直接 API',
-    memoryAll: '所有后端',
+    memoryAll: '每个 CLI 和供应商',
     memoryOff: '关闭'
   },
   profile: {
@@ -549,9 +652,9 @@ const zh: SettingsCopy = {
     computerEmpty: '还没有授权任何应用，所以电脑使用是关闭的。先在上面添加应用。'
   },
   backends: {
-    title: '后端与模型',
+    title: '供应商与本地 CLI',
     refresh: '刷新',
-    empty: '没有发现后端。安装 CLI 或添加 API key 后刷新。',
+    empty: '还没有配置。添加供应商或本地 CLI。',
     local: '本地',
     cloud: '云端',
     tools: '工具',
@@ -588,6 +691,13 @@ const zh: SettingsCopy = {
     loginPending: '请在终端里完成登录。回到这个窗口后会自动再检查。',
     loginFailed: '无法打开终端来登录这个 CLI。',
     slashLoginHint: '终端会打开这个 CLI。在里面输入 /login 完成登录。',
+    searchCatalog: '搜索',
+    removeCli: '从列表移除',
+    removeCliConfirm: '只是从列表里拿掉。这台 Mac 上的程序还在。',
+    defaultModel: '默认模型',
+    cliDefaultModel: 'CLI 默认',
+    catalogEmpty: '没有匹配。',
+    isDefault: '默认',
     cliAuth: {
       'not-installed': '未安装',
       'logged-out': '未登录',
@@ -640,12 +750,12 @@ const zh: SettingsCopy = {
     url: '远程 MCP URL',
     auth: '认证',
     none: '无',
-    oauth: 'OAuth（由 Agent CLI 处理）',
+    oauth: 'OAuth（由本地 CLI 处理）',
     bearer: 'Bearer 令牌',
     token: 'Bearer 令牌',
     tokenStored: '已安全保存 — 留空则保持不变',
     tokenPlaceholder: '保存在系统钥匙串中',
-    oauthHint: '兼容的 Agent CLI 会在第一次连接时打开服务商的登录页。',
+    oauthHint: '兼容的本地 CLI 会在第一次连接时打开服务商的登录页。',
     command: '命令',
     args: '参数',
     argsPlaceholder: '用空格分隔',
@@ -657,6 +767,43 @@ const zh: SettingsCopy = {
     noCommand: '未设置命令',
     connected: '已连接',
     removed: '这个 MCP 服务器已被删除，编辑器已关闭且没有保存。'
+  },
+  apps: {
+    title: '应用',
+    intro: '连接一次，每个 Bot 都能用。',
+    shared: 'GitHub、Git 和 Gmail 是共用的，不用按 Bot 再选一次。',
+    confirm: '发信、推送和打开拉取请求之前，仍会请你确认。',
+    refresh: '重新检查',
+    connect: '连接',
+    connected: '已连接',
+    disconnected: '未连接',
+    unavailable: '未安装',
+    pending: '等待登录',
+    githubTitle: 'GitHub',
+    githubHint: '用 GitHub CLI 登录。BlinkyBot 不保存令牌。',
+    githubMissing: '请先安装 GitHub CLI（gh），再连接。',
+    githubLoginFailed: '无法打开终端来登录 GitHub。',
+    gitTitle: 'Git',
+    gitHint: '把 Git 的全局姓名和邮箱写在这台 Mac 上。每个 Bot 都用这个身份。',
+    gitName: '姓名',
+    gitEmail: '邮箱',
+    gitSave: '保存 Git 身份',
+    gitMissing: '还没有安装 Git。',
+    gitInvalid: '请填写姓名和邮箱。',
+    gitFailed: 'Git 没能保存这个身份。',
+    gmailTitle: 'Gmail',
+    gmailHint: '所有 Bot 共用一次 Google 登录。发信前会再请你确认。',
+    gmailPending: '这一版还没有 Google 登录。点连接只会记下你要接 Gmail，不会打开 Google，也不会当成已经连上。',
+    advanced: '高级：自定义 MCP',
+    advancedHint: '如果你已经有 MCP 地址，可以在这里添加。上面的应用才是常用入口。'
+  },
+  chat: {
+    ready: '可以开始了',
+    emptyTitle: '让 Blinky 做什么？',
+    emptyBody: '直接提问或描述任务。发送时用这个 Bot 绑定的 CLI 和它的默认模型。文件留在这台电脑上。',
+    placeholder: '给这个 Bot 发消息…',
+    running: '正在运行 — 按 Esc 停止',
+    openProviders: '打开设置 → 供应商'
   },
   updates: {
     version: '当前版本',
@@ -670,7 +817,7 @@ const zh: SettingsCopy = {
     hint: 'BlinkyBot 不会自己安装更新。立即检查只负责查看，打开发布页再下载。'
   },
   about: {
-    blurb: 'BlinkyBot 是装在这台 Mac 上的本地应用，使用你已经有的 Agent CLI 和 API key。',
+    blurb: 'BlinkyBot 是装在这台 Mac 上的本地应用，使用你已经有的本地 CLI 和 API key。',
     license: 'MIT 许可',
     source: 'GitHub 源码',
     credits: 'OpenBOT 的 MIT 分支。与 OpenBOT 作者没有隶属或背书关系。'

@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { resolveBotBinding, type BotBinding } from '../../shared/botBinding'
 import type { Bot, ComputerTarget } from '../../shared/types'
 import { getSettings } from '../settings'
 import { KNOWN_BACKEND_IDS } from '../settingsSchema'
@@ -42,12 +43,34 @@ function resolveBackend(
   }
 }
 
+/** Settings wins for unpinned Bots. A mismatch is written back on the next load. */
+function alignBinding(rawBackendId: unknown, rawModelId: unknown, rawFollows: unknown): BotBinding {
+  const resolved = resolveBackend(rawBackendId, rawModelId)
+  const followsDefault = rawFollows === false ? false : rawFollows === true ? true : undefined
+  const binding = resolveBotBinding(
+    {
+      backendId: resolved.backendId,
+      modelId: resolved.modelId,
+      ...(followsDefault === undefined ? {} : { followsDefault })
+    },
+    getSettings()
+  )
+  const storedBackend = typeof rawBackendId === 'string' ? rawBackendId : ''
+  const storedModel = typeof rawModelId === 'string' ? rawModelId : ''
+  if (binding.backendId !== storedBackend || binding.modelId !== storedModel || rawFollows !== binding.followsDefault) {
+    bindingAligned = true
+  }
+  return binding
+}
+
 /** Set during load when any bot referenced a backend this build dropped. */
 let retiredBackendSeen = false
 /** Set during load when a legacy bot carried a plaintext VM bearer token. */
 let plaintextVmTokenSeen = false
 /** Set during load when the seeded general-purpose bot was still named Assistant. */
 let seededAssistantSeen = false
+/** Set during load when a Bot's CLI binding did not match Settings. */
+let bindingAligned = false
 
 interface TargetOptions {
   /**
@@ -114,7 +137,7 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
     systemPrompt: typeof value['systemPrompt'] === 'string' ? value['systemPrompt'] : '',
     emoji: typeof value['emoji'] === 'string' && value['emoji'] ? value['emoji'] : '🤖',
     color: typeof value['color'] === 'string' && value['color'] ? value['color'] : '#7c9cff',
-    ...resolveBackend(value['backendId'], value['modelId']),
+    ...alignBinding(value['backendId'], value['modelId'], value['followsDefault']),
     tools: stringList(value['tools']),
     skills: stringList(value['skills']),
     computerUse: value['computerUse'] === true,
@@ -188,11 +211,33 @@ export async function loadBots(): Promise<void> {
   retiredBackendSeen = false
   plaintextVmTokenSeen = false
   seededAssistantSeen = false
+  bindingAligned = false
   await collection.load()
   // Persist the normalised values so the migration happens exactly once.
-  if (retiredBackendSeen || plaintextVmTokenSeen || seededAssistantSeen) {
+  if (retiredBackendSeen || plaintextVmTokenSeen || seededAssistantSeen || bindingAligned) {
     for (const bot of collection.all()) collection.put(bot)
   }
+}
+
+/**
+ * Make the stored CLI and model match Settings, and return the Bot the turn
+ * should run. A no-op when they already agree.
+ */
+export function applyBotBinding(bot: Bot): Bot {
+  const binding = resolveBotBinding(bot, getSettings())
+  if (
+    bot.backendId === binding.backendId &&
+    bot.modelId === binding.modelId &&
+    bot.followsDefault === binding.followsDefault
+  ) {
+    return bot
+  }
+  return updateBot(bot.id, binding) ?? { ...bot, ...binding }
+}
+
+/** Point every Bot that follows Settings at the current default CLI and model. */
+export function syncBotBindings(): void {
+  for (const bot of listBots()) applyBotBinding(bot)
 }
 
 /** Orphan cleanup must stand down when an unreadable bot file may still own a box. */
@@ -228,6 +273,19 @@ export function defaultBotId(): string {
   return listBots().find((bot) => !bot.archived)?.id ?? ''
 }
 
+function pinnedBinding(partial: Partial<Bot>, settings: ReturnType<typeof getSettings>): BotBinding {
+  const followsDefault =
+    partial.followsDefault === false ? false : partial.followsDefault === true ? true : !partial.backendId
+  return resolveBotBinding(
+    {
+      backendId: partial.backendId || settings.defaultBackendId,
+      modelId: partial.modelId || settings.defaultModelId,
+      followsDefault
+    },
+    settings
+  )
+}
+
 export function createBot(partial: Partial<Bot> = {}): Bot {
   const settings = getSettings()
   const now = Date.now()
@@ -248,8 +306,7 @@ export function createBot(partial: Partial<Bot> = {}): Bot {
      * `resolveBackend` repaired it on the next launch, which made it look
      * intermittent. An empty choice is no choice, so it takes the default.
      */
-    backendId: partial.backendId || settings.defaultBackendId,
-    modelId: partial.modelId || settings.defaultModelId,
+    ...pinnedBinding(partial, settings),
     tools: partial.tools ? stringList(partial.tools) : [...DEFAULT_BOT_TOOLS],
     skills: stringList(partial.skills),
     computerUse: partial.computerUse === true,

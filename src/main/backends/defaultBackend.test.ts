@@ -214,7 +214,7 @@ test('when nothing is signed in, stored ids stay put', () => {
   assert.deepEqual(plan.bots, [])
 })
 
-test('a missing backend is explained in chat and links to Settings → Backends', () => {
+test('a missing backend is explained in chat and links to Settings → Providers', () => {
   const message = backendStartBlock(
     { label: 'OpenCode', status: 'not-installed' },
     [{ status: 'not-installed' }],
@@ -222,10 +222,10 @@ test('a missing backend is explained in chat and links to Settings → Backends'
   )
   assert.ok(message)
   assert.equal(isBackendSetupMessage(message), true)
-  assert.match(message, /Settings → Backends/)
+  assert.match(message, /Settings → Providers/)
   assert.equal(message.includes('ENOENT'), false)
   assert.equal(message.includes('spawn'), false)
-  assert.match(message, /No signed-in model backend/)
+  assert.match(message, /No signed-in model is available/)
 })
 
 test('a missing backend names itself when another backend is already signed in', () => {

@@ -1,5 +1,6 @@
 /** User settings. Everything is stored locally; nothing is uploaded. */
 
+import type { AppLinks } from './apps'
 import type { AgentMode } from './sessions'
 
 export type ApprovalPolicy =
@@ -27,6 +28,8 @@ export interface BackendConfig {
   /** Explicit executable path when auto-detection fails. */
   command?: string
   extraArgs?: string[]
+  /** Model this CLI or provider uses when a Bot is bound to it. */
+  defaultModelId?: string
 }
 
 export interface McpServerConfig {
@@ -93,6 +96,8 @@ export interface Settings {
   rules: string
   backends: Record<string, BackendConfig>
   mcpServers: McpServerConfig[]
+  /** GitHub, Git, and Gmail. One connection, shared by every Bot. */
+  apps: AppLinks
   /**
    * Whether a finished turn is followed by a second model call that extracts
    * durable facts into the bot's memory.

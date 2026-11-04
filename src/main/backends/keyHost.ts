@@ -11,10 +11,7 @@
  * retrying the request with no credential at all.
  */
 
-import { ANTHROPIC_DEFAULT_BASE_URL } from './anthropic'
-import { OPENAI_DEFAULT_BASE_URL } from './openai'
-import { OPENROUTER_DEFAULT_BASE_URL } from './openrouter'
-import { XAI_DEFAULT_BASE_URL } from './xai'
+import { PROVIDER_CATALOG } from '../../shared/providerCatalog'
 import { displayHost } from './urls'
 
 /** Scheme, host and port, lowercased. `null` when the URL will not parse. */
@@ -32,27 +29,18 @@ function originOf(url: string): string | null {
 let origins: Map<string, string> | null = null
 
 /**
- * The canonical origin per backend, derived from the adapters' own
- * `*_DEFAULT_BASE_URL` constants so there is only ever one copy of each host.
+ * The canonical origin per backend, taken from the provider catalog so there
+ * is only ever one copy of each host.
  *
- * Built on first use rather than at module load, and that is not a
- * micro-optimisation: every cloud adapter imports this module and this module
- * imports their constants back, so reading them in this module's body would hit
- * the temporal dead zone of whichever adapter is halfway through evaluating.
- * By the time anything calls in, the whole cycle has finished loading.
+ * Built on first use so importing this module cannot cycle through a catalog
+ * entry that is still evaluating.
  */
 function canonicalOrigins(): Map<string, string> {
   if (!origins) {
-    const defaults: Record<string, string> = {
-      openai: OPENAI_DEFAULT_BASE_URL,
-      anthropic: ANTHROPIC_DEFAULT_BASE_URL,
-      xai: XAI_DEFAULT_BASE_URL,
-      openrouter: OPENROUTER_DEFAULT_BASE_URL
-    }
     origins = new Map()
-    for (const [id, url] of Object.entries(defaults)) {
-      const origin = originOf(url)
-      if (origin) origins.set(id, origin)
+    for (const provider of PROVIDER_CATALOG) {
+      const origin = originOf(provider.baseUrl)
+      if (origin) origins.set(provider.id, origin)
     }
   }
   return origins

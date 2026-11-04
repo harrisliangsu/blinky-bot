@@ -74,7 +74,6 @@ function SnapshotMessage({ message, bots, multiBot }: { message: Message; bots: 
 
       <footer className="ob-pane-msg-foot">
         <time dateTime={new Date(message.createdAt).toISOString()}>{clockTime(message.createdAt)}</time>
-        {message.model ? <span>{message.model}</span> : null}
       </footer>
     </article>
   )
