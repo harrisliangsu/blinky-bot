@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5
+
+- **The sidebar lists bots only.** Projects, routines, and archived chats stay in the product. They no longer sit under More on the main sidebar.
+- **A local CLI shows a row when it is installed and signed in, or after you add it.** Add picks from the known CLIs and shows the detected state. Sign in still opens that CLI’s own login. BlinkyBot does not keep the token. Manage keeps the command, key, and recheck off the default row.
+- **The empty provider card is short.** It no longer opens with the long OpenRouter note. Add provider is still how a cloud key is saved.
+
 ## 0.3.4
 
 - **Each local CLI shows whether it is signed in.** The row says not installed, not signed in, signed in, or unknown. Sign in opens that CLI’s own login in Terminal. BlinkyBot does not keep the token.
