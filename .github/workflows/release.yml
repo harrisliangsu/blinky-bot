@@ -136,8 +136,15 @@ jobs:
       # After the zip exists on the release. The feed points at that asset.
       # SPARKLE_PRIVATE_KEY is the base64 Ed25519 seed whose public half is
       # Scripts/sparkle-public-key.txt. It is an Actions secret, not a file.
-      # Do not rotate it. The workflow opens a pull request for the feed and
-      # does not push to main.
+      # Do not rotate it. The workflow pushes appcast-v* and opens a pull
+      # request. It does not push to main.
+      #
+      # Opening that pull request needs Settings → Actions → General →
+      # Workflow permissions → "Allow GitHub Actions to create and approve
+      # pull requests". Without it, GitHub rejects `gh pr create` even
+      # though the branch push succeeded. That rejection is a warning: the
+      # DMG and zip are already published, and a person opens the pull
+      # request from the pushed branch.
       - name: Offer it to Sparkle
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
@@ -179,16 +186,19 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -m "Offer $VERSION to Sparkle"
             git push --force origin "HEAD:appcast-v$VERSION"
-            existing="$(gh pr list --head "appcast-v$VERSION" --state open --json number --jq '.[0].number // empty')"
+            existing="$(gh pr list --head "appcast-v$VERSION" --state open --json number --jq '.[0].number // empty' || true)"
             if [ -z "$existing" ]; then
-              gh pr create --base main --head "appcast-v$VERSION" \
+              if ! gh pr create --base main --head "appcast-v$VERSION" \
                 --title "Offer $VERSION to Sparkle" \
-                --body "Signed appcast from the v$VERSION release. Merge this pull request to update the feed files on main. The release workflow does not push to main."
+                --body "Signed appcast from the v$VERSION release. Merge this pull request to update the feed files on main. The release workflow does not push to main."; then
+                echo "::warning::Could not open a pull request for appcast-v$VERSION. The branch was pushed. Open the pull request by hand and merge it. Settings → Actions → General → Workflow permissions must include \"Allow GitHub Actions to create and approve pull requests\" if Actions should open it. The DMG and zip are already published."
+                exit 0
+              fi
             fi
-            number="$(gh pr list --head "appcast-v$VERSION" --state open --json number --jq '.[0].number // empty')"
+            number="$(gh pr list --head "appcast-v$VERSION" --state open --json number --jq '.[0].number // empty' || true)"
             if [ -z "$number" ]; then
-              echo "::error::No pull request for appcast-v$VERSION."
-              exit 1
+              echo "::warning::Branch appcast-v$VERSION was pushed, and no open pull request was found. Open it by hand and merge it. The DMG and zip are already published."
+              exit 0
             fi
             echo "Appcast pull request #$number is open. Merge it to publish the feed on main."
           fi

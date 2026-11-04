@@ -121,6 +121,9 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("SPARKLE_PRIVATE_KEY", text)
         self.assertIn("open-smoke.sh", text)
         self.assertIn("appcast-v", text)
+        self.assertIn("Allow GitHub Actions to create and approve pull requests", text)
+        self.assertIn("::warning::", text)
+        self.assertNotIn("::error::No pull request", text)
 
 
 if __name__ == "__main__":
