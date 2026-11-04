@@ -3,6 +3,7 @@ import type { Attachment } from '../../../shared/types'
 import { basename } from '../lib/format'
 import { pickFiles } from '../state'
 import { IconClose } from './Icons'
+import { imagePreviewSrc } from './imageAttachments'
 
 /** Asks for files and turns the chosen paths into attachments. */
 export async function chooseAttachments(): Promise<Attachment[]> {
@@ -25,19 +26,23 @@ export function ComposerAttachments({ attachments, onRemove }: AttachmentsProps)
   if (attachments.length === 0) return null
   return (
     <ul className="ob-composer-attachments">
-      {attachments.map((a) => (
-        <li key={a.id} title={a.path ?? a.name}>
-          <span className="ob-composer-attach-name">{a.name}</span>
-          <button
-            type="button"
-            className="ob-icon-btn"
-            aria-label={`Remove ${a.name}`}
-            onClick={() => onRemove(a.id)}
-          >
-            <IconClose size={11} />
-          </button>
-        </li>
-      ))}
+      {attachments.map((a) => {
+        const preview = imagePreviewSrc(a)
+        return (
+          <li key={a.id} className={preview ? 'is-image' : undefined} title={a.path ?? a.name}>
+            {preview ? <img className="ob-composer-attach-thumb" alt="" src={preview} /> : null}
+            <span className="ob-composer-attach-name">{a.name}</span>
+            <button
+              type="button"
+              className="ob-icon-btn"
+              aria-label={`Remove ${a.name}`}
+              onClick={() => onRemove(a.id)}
+            >
+              <IconClose size={11} />
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }

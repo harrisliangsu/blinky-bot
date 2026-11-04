@@ -24,8 +24,9 @@ export interface ToolEntry {
 /** Base64 PNG is how every screenshot travels through this app. */
 export const IMAGE_MIME = 'image/png'
 
-export function imagePart(data: string): ProviderPart {
-  return { type: 'image', mime: IMAGE_MIME, data }
+/** `mime` defaults to PNG so a computer-use frame stays what it always was. */
+export function imagePart(data: string, mime: string = IMAGE_MIME): ProviderPart {
+  return { type: 'image', mime: mime || IMAGE_MIME, data }
 }
 
 export function textPart(text: string): ProviderPart {

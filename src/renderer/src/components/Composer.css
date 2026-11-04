@@ -4,6 +4,10 @@
   margin: 0 auto;
   padding: var(--ob-space-3) var(--ob-space-6) var(--ob-space-6);
 }
+.ob-composer.is-drop .ob-composer-box {
+  outline: 2px solid var(--ob-border-strong);
+  outline-offset: 2px;
+}
 
 .ob-composer-attachments {
   display: flex;
@@ -23,6 +27,17 @@
   font-size: var(--ob-font-size-xs);
   background: var(--ob-bg-card);
   border-radius: var(--ob-radius-full);
+}
+.ob-composer-attachments li.is-image {
+  height: auto;
+  padding-top: var(--ob-space-1);
+  padding-bottom: var(--ob-space-1);
+}
+.ob-composer-attach-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: var(--ob-radius-sm);
 }
 .ob-composer-attach-name {
   overflow: hidden;

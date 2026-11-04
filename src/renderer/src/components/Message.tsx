@@ -3,6 +3,7 @@ import type { Bot, Message } from '../../../shared/types'
 import { clockTime } from '../lib/format'
 import { reactToMessage, store, useMessage } from '../state'
 import { BackendSetupLink } from './BackendSetupLink'
+import { imagePreviewSrc } from './imageAttachments'
 import { BotAvatar } from './BotAvatar'
 import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconWarning } from './Icons'
 import { ReasoningBlock } from './ReasoningBlock'
@@ -132,6 +133,11 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
   const bot = message.botId ? bots.get(message.botId) : undefined
   const isUser = message.role === 'user'
   const attachments = message.attachments ?? []
+  const pictures = attachments.flatMap((item) => {
+    const src = imagePreviewSrc(item)
+    return src ? [{ id: item.id, name: item.name, src }] : []
+  })
+  const otherAttachments = attachments.filter((item) => !pictures.some((picture) => picture.id === item.id))
   const toolCalls = message.toolCalls ?? []
   const showAuthor = !isUser && multiBot && bot !== undefined
   // The teammate whose message this one answers, when a handover happened.
@@ -177,7 +183,15 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
           </div>
         ) : null}
 
-        {attachments.length > 0 ? (
+        {pictures.length > 0 ? (
+          <div className="ob-msg-pictures">
+            {pictures.map((a) => (
+              <img key={a.id} className="ob-msg-picture" alt={a.name} src={a.src} />
+            ))}
+          </div>
+        ) : null}
+
+        {otherAttachments.length > 0 ? (
           <div className="ob-msg-attachments">
             <button
               type="button"
@@ -186,11 +200,11 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
               aria-expanded={showAttachments}
             >
               {showAttachments ? <IconChevronDown size={11} /> : <IconChevronRight size={11} />}
-              {attachments.length} attachment{attachments.length === 1 ? '' : 's'}
+              {otherAttachments.length} attachment{otherAttachments.length === 1 ? '' : 's'}
             </button>
             {showAttachments ? (
               <ul className="ob-msg-attach-list">
-                {attachments.map((a) => (
+                {otherAttachments.map((a) => (
                   <li key={a.id} title={a.path ?? a.name}>
                     <span className="ob-msg-attach-kind">{a.kind}</span>
                     {a.name}

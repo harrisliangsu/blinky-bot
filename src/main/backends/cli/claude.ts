@@ -13,7 +13,8 @@ import type {
   ChatChunk,
   ChatRequest,
   DetectResult,
-  ModelInfo
+  ModelInfo,
+  ProviderImagePart
 } from '../types'
 import {
   adoptExistingSession,
@@ -36,6 +37,7 @@ import {
   runContext
 } from './spec'
 import { runStdioJson } from './stdioJson'
+import { claudeStreamInput, turnImages } from './cliImages'
 import { flattenTranscript, latestUserTurn, systemPromptOf } from './transcript'
 
 export const CLAUDE_SPEC: AgentCliSpec = {
@@ -137,9 +139,6 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   const binaryPath = await resolveBinary(CLAUDE_SPEC, cfg)
   const ctx = runContext(req.model, opts)
   const system = systemPromptOf(req.messages)
-  // `system` is passed with --append-system-prompt, so it must not also ride
-  // along inside the transcript.
-  const full = flattenTranscript(req.messages, { includeSystem: false })
   const mcp = claudeMcpConfig(req.mcpServers)
 
   /*
@@ -148,25 +147,47 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
    * the conversation has not seen — which is NOT the same as the newest user
    * message: on a multi-bot turn that is the moderator's brief alone, and the
    * teammate's reply and the user's own question never reached the model.
+   *
+   * Image bytes are not in that text. When this slice has any, stdin becomes
+   * one stream-json user message and `--input-format stream-json` tells Claude
+   * Code to forward the blocks. A turn with no image stays on the text stdin
+   * this path has always used.
    */
   const marks = fingerprints(req.messages)
-  const unsent = (): string => {
+  const promptFor = (resuming: boolean): { text: string; images: ProviderImagePart[] } => {
+    // `system` is passed with --append-system-prompt, so it must not also ride
+    // along inside the transcript. `inline` because any images go out as blocks.
+    const opts = { includeSystem: false as const, images: 'inline' as const }
+    const full = flattenTranscript(req.messages, opts)
+    if (!resuming) return { text: full, images: turnImages(req.messages, false) }
     const fresh = req.messages.slice(firstUnsent(req.sessionKey, marks))
-    return fresh.length ? flattenTranscript(fresh, { includeSystem: false }) : latestUserTurn(req.messages)
+    const partial = fresh.length ? flattenTranscript(fresh, opts) : latestUserTurn(req.messages)
+    if (partial) {
+      return {
+        text: partial,
+        images: turnImages(fresh.length ? fresh : req.messages, fresh.length === 0)
+      }
+    }
+    return { text: full, images: turnImages(req.messages, false) }
   }
 
-  const run = (continuity: string[]): AsyncGenerator<ChatChunk> =>
-    runStdioJson({
+  const run = (continuity: string[]): AsyncGenerator<ChatChunk> => {
+    const { text, images } = promptFor(continuity[0] === '--resume')
+    const visual = claudeStreamInput(text, images)
+    const args = buildArgs(req, ctx.model, system, ctx.extraArgs, continuity, mcp.args)
+    if (visual) args.push('--input-format', 'stream-json')
+    return runStdioJson({
       spec: CLAUDE_SPEC,
       binaryPath,
-      args: buildArgs(req, ctx.model, system, ctx.extraArgs, continuity, mcp.args),
+      args,
       ctx,
-      prompt: continuity[0] === '--resume' ? unsent() || full : full,
+      prompt: visual ?? text,
       promptInput: 'stdin-text',
       mapper: anthropicStyleMapper(),
       signal: req.signal,
       ...(Object.keys(mcp.env).length > 0 ? { extraEnv: mcp.env } : {})
     })
+  }
 
   let continuity = continuityArgs(req.sessionKey)
   /*

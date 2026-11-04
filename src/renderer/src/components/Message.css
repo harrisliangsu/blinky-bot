@@ -66,6 +66,20 @@
   margin-top: var(--ob-space-4);
 }
 
+.ob-msg-pictures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ob-space-2);
+  margin-top: var(--ob-space-3);
+}
+.ob-msg-picture {
+  display: block;
+  max-width: min(320px, 100%);
+  max-height: 240px;
+  border-radius: var(--ob-radius-lg);
+  object-fit: contain;
+  background: var(--ob-bg-input);
+}
 .ob-msg-attachments {
   margin-top: var(--ob-space-3);
 }

@@ -8,6 +8,7 @@
  */
 
 import type { Attachment, Message } from '../../shared/types'
+import { safeImageMime } from '../backends/messageContent'
 import type { ProviderMessage, ProviderPart } from './contracts'
 import { imagePart, textOf, textPart } from './contracts'
 import { estimateMessageTokens } from './tokens'
@@ -164,8 +165,13 @@ export function defangSpeakerLabels(text: string, names: Iterable<string>): stri
     .join('\n')
 }
 
+interface HeldImage {
+  data: string
+  mime: string
+}
+
 function toPlainMessage(message: Message, opts: HistoryOptions): ProviderMessage | null {
-  const images: string[] = []
+  const images: HeldImage[] = []
   let text = message.content ?? ''
 
   // Only worth doing where the framing means something: a shared conversation,
@@ -200,7 +206,8 @@ function toToolMessage(message: Message, opts: HistoryOptions): ProviderMessage 
   const result = message.toolResult
   const limit = opts.maxToolOutputChars ?? MAX_TOOL_OUTPUT_CHARS
   const body = truncate(result?.output ?? message.content ?? '', limit)
-  const images = opts.supportsVision && result?.screenshot ? [result.screenshot] : []
+  const images: HeldImage[] =
+    opts.supportsVision && result?.screenshot ? [{ data: result.screenshot, mime: 'image/png' }] : []
 
   return {
     role: 'tool',
@@ -212,22 +219,22 @@ function toToolMessage(message: Message, opts: HistoryOptions): ProviderMessage 
 }
 
 /** Plain string when there is no image, parts when there is — both are valid content. */
-function withImages(text: string, images: string[]): string | ProviderPart[] {
+function withImages(text: string, images: HeldImage[]): string | ProviderPart[] {
   if (images.length === 0) return text
   const parts: ProviderPart[] = []
   if (text.trim()) parts.push(textPart(text))
-  for (const image of images) parts.push(imagePart(image))
+  for (const image of images) parts.push(imagePart(image.data, image.mime))
   return parts
 }
 
 function renderAttachment(
   attachment: Attachment,
   supportsVision: boolean,
-  images: string[]
+  images: HeldImage[]
 ): string {
   if (attachment.kind === 'image') {
     if (supportsVision && attachment.data) {
-      images.push(attachment.data)
+      images.push({ data: attachment.data, mime: safeImageMime(attachment.mime || 'image/png') })
       return `[attached image: ${attachment.name}]`
     }
     return `[attached image: ${attachment.name} — this model cannot see images]`

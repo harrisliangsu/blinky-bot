@@ -18,15 +18,19 @@ import type {
 } from '../types'
 import { runCodexAppServer } from './codexAppServer'
 import { presentCodexError } from './codexEvents'
+import { listCodexModels } from './codexModels'
 import { detectAgentCli } from './detect'
 import { codexMcpConfig } from './mcpConfig'
 import {
   type AgentCliSpec,
   CLI_DEFAULT_MODEL,
+  commandFor,
   readCliOptions,
   resolveBinary,
   runContext
 } from './spec'
+import { which } from '../which'
+
 export const CODEX_SPEC: AgentCliSpec = {
   id: 'codex',
   displayName: 'Codex',
@@ -72,9 +76,17 @@ export const codexBackend: Backend = {
 
   detect: (cfg: BackendConfig): Promise<DetectResult> => detectAgentCli(CODEX_SPEC, cfg),
 
-  async listModels(): Promise<ModelInfo[]> {
-    // Codex resolves models from ~/.codex/config.toml; `default` honours it.
-    return [CLI_DEFAULT_MODEL]
+  async listModels(cfg: BackendConfig): Promise<ModelInfo[]> {
+    // `default` still means "whatever Codex itself is set to".
+    const binary = await which(commandFor(CODEX_SPEC, cfg))
+    if (!binary) return [CLI_DEFAULT_MODEL]
+    try {
+      const found = await listCodexModels(binary, readCliOptions(cfg).cwd)
+      return found.length ? [CLI_DEFAULT_MODEL, ...found] : [CLI_DEFAULT_MODEL]
+    } catch {
+      // A probe that never answers must not empty the picker.
+      return [CLI_DEFAULT_MODEL]
+    }
   },
 
   chat: (req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> => runTurn(req, cfg)

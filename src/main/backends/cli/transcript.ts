@@ -14,21 +14,20 @@ const LABELS: Record<string, string> = {
   tool: 'Tool result'
 }
 
-function imageNote(count: number): string {
-  return count
-    ? `\n[${count} image attachment${count === 1 ? '' : 's'} omitted — this CLI takes text only]`
-    : ''
+function imageNote(count: number, mode: 'omit' | 'inline'): string {
+  if (!count || mode === 'inline') return ''
+  return `\n[${count} image attachment${count === 1 ? '' : 's'} omitted — this CLI takes text only]`
 }
 
-function renderTurn(m: ProviderMessage): string {
+function renderTurn(m: ProviderMessage, images: 'omit' | 'inline'): string {
   const label = LABELS[m.role] ?? m.role
-  const images = imageNote(imagePartsOf(m.content).length)
+  const note = imageNote(imagePartsOf(m.content).length, images)
   const body = textOf(m.content).trim()
-  if (m.role === 'tool') return `${label} (${m.name ?? 'tool'}):\n${body}${images}`
+  if (m.role === 'tool') return `${label} (${m.name ?? 'tool'}):\n${body}${note}`
   const calls = (m.toolCalls ?? [])
     .map((c) => `\n[called ${c.name} ${JSON.stringify(c.args ?? {})}]`)
     .join('')
-  return `${label}:\n${body}${calls}${images}`
+  return `${label}:\n${body}${calls}${note}`
 }
 
 export interface FlattenOptions {
@@ -55,24 +54,31 @@ export interface FlattenOptions {
    * in the next prompt or the model will repeat the same call forever.
    */
   includeTrailingTurns?: boolean
+  /**
+   * `omit` is a text-only CLI: the model is told the bytes were not sent.
+   * `inline` means the adapter sends those bytes beside this prompt, so the
+   * footnote would be a lie.
+   */
+  images?: 'omit' | 'inline'
 }
 
 export function flattenTranscript(messages: ProviderMessage[], opts: FlattenOptions = {}): string {
   const keepSystem = opts.includeSystem !== false
+  const imageMode = opts.images ?? 'omit'
   const usable = messages.filter(
     (m) => (keepSystem || m.role !== 'system') && (textOf(m.content).trim() || m.toolCalls?.length)
   )
   if (!usable.length) return ''
-  if (opts.includeTrailingTurns === true) return usable.map(renderTurn).join('\n\n')
+  if (opts.includeTrailingTurns === true) return usable.map((m) => renderTurn(m, imageMode)).join('\n\n')
 
   const lastUser = usable.map((m) => m.role).lastIndexOf('user')
-  if (lastUser === -1) return usable.map(renderTurn).join('\n\n')
+  if (lastUser === -1) return usable.map((m) => renderTurn(m, imageMode)).join('\n\n')
 
   const context = usable.slice(0, lastUser)
   const request = textOf(usable[lastUser].content).trim()
   if (!context.length) return request
 
-  return ['<conversation-so-far>', ...context.map(renderTurn), '</conversation-so-far>', '', request].join('\n')
+  return ['<conversation-so-far>', ...context.map((m) => renderTurn(m, imageMode)), '</conversation-so-far>', '', request].join('\n')
 }
 
 /**
@@ -100,9 +106,11 @@ export function latestUserTurn(messages: ProviderMessage[]): string {
  * the model re-read the whole chat before the first token.
  */
 export function codexTurnPrompt(primed: boolean, messages: ProviderMessage[]): string {
-  if (!primed) return flattenTranscript(messages)
+  // The app-server receives the bytes as localImage items beside this text.
+  const opts = { images: 'inline' as const }
+  if (!primed) return flattenTranscript(messages, opts)
   const latest = latestUserTurn(messages).trim()
-  return latest || flattenTranscript(messages)
+  return latest || flattenTranscript(messages, opts)
 }
 
 /** System turns are passed separately by CLIs that support it. */
