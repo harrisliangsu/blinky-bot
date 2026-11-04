@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.6
+
+- **Sending a chat no longer waits on a CLI probe.** The reply caret shows up before the CLI starts. A Codex chat stays warm, so the next message skips starting it again. Kimi thinking appears as it arrives, and the answer is not held for it.
+- **The main chat hides the working directory, Agent mode, and the model.** Replies do not label which model ran.
+- **Add providers and Add CLIs are searchable.** The lists show only what you added, or a CLI that is already installed.
+- **Apps connects GitHub, Git, and Gmail for every Bot.** GitHub sign-in opens in Terminal and BlinkyBot does not keep the token. Git edits the global name and email on this Mac. Gmail records that you want it connected.
+- **A Bot sends with the CLI it is bound to.** The binding and that CLI’s default model live in Settings. A Bot left on the generic model follows the Settings default CLI.
+
 ## 0.3.5
 
 - **The sidebar lists bots only.** Projects, routines, and archived chats stay in the product. They no longer sit under More on the main sidebar.
