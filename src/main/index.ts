@@ -10,6 +10,7 @@ import { app } from 'electron'
 import { installBackgroundMode, installLifecycle, claimSingleInstance } from './app/lifecycle'
 import { installMenu } from './app/menu'
 import { installSecurity } from './app/security'
+import { prepareShots } from './app/shots'
 import { markSmokeFailed, prepareSmoke } from './app/smoke'
 import { createWindow, installWindowChrome } from './app/window'
 import { registerIpc } from './ipc'
@@ -20,6 +21,7 @@ import { vmToken } from './store/vmSecrets'
 import { cleanupOrphanedAppleVms, startAppleVm } from './vm/appleVmSupervisor'
 
 app.setName('BlinkyBot')
+prepareShots()
 prepareSmoke()
 app.setAboutPanelOptions({
   applicationName: 'BlinkyBot',

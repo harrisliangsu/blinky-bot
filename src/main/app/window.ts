@@ -4,6 +4,7 @@ import { BrowserWindow } from 'electron'
 import { getSettings, onSettingsChanged } from '../settings'
 import { devServerUrl, preloadScript, rendererHtml } from './bundlePaths'
 import { hardenWebContents } from './security'
+import { captureScreenshots } from './shots'
 import { markSmokeFailed, markSmokeReady } from './smoke'
 
 const WIDTH = 1200
@@ -56,6 +57,11 @@ export function createWindow(): BrowserWindow {
   window.once('ready-to-show', () => {
     markSmokeReady()
     window.show()
+    if (process.env.BLINKY_SHOTS === '1') {
+      void captureScreenshots(window).catch((err) => {
+        console.error('[blinky-shots] failed', err)
+      })
+    }
   })
 
   const dev = devServerUrl()

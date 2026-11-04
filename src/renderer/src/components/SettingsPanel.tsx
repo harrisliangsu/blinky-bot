@@ -89,6 +89,7 @@ function General({ settings }: { settings: Settings }): ReactNode {
                 key={id}
                 type="button"
                 className={`ob-mode-btn${settings.theme === id ? ' is-active' : ''}`}
+                data-theme-choice={id}
                 aria-pressed={settings.theme === id}
                 onClick={() => void updateSettings({ theme: id })}
               >
