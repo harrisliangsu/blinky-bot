@@ -1,7 +1,27 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { Settings } from '../../../shared/types'
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
+
+/** Explicit light/dark wins. `system` and a missing preference follow the OS. */
+export function resolveTheme(theme: Settings['theme'] | undefined, systemDark: boolean): 'light' | 'dark' {
+  if (theme === 'light' || theme === 'dark') return theme
+  return systemDark ? 'dark' : 'light'
+}
+
+/** The theme actually painted, including while the preference is still `system`. */
+export function useResolvedTheme(theme: Settings['theme'] | undefined): 'light' | 'dark' {
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches)
+
+  useEffect(() => {
+    const media = window.matchMedia(DARK_QUERY)
+    const onChange = (): void => setSystemDark(media.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  return resolveTheme(theme, systemDark)
+}
 
 /**
  * Reflects the theme and font-size preferences onto the document root, where
@@ -15,8 +35,7 @@ export function useTheme(settings: Pick<Settings, 'theme' | 'fontSize' | 'uiScal
     const media = window.matchMedia(DARK_QUERY)
 
     const apply = (): void => {
-      const resolved = theme === 'system' || theme === undefined ? (media.matches ? 'dark' : 'light') : theme
-      root.setAttribute('data-theme', resolved)
+      root.setAttribute('data-theme', resolveTheme(theme, media.matches))
     }
 
     apply()

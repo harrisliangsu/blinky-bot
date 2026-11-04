@@ -1,13 +1,35 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { addBotToSession, removeBotFromSession, store, toggleWorkspace, useAppState } from '../state'
+import { useSettingsCopy } from '../lib/useSettingsCopy'
+import { useResolvedTheme } from '../lib/useTheme'
+import { addBotToSession, removeBotFromSession, store, updateSettings, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
-import { IconChat, IconGrid, IconNote, IconPanel, IconPlus, IconSettings } from './Icons'
+import { IconMoon, IconPlus, IconSun } from './Icons'
 import { WorkingPill } from './WorkingPill'
 import './AppHeader.css'
 
-/** Window chrome for the conversation: title, participants, panel toggles. */
+/** Sun while the window is light, moon while it is dark. Click pins the other. */
+function ThemeToggle(): ReactNode {
+  const theme = useAppState().settings?.theme
+  const copy = useSettingsCopy().general
+  const resolved = useResolvedTheme(theme)
+  const next = resolved === 'dark' ? 'light' : 'dark'
+
+  return (
+    <button
+      type="button"
+      className="ob-icon-btn"
+      aria-label={next === 'light' ? copy.themeUseLight : copy.themeUseDark}
+      title={next === 'light' ? copy.light : copy.dark}
+      onClick={() => void updateSettings({ theme: next })}
+    >
+      {resolved === 'dark' ? <IconMoon size={13} /> : <IconSun size={13} />}
+    </button>
+  )
+}
+
+/** Window chrome: the conversation title, the Bots in it, and the theme. */
 export function AppHeader(): ReactNode {
-  const { session, bots, railOpen, streaming, workspace, activity, tasks } = useAppState()
+  const { session, bots, streaming } = useAppState()
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -51,19 +73,14 @@ export function AppHeader(): ReactNode {
 
   const participants = session ? session.botIds.map((id) => bots.find((b) => b.id === id)).filter((b) => b !== undefined) : []
   const available = bots.filter((b) => !b.archived && !session?.botIds.includes(b.id))
-  const unread = activity.filter((item) => !item.read).length
-  const runningTasks = tasks.filter((task) => task.status === 'queued' || task.status === 'running').length
 
   return (
     <header className="ob-header">
       <div className="ob-header-title">
         <h1>{session?.title || 'BlinkyBot'}</h1>
         {streaming ? <WorkingPill /> : null}
-      </div>
-
-      <div className="ob-header-right ob-no-drag">
         {session ? (
-          <div className="ob-header-bots" ref={pickerRef}>
+          <div className="ob-header-bots ob-no-drag" ref={pickerRef}>
             {participants.map((bot) => (
               <button
                 key={bot.id}
@@ -115,41 +132,11 @@ export function AppHeader(): ReactNode {
             ) : null}
           </div>
         ) : null}
+      </div>
 
-        {/* Several chats side by side. Hotkey alone was undiscoverable. */}
-        <button
-          type="button"
-          className="ob-icon-btn"
-          aria-pressed={workspace.open}
-          title={workspace.open ? 'Back to one chat (Alt+G)' : 'Show several chats at once (Alt+G)'}
-          aria-label={workspace.open ? 'Back to a single chat' : 'Show several chats at once'}
-          onClick={() => toggleWorkspace()}
-        >
-          <IconGrid size={13} />
-        </button>
-
-        <button
-          type="button"
-          className="ob-icon-btn"
-          aria-pressed={railOpen}
-          aria-label={railOpen ? 'Hide the side panel' : 'Show the side panel'}
-          onClick={() => store.toggleRail()}
-        >
-          <IconPanel size={13} />
-        </button>
-
-        <button type="button" className="ob-icon-btn ob-header-inbox" aria-label={`Inbox${unread ? `, ${unread} unread` : ''}`} onClick={() => store.setModal('activity')}>
-          <IconNote size={13} />
-          {unread || runningTasks ? <span className="ob-header-badge">{unread + runningTasks}</span> : null}
-        </button>
-
-        <button type="button" className="ob-icon-btn" aria-label="Shared rooms" onClick={() => store.setModal('rooms')}>
-          <IconChat size={13} />
-        </button>
-
-        <button type="button" className="ob-icon-btn" aria-label="Settings (Command comma)" onClick={() => store.setModal('settings')}>
-          <IconSettings size={13} />
-        </button>
+      {/* Workspace, the activity panel, inbox, and rooms stay in Settings. */}
+      <div className="ob-header-right ob-no-drag">
+        <ThemeToggle />
       </div>
     </header>
   )
