@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8
+
+- **The chat header keeps only the theme toggle.** The sun or moon switches light and dark and saves that choice. The grid, activity panel, inbox, shared rooms, and settings gear are gone from the header. Those controls stay under Settings → General → Layout. Settings still opens from the sidebar or with Command-comma.
+- **The sidebar footer splits Settings, Apps, and More.** The profile menu is Settings, Apps, and More…. Apps keeps GitHub, Git, and Gmail, and Gmail is marked coming soon. Tools is its own page for MCP servers and installed skills.
+- **Each Bot can pick a local CLI or a provider, a model, and a thinking depth.** A Bot that still follows the default uses Settings. Unchecking that opens the source, the model, and the thinking depth when that backend can set one.
+
 ## 0.3.7
 
 - **The Dock and Finder icon is the Blinky sprout.** The white puppy with a mint sprout sits on a pink-to-purple gradient. 0.3.6 was tagged before that icon landed, so it still showed the black chat bubble.
