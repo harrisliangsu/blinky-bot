@@ -16,6 +16,7 @@ import type {
   ModelInfo
 } from '../types'
 import { runCodexAppServer } from './codexAppServer'
+import { presentCodexError } from './codexEvents'
 import { detectAgentCli } from './detect'
 import { codexMcpConfig } from './mcpConfig'
 import {
@@ -59,12 +60,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
     yield* runCodexAppServer({ binaryPath, ctx, prompt, req, mcp })
   } catch (err) {
     if (req.signal.aborted) throw err
-    const reason = err instanceof Error ? err.message : String(err)
-    throw new Error(
-      `Codex's governed app-server was unavailable, so BlinkyBot refused to fall back to an ` +
-        `ungoverned one-shot run. ${reason}`,
-      { cause: err }
-    )
+    throw presentCodexError(err)
   }
 }
 

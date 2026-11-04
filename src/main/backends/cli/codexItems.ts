@@ -62,11 +62,21 @@ export function fileUpdates(value: unknown): FileUpdate[] {
 export class CodexItems {
   private readonly changes = new Map<string, FileUpdate[]>()
   private readonly commands = new Map<string, string>()
+  /**
+   * Agent-message text already emitted from `item/agentMessage/delta`.
+   * `item/completed` and `turn/completed` repeat the full text; without this
+   * a short reply would be shown twice.
+   */
+  private readonly streamedAgentText = new Map<string, string>()
 
-  /** Record anything a later approval request might need. Cheap and total. */
+  /** Record anything a later approval request or reply might need. Cheap and total. */
   observe(method: string, params: unknown): void {
     if (!isPlainObject(params)) return
 
+    if (method === 'item/agentMessage/delta') {
+      this.noteAgentDelta(str(params.itemId), str(params.delta))
+      return
+    }
     if (method === 'item/fileChange/patchUpdated') {
       this.rememberChanges(str(params.itemId), fileUpdates(params.changes))
       return
@@ -92,6 +102,27 @@ export class CodexItems {
   /** The command this item will run, empty when the stream never described it. */
   command(itemId: string): string {
     return (itemId && this.commands.get(itemId)) || ''
+  }
+
+  /**
+   * The part of a finished agentMessage that deltas have not already streamed.
+   *
+   * Recording the full text here means a later `turn/completed` payload, which
+   * repeats the same item, does not append it again.
+   */
+  consumeAgentText(item: Record<string, unknown>): string {
+    if (item.type !== 'agentMessage') return ''
+    const full = str(item.text)
+    const id = str(item.id)
+    const seen = id ? (this.streamedAgentText.get(id) ?? '') : ''
+    const extra = !seen ? full : full.startsWith(seen) ? full.slice(seen.length) : ''
+    if (id && full.startsWith(seen) && full) this.remember(this.streamedAgentText, id, full)
+    return extra
+  }
+
+  private noteAgentDelta(id: string, delta: string): void {
+    if (!id || !delta) return
+    this.remember(this.streamedAgentText, id, (this.streamedAgentText.get(id) ?? '') + delta)
   }
 
   private rememberChanges(itemId: string, updates: FileUpdate[]): void {
