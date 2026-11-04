@@ -5,5 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
+            <item>
+            <title>0.2.0</title>
+            <pubDate>Wed, 04 Nov 2026 03:45:53 -0000</pubDate>
+            <sparkle:version>0.2.0</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0</link>
+            <description><![CDATA[<style>
+  h2 { font-size: 1.05em; margin: 0 0 .5em; }
+  ul { margin: 0; padding-left: 1.2em; }
+  li { margin: .3em 0; }
+  p { margin: .8em 0 0; }
+</style><h2>BlinkyBot 0.2.0</h2><ul><li><strong>BlinkyBot packages the OpenBOT desktop.</strong> The Mac app name is BlinkyBot. The source is this OpenBOT tree.</li><li><strong>Disk image and zip.</strong> The release is <code>BlinkyBot-0.2.0.dmg</code> and <code>BlinkyBot-0.2.0.zip</code> for Apple Silicon. Docker is not required.</li><li><strong>Signed update feed.</strong> The zip is signed for BlinkyBot&#x27;s existing update key. This build has no in-app updater yet, so install the disk image.</li><li><strong>MIT license.</strong> Source for this version is git tag <code>v0.2.0</code>. The license text is <code>LICENSE</code>.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.2.0">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.2.0/BlinkyBot-0.2.0.zip"
+                       length="122406356"
+                       type="application/octet-stream"
+                       sparkle:edSignature="rP/35/+afCSrQ2yYcRT6g/prMn266mTb+PX7GYruD5B5Q0MWj5AldgONI3i4sv1lin29lkJZWrW/T9qWVJNVBg==" />
+        </item>
     </channel>
 </rss>
