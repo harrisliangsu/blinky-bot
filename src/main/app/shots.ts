@@ -77,6 +77,22 @@ async function save(window: BrowserWindow, name: string): Promise<void> {
   await writeFile(join(shotsDir(), name), image.toPNG())
 }
 
+/** Let a settings section grow to its content so the shot is not a clipped card. */
+async function fitSettings(window: BrowserWindow): Promise<void> {
+  const height = await evalJs<number>(
+    window,
+    `(() => {
+      const panel = document.querySelector('.ob-set-main')
+      if (panel) panel.style.maxHeight = 'none'
+      const modal = document.querySelector('.ob-modal')
+      if (!modal) return 900
+      return modal.getBoundingClientRect().top + modal.scrollHeight + 48
+    })()`
+  )
+  window.setSize(1440, Math.min(Math.max(Math.ceil(height), 900), 2400))
+  await delay(200)
+}
+
 async function openSettings(window: BrowserWindow): Promise<void> {
   await click(window, '.ob-sidebar [aria-label="Settings (Command comma)"]')
   await waitFor(window, `document.getElementById('ob-set-tab-general')`, 15_000)
@@ -96,6 +112,7 @@ async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): 
   for (const id of SECTIONS) {
     await click(window, `#ob-set-tab-${id}`)
     await waitFor(window, `document.querySelector('[data-settings-section="${id}"]')`, 10_000)
+    await fitSettings(window)
     await save(window, `settings-${theme}-${id}.png`)
   }
 }
@@ -132,23 +149,27 @@ export async function captureScreenshots(window: BrowserWindow): Promise<void> {
     await chooseTheme(window, 'light')
     await captureSections(window, 'light')
     await closeSettings(window)
+    window.setSize(1440, 900)
     await save(window, 'main-light.png')
 
     await openSettings(window)
     await chooseTheme(window, 'dark')
     await captureSections(window, 'dark')
     await closeSettings(window)
+    window.setSize(1440, 900)
     await save(window, 'main-dark.png')
 
     await openSettings(window)
     await chooseTheme(window, 'light')
     await closeSettings(window)
+    window.setSize(1440, 900)
     await click(window, '.ob-side-list .ob-side-item-main')
     const text = await sendAndReadError(window)
     await save(window, 'chat-no-backend-light.png')
     await openSettings(window)
     await chooseTheme(window, 'dark')
     await closeSettings(window)
+    window.setSize(1440, 900)
     await waitFor(window, `document.querySelector('.ob-msg-error')`, 10_000)
     await save(window, 'chat-no-backend-dark.png')
 
