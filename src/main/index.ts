@@ -18,7 +18,14 @@ import { botsLoadWasIncomplete, listBots } from './store/bots'
 import { vmToken } from './store/vmSecrets'
 import { cleanupOrphanedAppleVms, startAppleVm } from './vm/appleVmSupervisor'
 
-app.setName('OpenBOT')
+app.setName('BlinkyBot')
+app.setAboutPanelOptions({
+  applicationName: 'BlinkyBot',
+  applicationVersion: app.getVersion(),
+  copyright: 'BlinkyBot. Licensed under the MIT License.',
+  credits:
+    'BlinkyBot is an MIT fork of OpenBOT (https://github.com/ashhart/OpenBot). It is not affiliated with or endorsed by the OpenBOT authors.'
+})
 
 if (!claimSingleInstance()) {
   app.quit()

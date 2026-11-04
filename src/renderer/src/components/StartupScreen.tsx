@@ -12,7 +12,7 @@ export function StartupScreen({ error }: StartupScreenProps): ReactNode {
     <div className="ob-startup">
       <div className="ob-startup-drag" />
       <div className="ob-startup-card">
-        <span className="ob-startup-brand">OpenBOT</span>
+        <span className="ob-startup-brand">BlinkyBot</span>
         {error ? (
           <>
             <p className="ob-startup-error">

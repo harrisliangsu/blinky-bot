@@ -28,12 +28,12 @@ export function RoomsPanel(): ReactNode {
   const share = (sessionId: string, roomName: string): void => {
     void createRoom(sessionId, roomName).then((room) => { if (room?.inviteUrl) copy(room.inviteUrl) })
   }
-  return <Modal title="Shared rooms" subtitle="Invite people on this local network into an OpenBOT conversation." size="lg" onClose={() => store.setModal(null)}>
+  return <Modal title="Shared rooms" subtitle="Invite people on this local network into a BlinkyBot conversation." size="lg" onClose={() => store.setModal(null)}>
     <div className="ob-rooms-create">
       <input className="ob-input" value={name} placeholder="Room name" onChange={(event) => setName(event.target.value)} />
       <button type="button" className="ob-btn ob-btn-primary" disabled={!session} onClick={() => { if (session) share(session.id, name) }}><IconPlus size={11} /> Share current chat</button>
     </div>
-    <p className="ob-hint">Invite links are high-entropy capability URLs. Anyone holding one can read that conversation from the moment you shared it, and can send messages the bot acts on — including running its tools — so share only with people you would let use the bot. Your files, tool output and other chats are never shown. Sharing stops when OpenBOT quits.</p>
+    <p className="ob-hint">Invite links are high-entropy capability URLs. Anyone holding one can read that conversation from the moment you shared it, and can send messages the bot acts on — including running its tools — so share only with people you would let use the bot. Your files, tool output and other chats are never shown. Sharing stops when BlinkyBot quits.</p>
     {rooms.length === 0 ? <p className="ob-hint">No conversations are shared.</p> : <ul className="ob-rooms-list">{rooms.map((room) => <li key={room.id}>
       <button type="button" className="ob-rooms-main" onClick={() => { void selectSession(room.sessionId); store.setModal(null) }}><strong>{room.name}</strong><span>{room.inviteUrl || 'Not shared right now.'}</span><small>created {relativeTime(room.createdAt)}</small></button>
       {room.inviteUrl

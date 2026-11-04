@@ -57,7 +57,7 @@ export function AppHeader(): ReactNode {
   return (
     <header className="ob-header">
       <div className="ob-header-title">
-        <h1>{session?.title || 'OpenBOT'}</h1>
+        <h1>{session?.title || 'BlinkyBot'}</h1>
         {streaming ? <WorkingPill /> : null}
       </div>
 

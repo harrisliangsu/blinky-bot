@@ -38,7 +38,7 @@ export async function loadTasks(): Promise<void> {
   // a crash or forced quit.
   for (const task of collection.all()) {
     if (task.status === 'queued' || task.status === 'running') {
-      setTaskStatus(task.id, 'failed', 'OpenBOT closed before this task finished. Open its chat to retry safely.')
+      setTaskStatus(task.id, 'failed', 'BlinkyBot closed before this task finished. Open its chat to retry safely.')
     }
   }
 }

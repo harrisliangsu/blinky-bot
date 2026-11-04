@@ -138,7 +138,7 @@ function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode 
             className="ob-palette-input"
             value={query}
             placeholder="Search messages, files, links, agents and actions…"
-            aria-label="Search all OpenBOT content"
+            aria-label="Search all BlinkyBot content"
             aria-controls="ob-palette-list"
             onChange={(e) => {
               setQuery(e.target.value)

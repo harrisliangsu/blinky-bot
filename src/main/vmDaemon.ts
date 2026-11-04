@@ -48,7 +48,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const computerReady = computer?.ready === true
     json(res, 200, {
       ok: true,
-      detail: `OpenBOT guest execution daemon for ${VM_ID}.`,
+      detail: `BlinkyBot guest execution daemon for ${VM_ID}.`,
       capabilities: [
         ...VM_BOX_CAPABILITIES,
         ...(computerReady ? ['computer-v1'] : []),

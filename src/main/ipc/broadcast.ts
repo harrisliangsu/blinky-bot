@@ -74,7 +74,7 @@ export function broadcast(event: AgentEvent): void {
      * "Background agent task completed" for the one run.
      */
     if (!failed && !hasActiveTask(event.sessionId) && BrowserWindow.getFocusedWindow() === null) {
-      postActivity('completed', getSession(event.sessionId)?.title ?? 'Agent run completed', 'The bot finished while OpenBOT was in the background.', event.sessionId)
+      postActivity('completed', getSession(event.sessionId)?.title ?? 'Agent run completed', 'The bot finished while BlinkyBot was in the background.', event.sessionId)
     }
   }
 }

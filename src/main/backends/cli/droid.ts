@@ -86,7 +86,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
    */
   if (req.readOnly === true) {
     throw new Error(
-      'Droid has no tool-free mode, so OpenBOT refused to run a background side call on it ' +
+      'Droid has no tool-free mode, so BlinkyBot refused to run a background side call on it ' +
         'rather than start an unattended agent with native tools.'
     )
   }

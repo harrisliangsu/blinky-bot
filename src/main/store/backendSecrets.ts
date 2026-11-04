@@ -34,7 +34,7 @@ function safeStorageApi(): SafeStorage | null {
 function requireStorage(): SafeStorage {
   const storage = safeStorageApi()
   if (!storage?.isEncryptionAvailable()) {
-    throw new Error('The OS credential store is unavailable, so OpenBOT refused to save an API key in plaintext.')
+    throw new Error('The OS credential store is unavailable, so BlinkyBot refused to save an API key in plaintext.')
   }
   return storage
 }
@@ -76,7 +76,7 @@ export function hasBackendApiKey(backendId: string): boolean {
 
 export function setBackendApiKey(backendId: string, apiKey: string): void {
   if (!loaded) throw new Error('Backend secret storage has not been loaded yet.')
-  if (!writable) throw new Error('The backend secret store could not be read, so OpenBOT refused to overwrite it.')
+  if (!writable) throw new Error('The backend secret store could not be read, so BlinkyBot refused to overwrite it.')
   const clean = apiKey.trim()
   if (!clean) {
     clearBackendApiKey(backendId)
@@ -88,7 +88,7 @@ export function setBackendApiKey(backendId: string, apiKey: string): void {
 
 export function clearBackendApiKey(backendId: string): void {
   if (!loaded) throw new Error('Backend secret storage has not been loaded yet.')
-  if (!writable) throw new Error('The backend secret store could not be read, so OpenBOT refused to overwrite it.')
+  if (!writable) throw new Error('The backend secret store could not be read, so BlinkyBot refused to overwrite it.')
   if (!encrypted.delete(backendId)) return
   persist()
 }

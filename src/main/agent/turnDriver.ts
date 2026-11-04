@@ -113,7 +113,7 @@ async function runTurns(
     if (mode === 'supervised' && bot.computerTarget?.kind === 'vm') {
       const message =
         `Backend "${bot.backendId}" is an agent CLI, but VM ${bot.computerTarget.vmId} does not ` +
-        'support model-only VM orchestration. OpenBOT refused to give that CLI access to this Mac. ' +
+        'support model-only VM orchestration. BlinkyBot refused to give that CLI access to this Mac. ' +
         'Choose a VM-compatible backend or explicitly switch the bot to This Mac.'
       await addNotice(session, bot, message)
       broadcastError(session.id, message)

@@ -92,7 +92,7 @@ export interface HostBoundKey {
 function withheldDetail(backendId: string, label: string, baseUrl: string): string {
   const expected = canonicalOriginFor(backendId)
   return (
-    `OpenBOT will not send your ${label} API key to ${displayHost(baseUrl)} — a provider key is only ` +
+    `BlinkyBot will not send your ${label} API key to ${displayHost(baseUrl)} — a provider key is only ` +
     `ever sent to ${expected ? displayHost(expected) : `${label}'s own host`}. Clear the custom base ` +
     `URL for ${label} in Settings to reconnect, or remove the ${label} key if that endpoint is ` +
     'where you meant to point it.'

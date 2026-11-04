@@ -18,6 +18,7 @@ export function createWindow(): BrowserWindow {
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     show: false,
+    title: 'BlinkyBot',
     backgroundColor: BACKGROUND,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },

@@ -171,7 +171,7 @@ export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<Chat
   try {
     await withDeadline(
       peer.request('initialize', {
-        clientInfo: { name: 'OpenBOT', title: 'OpenBOT', version: '0.1.0' }
+        clientInfo: { name: 'BlinkyBot', title: 'BlinkyBot', version: '0.1.0' }
       }),
       HANDSHAKE_TIMEOUT_MS,
       'initialize'

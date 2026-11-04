@@ -151,11 +151,11 @@ SOFTWARE.
 
 ## Bundled: Electron
 
-OpenBOT ships as an Electron application, so the Electron runtime — and the
+BlinkyBot ships as an Electron application, so the Electron runtime — and the
 Chromium and Node.js it embeds — is redistributed inside the app bundle.
 Electron's own licence is below. The licences of everything Chromium vendors
 run to ~20 MB, so they are not duplicated here: the build copies Electron's own
-`LICENSES.chromium.html` into `OpenBOT.app/Contents/Resources` instead, next to
+`LICENSES.chromium.html` into `BlinkyBot.app/Contents/Resources` instead, next to
 this file and to `LICENSE`. electron-builder does not do that on its own — see
 `extraResources` in `package.json`.
 
