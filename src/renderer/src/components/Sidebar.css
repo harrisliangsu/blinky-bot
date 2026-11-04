@@ -103,6 +103,9 @@
 .ob-side-item:hover {
   background: var(--ob-bg-hover);
 }
+.ob-side-item.is-current {
+  background: var(--ob-bg-active);
+}
 .ob-side-item-main {
   display: flex;
   align-items: center;

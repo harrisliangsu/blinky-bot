@@ -7,6 +7,7 @@ export {
   addBotToSession, setSessionCwd,
   loadSessions,
   newSession,
+  openBotChat,
   removeBotFromSession,
   removeSession,
   renameSession,

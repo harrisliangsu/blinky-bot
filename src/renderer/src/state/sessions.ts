@@ -1,4 +1,5 @@
 import type { AgentMode, Session } from '../../../shared/types'
+import { latestChatForBot } from '../lib/botChat'
 import { bridge, errText } from './bridge'
 import { store } from './core'
 import { loadProjects } from './projects'
@@ -60,6 +61,21 @@ export async function selectSession(id: string): Promise<void> {
       store.patch({ sessionLoading: false, runError: errText(e) })
     }
   }
+}
+
+/**
+ * Open this bot's newest conversation, or start one when it has none.
+ *
+ * Sidebar navigation only. It does not change how a conversation is stored,
+ * how a turn resumes, or what New chat (`newSession`) creates.
+ */
+export async function openBotChat(botId: string): Promise<void> {
+  const existing = latestChatForBot(store.getState().sessions, botId)
+  if (existing) {
+    await selectSession(existing.id)
+    return
+  }
+  await newSession([botId])
 }
 
 /**
