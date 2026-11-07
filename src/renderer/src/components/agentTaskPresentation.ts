@@ -1,5 +1,5 @@
 import type { AgentTask, AgentTaskSummary, AgentTrace, Message, ToolCall, ToolResult } from '../../../shared/types'
-import { redactSecrets } from '../../../main/backends/secretRedaction'
+import { redactPrivateText } from '../../../main/backends/secretRedaction'
 
 export const isEndedTask = (status: string): boolean => ['completed', 'failed', 'cancelled'].includes(status)
 export const taskBelongsToBot = (task: Pick<AgentTask, 'botId' | 'requesterBotId'>, botId: string): boolean => task.botId === botId || task.requesterBotId === botId
@@ -32,10 +32,7 @@ export function mergeAgentMessages(saved: Message[], live: Message[]): Message[]
 
 const PRIVATE_KEY = /authorization|cookie|password|passphrase|secret|token|api[_-]?key|credential|密码|密钥|令牌/i
 export function agentText(text: string): string {
-  return redactSecrets(text)
-    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '[redacted private key]')
-    .replace(/((?:authorization|cookie|set-cookie)\s*:\s*)[^\r\n]+/gi, '$1[redacted]')
-    .replace(/((?:authorization|cookie|password|passphrase|secret|token|api[_-]?key|credential|密码|密钥|令牌)[\w.-]*["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;}\n]+)/gi, '$1[redacted]')
+  return redactPrivateText(text)
 }
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 const string = (value: unknown): string => typeof value === 'string' ? agentText(value).slice(0, 32_000) : ''

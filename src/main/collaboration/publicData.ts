@@ -2,9 +2,10 @@
 import type { Message } from '../../shared/types'
 import { publicRoomMessage } from './history'
 import { scrubVaultTextsNow } from '../store/vault'
-import { redactSecrets } from '../backends/secretRedaction'
+import { redactPrivateText } from '../backends/secretRedaction'
 
 const privateKeys = new Set(['password', 'secret', 'secrets', 'token', 'apiKey', 'accessToken', 'refreshToken', 'bearerToken', 'ciphertext', 'privateKey', 'secretKey', 'reasoning', 'agentTrace', 'toolCalls', 'toolResult', 'env', 'headers', 'extraHeaders', 'credentials'])
+const privateProtocolKey = /^(?:authorization|cookies?|set[-_]?cookie|password|passphrase|secrets?|credentials?|密码|密钥|令牌)$/i
 const structural = /^(?:id|.*Id|.*Ids|role|type|kind|state|status|permission|scope|color|avatarShape|avatarColor|backendId|modelId|mime|fingerprint|inviteUrl)$/
 
 export function publicRemoteMessage(message: Message): Message | null {
@@ -44,7 +45,7 @@ export function publicRemoteData<T>(input: T): T {
   const collect = (record: Record<string, unknown>, depth: number): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(record)) {
-      if (privateKeys.has(key) || key.startsWith('__') || /(?:password|secret|access[_-]?token|refresh[_-]?token|bearer[_-]?token|api[_-]?key|private[_-]?key)$/i.test(key) && typeof value === 'string') continue
+      if (privateKeys.has(key) || privateProtocolKey.test(key) || key.startsWith('__') || /(?:password|secret|access[_-]?token|refresh[_-]?token|bearer[_-]?token|api[_-]?key|private[_-]?key)$/i.test(key) && typeof value === 'string') continue
       if (typeof value === 'string' && !structural.test(key)) {
         result[key] = value; texts.push(value); slots.push({ object: result, key })
       } else result[key] = clone(value, key, depth + 1)
@@ -54,7 +55,7 @@ export function publicRemoteData<T>(input: T): T {
   const result = clone(input)
   const checked = scrubVaultTextsNow(texts)
   if (checked.unavailable) throw new Error('Private data could not be checked; nothing was returned.')
-  slots.forEach((slot, index) => { (slot.object as Record<string | number, unknown>)[slot.key] = redactSecrets(checked.texts[index]!) })
+  slots.forEach((slot, index) => { (slot.object as Record<string | number, unknown>)[slot.key] = redactPrivateText(checked.texts[index]!) })
   return result as T
 }
 

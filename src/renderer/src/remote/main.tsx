@@ -4,6 +4,7 @@ import '../feedback.css'
 import './remote.css'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import App from '../App'
 import { DeviceIdentity, RemoteHttpError } from './identity'
 import { BrowserTransport } from './transport'
@@ -34,7 +35,10 @@ function RemoteRoot() {
         if (!active) return
         setError(''); setState(result.state)
         if (result.access) {
-          const next = new BrowserTransport(identity, result.access, setOnline, () => {
+          const next = new BrowserTransport(identity, result.access, setOnline, state => {
+            // Hide private UI before a reload: the host may already be offline
+            // and a failed navigation must not leave the old workspace visible.
+            flushSync(() => { setTransport(null); setChecking(false); setState(state); setNeedsHost(false) })
             // A new document also cancels in-flight boot/load promises: they
             // cannot repopulate private state after revocation.
             location.reload()

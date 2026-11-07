@@ -30,3 +30,15 @@ test('public workspace projection excludes private messages and fields, scrubs n
     assert.throws(() => publicRemoteData(input), /nothing was returned/)
   } finally { setVaultStorageForTests(undefined); if (before === undefined) delete process.env.OPENBOT_DATA_DIR; else process.env.OPENBOT_DATA_DIR = before; await rm(root, { recursive: true, force: true }) }
 })
+
+test('remote public prose and nested fields withhold synthetic protocol credentials and private-key blocks', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'blinky-protocol-public-')), before = process.env.OPENBOT_DATA_DIR
+  process.env.OPENBOT_DATA_DIR = root
+  try {
+  const input = { name: 'Synthetic protocol projection', Authorization: 'Basic SYNTHETIC_BASIC_VALUE', Cookie: 'SYNTHETIC_COOKIE_VALUE', notes: 'Authorization: Basic SYNTHETIC_HEADER_VALUE\nCookie: SYNTHETIC_HEADER_COOKIE\n-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC_PEM_VALUE\n-----END RSA PRIVATE KEY-----\nSlack xoxb-synthetic-token-for-redaction-only' }
+  const output = publicRemoteData(input)
+  assert.equal(output.name, input.name)
+  assert.equal('Authorization' in output, false); assert.equal('Cookie' in output, false)
+  assert.doesNotMatch(JSON.stringify(output), /SYNTHETIC_|xoxb-synthetic/)
+  } finally { if (before === undefined) delete process.env.OPENBOT_DATA_DIR; else process.env.OPENBOT_DATA_DIR = before; await rm(root, { recursive: true, force: true }) }
+})

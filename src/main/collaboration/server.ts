@@ -25,7 +25,7 @@ import { enqueueRoomTurn, resumeRoomQueue, stopRoomTurn } from './runtime'
 import { roomHistory, RoomHistoryError } from './history'
 import { roomAccess, RoomAccessError } from './access'
 import { scrubVaultTextsNow } from '../store/vault'
-import { redactSecrets } from '../backends/secretRedaction'
+import { redactPrivateText } from '../backends/secretRedaction'
 
 let server: Server | null = null
 let origin = ''
@@ -46,7 +46,12 @@ export async function ensureCollaborationServer(): Promise<string> {
   const addresses = lanAddresses()
   if (!addresses.length) throw new Error('No LAN address is available. Connect to Wi-Fi or Ethernet, then share again.')
   starting = new Promise<string>((resolve, reject) => {
-    const created = createServer((req, res) => { void handle(req, res).catch(() => { if (!res.headersSent) reply(res, 503, { error: 'The action could not be confirmed. Please retry.' }); else res.end() }) })
+    const created = createServer((req, res) => {
+      // A previous listener can still be delivering refusals when sharing is
+      // started again. Bind its lifetime to this instance, not global state.
+      if (server !== created) return reply(res, 401, { error: 'Sharing was stopped on the Mac.' }, true)
+      void handle(req, res).catch(() => { if (!res.headersSent) reply(res, 503, { error: 'The action could not be confirmed. Please retry.' }); else res.end() })
+    })
     created.requestTimeout = 15_000; created.headersTimeout = 10_000
     created.once('error', () => { reject(new Error('The local sharing listener could not start.')) })
     created.listen(0, addresses[0], () => {
@@ -69,10 +74,10 @@ export async function stopCollaborationServer(): Promise<void> {
   await starting?.catch(() => {})
   const active = server; server = null; origin = ''; hosts.clear(); posts.clear(); receipts.clear(); roomAccess.clear(); stopEvents?.(); stopEvents = null; roomRealtime.clear(); workspaceEvents.clear(); clearRemoteContexts()
   if (active) await new Promise<void>(resolve => {
-    // Let pending polls deliver their 401 after revocation before closing the
-    // listener. Killing them immediately looks like ordinary Wi-Fi loss.
-    const deadline = setTimeout(() => active.closeAllConnections(), 2000)
-    active.close(() => { clearTimeout(deadline); resolve() })
+    // Briefly accept refusal-only requests as well as pending polls. Closing
+    // immediately misses browsers between polls and looks like Wi-Fi loss.
+    // `handle` returns 401 at entry while sharing is stopped; no data is served.
+    setTimeout(() => { active.close(() => resolve()); active.closeAllConnections() }, 2000)
   })
 }
 export const collaborationOrigin = (): string => origin
@@ -163,7 +168,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     // One fresh vault snapshot per page. Never send text if secrets cannot be scrubbed.
     const checked = scrubVaultTextsNow(page.messages.map(message => message.content))
     if (checked.unavailable) return reply(res, 503, { error: 'Shared history is temporarily unavailable.' })
-    const messages = page.messages.map((message, index) => ({ ...message, content: redactSecrets(checked.texts[index]!) }))
+    const messages = page.messages.map((message, index) => ({ ...message, content: redactPrivateText(checked.texts[index]!) }))
     if (!stillApproved()) return reply(res, 401, { error: 'This device is no longer approved.' })
     return reply(res, 200, { name: room.name, permission, messages, history: page.history, running: isRunning(session.id) || children.length > 0, queued: queue.items.length, paused: queue.paused, interrupted: queue.items.some(item => item.status === 'interrupted'), needsMac: pendingCount(session.id) > 0 || children.some(task => pendingCount(task.sessionId ?? '') > 0) || questions.some(request => request.questions.some(question => !allowedQuestion(question))), questions: permission === 'control' ? questions.filter(request => request.questions.every(allowedQuestion)).map(request => ({ id: request.id, questions: request.questions })) : [] })
   }

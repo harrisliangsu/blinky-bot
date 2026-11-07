@@ -156,12 +156,16 @@ export class BrowserTransport implements ApiTransport {
     return paths
   }
   private async refreshAccess(): Promise<boolean> {
+    if (this.stopped) return false
     try {
       const result = await this.identity.check(true)
+      if (this.stopped) return false
       if (result.access) { this.access = result.access; if (this.api.environment) this.api.environment.permission = this.access.permission; return true }
       this.stop(); this.lost(result.state); return false
-    } catch (error) {
-      if (error instanceof RemoteHttpError && [401, 403, 404].includes(error.status)) { this.stop(); this.lost('expired') }
+    } catch {
+      // This follows an explicit 401, not ordinary Wi-Fi loss. A host that
+      // closed its listener cannot reconfirm the rejected grant: drop access.
+      if (!this.stopped) { this.stop(); this.lost('expired') }
       return false
     }
   }

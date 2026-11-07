@@ -24,6 +24,15 @@ export function redactSecrets(text: string): string {
   return out
 }
 
+/** Shared public prose policy for Agent records and remote workspace data. */
+export function redactPrivateText(text: string): string {
+  return redactSecrets(text)
+    .replace(/\bxox(?:[baprs]-|e\.xox[baprs]-)[A-Za-z0-9-]{8,}/g, '[redacted Slack token]')
+    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '[redacted private key]')
+    .replace(/((?:authorization|cookie|set-cookie)\s*:\s*)[^\r\n]+/gi, '$1[redacted]')
+    .replace(/((?:authorization|cookie|password|passphrase|secret|token|api[_-]?key|credential|密码|密钥|令牌)[\w.-]*["']?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;}\n]+)/gi, '$1[redacted]')
+}
+
 /** Redacted, length-capped diagnostics for a failed subprocess. */
 export function diagnosticTail(text: string, maxChars = 1200): string {
   const redacted = redactSecrets(text).trim()
