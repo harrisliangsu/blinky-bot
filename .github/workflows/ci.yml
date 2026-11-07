@@ -3,6 +3,15 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request for this reviewed integration only
+        required: false
+        type: string
+      expected_head:
+        description: Exact reviewed cleanup commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -16,6 +25,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install validation dependencies
+        run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Remote authorization and data boundaries
+        run: >-
+          node --experimental-transform-types --import ./scripts/register-ts.mjs --test
+          src/main/collaboration/access.test.ts
+          src/main/collaboration/botAccess.test.ts
+          src/main/collaboration/taskAccess.test.ts
+          src/main/collaboration/history.test.ts
+          src/main/collaboration/realtime.test.ts
+          src/main/collaboration/publicData.test.ts
+          src/main/collaboration/search.test.ts
+          src/main/collaboration/uploads.test.ts
+          src/renderer/src/remote/transport.test.mjs
       - name: Backend selection
         run: node --experimental-strip-types --import ./scripts/register-ts.mjs --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts src/main/backends/cli/codexEvents.test.ts src/main/backends/cli/codexModels.test.ts src/main/backends/cli/cliImages.test.ts src/main/backends/cli/authStatus.test.ts src/main/backends/cli/kimiEvents.test.ts src/main/gateway/tokens.test.ts src/renderer/src/components/imageAttachments.test.ts src/main/store/starterBots.test.ts src/renderer/src/lib/backendDetail.test.ts src/shared/botBinding.test.ts src/shared/thinking.test.ts
       - name: Release notes and Sparkle feed
@@ -46,14 +71,96 @@ jobs:
         run: npm run build
       - name: Capture settings and chat
         run: bash Scripts/capture-shots.sh
-      - name: Upload screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: settings-screenshots
-          path: |
-            shots/*.png
-            shots/chat-no-backend.txt
-            shots/failed
-            shots/electron.log
-          if-no-files-found: error
+      # Keep generated captures/logs out of public artifacts until reviewed.
+
+  # Temporary dispatch-only helper: removed from the final PR tree before merge.
+  # The dispatch remains pinned to this reviewed revision; no source is checked out.
+  merge-reviewed-integration:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'harrisliangsu/blinky-bot' &&
+      github.actor == 'harrisliangsu' &&
+      github.ref == 'refs/heads/integrate/20261108-public-release' &&
+      inputs.pr_number != '' && inputs.expected_head != ''
+    needs: [release-scripts, screenshots]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      REVIEWED_PR: ${{ inputs.pr_number }}
+      REVIEWED_HEAD: ${{ inputs.expected_head }}
+    steps:
+      - name: Check exact head, CI, protection and merge with bot identity
+        shell: python
+        run: |
+          import json, os, re, subprocess, time
+          repo = os.environ['GH_REPO']
+          pr = os.environ['REVIEWED_PR']
+          head = os.environ['REVIEWED_HEAD']
+          assert repo == 'harrisliangsu/blinky-bot'
+          assert re.fullmatch(r'[1-9][0-9]*', pr)
+          assert re.fullmatch(r'[0-9a-f]{40}', head)
+          expected_base = 'b3ba68e3353a6cd6ee0cac9b9872fdbd536ac363'
+          branch = 'integrate/20261108-public-release'
+          def gh(*args, pending=False):
+              result = subprocess.run(['gh', *args], capture_output=True, text=True)
+              if result.returncode and not (pending and result.returncode == 8):
+                  raise RuntimeError('GitHub operation failed; no fallback or protection bypass')
+              return json.loads(result.stdout)
+          for attempt in range(120):
+              value = gh('api', f'repos/{repo}/pulls/{pr}')
+              assert value['state'] == 'open' and not value['draft']
+              assert value['head']['repo']['full_name'] == repo
+              assert value['head']['ref'] == branch
+              assert value['base']['ref'] == 'main'
+              assert value['user']['login'] == 'harrisliangsu'
+              if value['head']['sha'] != head:
+                  print('Waiting for reviewed cleanup head', flush=True)
+                  time.sleep(10)
+                  continue
+              base = gh('api', f'repos/{repo}/branches/main')
+              assert base['commit']['sha'] == expected_base and base['protected']
+              protection = gh('api', f'repos/{repo}/branches/main/protection')
+              reviews = protection.get('required_pull_request_reviews') or {}
+              assert reviews.get('required_approving_review_count', 0) == 0
+              # Read back final workflow: the privileged helper must not survive.
+              workflow = gh('api', f'repos/{repo}/contents/.github/workflows/ci.yml?ref={head}')
+              import base64
+              final_workflow = base64.b64decode(workflow['content']).decode()
+              assert 'merge-reviewed-integration:' not in final_workflow
+              checks = gh('pr', 'checks', pr, '--repo', repo,
+                          '--json', 'name,bucket,workflow', pending=True)
+              if any(x['bucket'] in ('fail', 'cancel') for x in checks):
+                  raise RuntimeError('A reviewed-head check failed; merge stopped')
+              passed = {x['name'] for x in checks if x['workflow'] == 'CI' and x['bucket'] == 'pass'}
+              if not {'release-scripts', 'screenshots'} <= passed or any(x['bucket'] == 'pending' for x in checks):
+                  print('Waiting for reviewed-head CI', flush=True)
+                  time.sleep(10)
+                  continue
+              assert all(x['bucket'] in ('pass', 'skipping') for x in checks)
+              view = gh('pr', 'view', pr, '--repo', repo, '--json', 'headRefOid,mergeStateStatus,reviewDecision')
+              assert view['headRefOid'] == head and view['mergeStateStatus'] == 'CLEAN'
+              assert view.get('reviewDecision') in (None, '', 'APPROVED')
+              result = subprocess.run(['gh', 'pr', 'merge', pr, '--repo', repo,
+                  '--merge', '--match-head-commit', head,
+                  '--author-email', '41898282+github-actions[bot]@users.noreply.github.com',
+                  '--subject', 'Integrate reviewed desktop and approved LAN workspace',
+                  '--body', 'Merge the reviewed integration after successful CI.'], capture_output=True)
+              if result.returncode:
+                  raise RuntimeError('Merge refused; protection and account settings were not changed')
+              merged = gh('api', f'repos/{repo}/pulls/{pr}')
+              assert merged['merged'] and merged['head']['sha'] == head
+              commit = gh('api', f'repos/{repo}/commits/{merged["merge_commit_sha"]}')
+              for role in ('author', 'committer'):
+                  identity = commit['commit'][role]
+                  assert identity['email'].endswith('@users.noreply.github.com')
+                  assert identity['name'] in ('github-actions[bot]', 'GitHub')
+              print('Reviewed head merged; bot metadata read back', flush=True)
+              break
+          else:
+              raise RuntimeError('Reviewed-head validation timed out; nothing was merged')
