@@ -17,6 +17,7 @@
 
 import type { Bot } from '../../shared/types'
 import { getBot } from '../store/bots'
+import { bindExecutionAgent } from '../agent/executionAgent'
 import { abortInFlight } from './protocol'
 import { closeServer, ensureServer, mcpEndpoint } from './server'
 import { closeStreamsFor } from './sse'
@@ -59,8 +60,9 @@ export const GATEWAY_SERVER_NAME = 'openbot'
  * belongs to.
  */
 export async function attachSession(input: GatewayAttachment): Promise<AttachedGateway | null> {
-  const bot = getBot(input.botId)
-  if (!bot) return null
+  const source = getBot(input.botId)
+  if (!source) return null
+  const bot = bindExecutionAgent(input.sessionId, source)
 
   // Started before anything is minted: a grant for a listener that failed to
   // come up is a live credential nothing will ever revoke.

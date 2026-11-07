@@ -3,6 +3,8 @@
 import type { AppLinks } from './apps'
 import type { AgentMode } from './sessions'
 import type { ThinkingDepth } from './thinking'
+import type { LocalExecutionPolicy } from './localExecution'
+import type { SemanticPermissionRule } from './permissionRules'
 
 export type ApprovalPolicy =
   | 'ask-every-time'
@@ -20,6 +22,11 @@ export interface BackendConfig {
    */
   added?: boolean
   baseUrl?: string
+  /** User-created API endpoint and its wire protocol. */
+  providerName?: string
+  providerProtocol?: 'openai' | 'anthropic'
+  /** Origin explicitly associated with the saved credential by the main process. */
+  credentialOrigin?: string
   /** Stored locally; sent only to that backend's own endpoint. */
   apiKey?: string
   /** Renderer-safe indication that an API key exists in the OS credential store. */
@@ -31,6 +38,8 @@ export interface BackendConfig {
   extraArgs?: string[]
   /** Model this CLI or provider uses when a Bot is bound to it. */
   defaultModelId?: string
+  /** Preferred thinking depth per model; an omitted entry follows the backend default. */
+  modelThinking?: Record<string, ThinkingDepth>
 }
 
 export interface McpServerConfig {
@@ -77,13 +86,21 @@ export interface Settings {
   linkOpen: LinkOpen
   /** Start the packaged app when the user logs in. Separate from background running. */
   launchAtLogin: boolean
+  /** Permit this Mac's logged-in user to run automatic routines when the app is closed. */
+  runRoutinesWhenClosed: boolean
   profileName: string
+  /** App-owned raster image; empty/absent retains the legacy emoji and colour. */
+  profileImage?: string
   profileEmoji: string
   profileColor: string
   /** Desktop notifications for approvals, help, and failures. */
   notifications: boolean
-  /** Also notify when a turn finishes while the window is in the background. */
+  /** Notify after a successful public AI reply in foreground and background. */
   notifyOnTurn: boolean
+  /** On-device dictation locale; system follows macOS. */
+  voiceLanguage?: string
+  /** Optional skill-based development review. Legacy settings keep it off. */
+  decisionSkillReview?: boolean
   updateChannel: UpdateChannel
   defaultBackendId: string
   defaultModelId: string
@@ -95,12 +112,22 @@ export interface Settings {
   defaultThinking?: ThinkingDepth
   defaultMode: AgentMode
   approvalPolicy: ApprovalPolicy
+  /** Local file/process access. Absent only in legacy data; migrated on load. */
+  localExecutionPolicy?: LocalExecutionPolicy
+  /** Apply automatic permission decisions; off routes governed actions to the user. */
+  automaticReview?: boolean
+  /** Matching actions always require a fresh human decision; never a deny rule. */
+  asklist?: string[]
+  /** Versioned natural-language review rules; old pattern lists stay intact. */
+  semanticPermissionRules?: SemanticPermissionRule[]
   /** Shell commands auto-approved without prompting. */
   allowlist: string[]
   /** Shell commands always refused. */
   denylist: string[]
   /** Global custom instructions, prepended for every bot. */
   rules: string
+  /** Optional tool-free routing advice; never replaces a Bot's chosen model. */
+  quickDecision?: { backendId: string; modelId: string } | null
   backends: Record<string, BackendConfig>
   mcpServers: McpServerConfig[]
   /** GitHub, Git, and Gmail. One connection, shared by every Bot. */
@@ -123,3 +150,17 @@ export interface Settings {
   /** OpenBOT never phones home. Kept so the UI can state it plainly. */
   telemetry: false
 }
+
+/** A form saves one MCP connection against the current list, not an old snapshot. */
+export interface McpServerEdit { server: McpServerConfig; editingId?: string }
+export type McpServerSaveResult = { ok: true; settings: Settings } | { ok: false; error: string }
+
+export type UserProfilePatch = Partial<Pick<Settings, 'profileName' | 'profileImage'>>
+export type UserProfileSaveResult = { ok: true; settings: Settings } | { ok: false; error: string }
+
+export type PermissionRuleList = 'asklist' | 'allowlist' | 'denylist' | 'computerUseAllowedApps'
+export type PermissionEdit =
+  | { kind: 'options'; localExecutionPolicy?: LocalExecutionPolicy; automaticReview?: boolean }
+  | { kind: 'rule'; list: PermissionRuleList; value: string; previous?: string; remove?: boolean }
+  | { kind: 'semantic-rule'; rule: SemanticPermissionRule; previous?: SemanticPermissionRule; remove?: boolean }
+export type PermissionSaveResult = { ok: true; settings: Settings } | { ok: false; error: string }

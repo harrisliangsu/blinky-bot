@@ -8,7 +8,7 @@ import {
   type WheelEvent
 } from 'react'
 import type { HumanComputerAction } from '../../../shared/types'
-import { controlBotScreen } from '../state'
+import { controlBotScreen, store } from '../state'
 import type { Natural } from './ComputerFrameStage'
 
 /** Everything the expanded stage binds so a human can drive the VM directly. */
@@ -27,6 +27,7 @@ export interface DirectScreenInput {
  */
 export function useDirectScreenInput(
   botId: string | undefined,
+  sessionId: string | undefined,
   takeover: boolean,
   natural: Natural | null
 ): DirectScreenInput {
@@ -42,7 +43,7 @@ export function useDirectScreenInput(
     if (textTimer.current !== undefined) window.clearTimeout(textTimer.current)
     pendingWheel.current = null
     if (wheelTimer.current !== undefined) window.clearTimeout(wheelTimer.current)
-  }, [botId])
+  }, [botId, sessionId])
 
   useEffect(() => () => {
     if (textTimer.current !== undefined) window.clearTimeout(textTimer.current)
@@ -61,7 +62,10 @@ export function useDirectScreenInput(
 
   const enqueueDirect = (action: HumanComputerAction): void => {
     if (!botId) return
-    directQueue.current = directQueue.current.then(() => controlBotScreen(botId, action))
+    directQueue.current = directQueue.current.then(() => {
+      if (store.getState().currentSessionId !== sessionId) return
+      return controlBotScreen(botId, action, sessionId)
+    })
   }
 
   const flushDirectText = (): void => {

@@ -14,6 +14,10 @@ import { isReadOnlyMode } from './modes'
 import { requestApproval } from './approval'
 import { analyzeCommand } from '../tools/shell/classify'
 import { mcpBearerToken } from '../store/mcpSecrets'
+import { isCodexCoordinator, isTracedBackgroundRun } from './executionAgent'
+import { usesApplicationToolLoop } from '../../shared/executionAgentCapabilities'
+import { requestTaskClarification } from '../tasks/clarifications'
+import { localExecutionPolicy } from '../../shared/localExecution'
 
 export interface ChatRequestInput {
   session: Session
@@ -22,6 +26,8 @@ export interface ChatRequestInput {
   signal: AbortSignal
   mode: TurnMode
   messages: ProviderMessage[]
+  /** Capability already resolved for this turn's selected model. */
+  supportsVision?: boolean
   tools: ChatRequest['tools']
   /** OpenBOT's own MCP endpoint for this bot and session, when one is attached. */
   gateway?: RuntimeMcpServer
@@ -32,7 +38,9 @@ export interface ChatRequestInput {
  * gateway when one was attached for this bot.
  */
 function mcpServersFor(input: ChatRequestInput): ChatRequest['mcpServers'] {
-  const configured = (input.settings.mcpServers ?? [])
+  // Third-party MCP servers execute outside the CLI sandbox and cannot be
+  // classified as read-only. Ask/Plan must not expose them directly.
+  const configured = (isReadOnlyMode(input.session.mode) || isCodexCoordinator(input.session, input.bot) || usesApplicationToolLoop(input.bot.backendId) ? [] : (input.settings.mcpServers ?? []))
     .filter((server) => server.enabled)
     .map((server) => ({
       name: server.accountName?.trim() ? `${server.name} ${server.accountName.trim()}` : server.name,
@@ -63,14 +71,20 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
   const { session, bot, settings, signal, mode, messages, tools } = input
   return {
     model: bot.modelId,
+    localExecutionSessionId: session.id,
+    requestInput: questions => requestTaskClarification(session.id, bot.id, questions, signal),
+    captureAgentTrace: isTracedBackgroundRun(session.id),
+    ...(input.supportsVision === undefined ? {} : { supportsVision: input.supportsVision }),
     ...(bot.thinking ? { thinking: bot.thinking } : {}),
     messages,
-    // A CLI brings its own tools; ours reach it through the MCP gateway.
+    // pi and model APIs use this application-owned tool loop; other CLIs use MCP.
     tools: mode === 'orchestrated' && tools?.length ? tools : undefined,
     // A VM-compatible CLI may still run as a model client on the host, but it
     // must not expose even read-only host tools. OpenBOT owns the loop and
     // routes every supplied tool through the authenticated VM daemon instead.
-    disableNativeTools: bot.computerTarget?.kind === 'vm',
+    disableNativeTools: bot.computerTarget?.kind === 'vm' || usesApplicationToolLoop(bot.backendId),
+    restrictNativeWrites: isReadOnlyMode(session.mode) || isCodexCoordinator(session, bot),
+    coordinatorOnly: isCodexCoordinator(session, bot),
     /*
      * `readOnly` is deliberately NOT set from the session mode.
      *
@@ -81,10 +95,9 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
      * could not look either: the model was told it may read files and search,
      * and every one of those calls was refused.
      *
-     * Ask and Plan are enforced instead where mutation is actually decided:
-     * the gateway withholds mutating tools from `tools/list` and refuses them
-     * at invoke, and `approve` below rejects any mutating request a CLI's own
-     * tools raise. That covers the adapters that never read `readOnly` at all.
+     * Ask and Plan are enforced by the gateway and by the CLI's own
+     * restrictions where the transport supports them; the approval callback
+     * alone cannot prevent an action a CLI chooses not to ask about.
      */
     signal,
     // The folder the user chose for this chat. Without it an agent CLI
@@ -93,7 +106,7 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
     cwd: session.cwd,
     // A CLI that governs its own tools is held to the user's policy rather
     // than falling back to its own, more permissive, default.
-    approvalPolicy: settings.approvalPolicy,
+    approvalPolicy: localExecutionPolicy(settings) === 'always-allow' && settings.automaticReview !== false ? 'auto-run' : 'ask-every-time',
     // Servers the user configured in Settings, plus OpenBOT's own gateway —
     // the only route our tools have into a CLI that runs its own tool loop.
     mcpServers: mcpServersFor(input),
@@ -108,13 +121,11 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
     approve: async ({ kind, summary, detail, target, force }) => {
       const policyTarget = target?.trim() || detail
       /*
-       * Ask and Plan, enforced for the CLI's own tools. `codex` and `droid`
-       * never read a read-only flag at all, and opencode runs its tools under
-       * `permission: 'ask'` — for all three this callback is the only place a
-       * mutation can be stopped, and an approval dialog must not be offered for
-       * something the mode already forbids.
+       * An approval dialog must not be offered for something the mode
+       * forbids. Adapters must also enforce their own native-tool restrictions.
        */
       if (isReadOnlyMode(session.mode) && !READ_ONLY_KINDS.has(kind)) return 'reject'
+      if (isCodexCoordinator(session, bot) && ['shell', 'write', 'edit', 'computer'].includes(kind)) return 'reject'
       let mustConfirm = force === true
       if (kind === 'shell') {
         const analysis = analyzeCommand(policyTarget, settings.denylist)
@@ -131,6 +142,8 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
         summary,
         detail,
         force: mustConfirm,
+        nativeExplicit: force === true,
+        localExecution: true,
         signal
       })
       if (!outcome.approved) return 'reject'

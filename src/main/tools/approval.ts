@@ -14,9 +14,9 @@ import type { ApprovalDraft, ToolContext } from './types'
 /**
  * Ask the user.
  *
- * `auto-run` answers yes without a card, unless `force` is set — reserved for
- * destructive or irreversible actions, which are always confirmed. A gate that
- * throws counts as a refusal.
+ * The gate enforces the current policy and denylist; forced high-risk app
+ * actions may still require confirmation during auto-run. A gate that throws
+ * counts as a refusal.
  *
  * There is deliberately no `auto-run` fast path here. Answering yes without
  * reaching the gate also skipped the gate's denylist check, so a rule the user
@@ -32,9 +32,8 @@ export async function approve(
 ): Promise<boolean> {
   try {
     /*
-     * `force` must reach the gate: it is what makes a destructive or
-     * irreversible action confirm even under `auto-run`. Dropping it here left
-     * every computer-use action running unprompted on that policy.
+     * `force` reaches the gate so prompting policies can require confirmation
+     * for actions that otherwise match an allow rule.
      */
     return await ctx.requestApproval({
       id: randomUUID(),

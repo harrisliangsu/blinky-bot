@@ -33,7 +33,9 @@ const SECRET_FORMATS: RegExp[] = [
 
 /** A credential word immediately followed by a value — "token: abc123". */
 const SECRET_ASSIGNMENT =
-  /\b(api[_ -]?keys?|secret|secrets|password|passwd|passphrase|token|credential|private[_ -]?key|access[_ -]?key|auth|session[_ -]?id|otp|pin)\b\s*(?:[:=]|\bis\b|\bwas\b|\bset to\b)\s*["'`]?[A-Za-z0-9._/+-]{6,}/i
+  /\b(api[_ -]?keys?|secret|secrets|password|passwd|passphrase|token|credential|private[_ -]?key|access[_ -]?key|auth|session[_ -]?id|otp|pin)\b\s*(?:[:=]|\bis\b|\bwas\b|\bset to\b)\s*["'`]?[A-Za-z0-9._/+-]+/i
+const CHINESE_SECRET_ASSIGNMENT = /(?:密码|口令|密钥|令牌|验证码|访问凭证)\s*(?:[:：=]|是|为)\s*["'`]?[^\s，。；、！？,;!?]+/
+const PERSONAL_ADDRESS = /(?:家庭住址|家庭地址|收货地址|账单地址|居住地址|邮寄地址|我的住址|我的地址)\s*(?:[:：=]|是|为)\s*\S{4,}/
 
 /** Personal identifiers that must never be persisted. */
 const IDENTIFIERS: RegExp[] = [
@@ -153,7 +155,7 @@ const DIRECTIVE_PHRASES: RegExp[] = [
 
 /** The gate itself. A durable "fact" about it is how an injected line would widen it. */
 const POLICY_TERMS =
-  /\b(?:approvals?|approved?|permissions?|allow-?list|deny-?list|auto-?run|whitelist|blacklist)\b/i
+  /\b(?:approvals?|approved?|permissions?|allow-?list|deny-?list|auto-?run|whitelist|blacklist)\b|审批|授权|权限|白名单|黑名单|自动批准|无需确认|跳过确认/i
 
 export interface Screening {
   ok: boolean
@@ -170,24 +172,49 @@ export function sanitise(text: string): string {
 }
 
 /** Full screen: credentials, identifiers, durability, length. */
-export function screen(raw: string): Screening {
+export function screenMemoryPrivacy(raw: string): Screening {
   const text = sanitise(raw)
-
-  if (text.length < MIN_LENGTH) return { ok: false, reason: 'too short to be a useful fact' }
-  if (text.length > MAX_LENGTH) return { ok: false, reason: 'too long to be a single fact' }
 
   for (const pattern of SECRET_FORMATS) {
     if (pattern.test(text)) return { ok: false, reason: 'looks like a credential' }
   }
-  if (SECRET_ASSIGNMENT.test(text)) {
+  if (SECRET_ASSIGNMENT.test(text) || CHINESE_SECRET_ASSIGNMENT.test(text)) {
     return { ok: false, reason: 'contains a secret value' }
   }
+  if (PERSONAL_ADDRESS.test(text)) return { ok: false, reason: 'contains a personal address' }
   for (const pattern of IDENTIFIERS) {
     if (pattern.test(text)) return { ok: false, reason: 'contains a personal identifier' }
   }
 
+  return { ok: true, text }
+}
+
+function screenCommon(raw: string): Screening {
+  const result = screenMemoryPrivacy(raw)
+  if (!result.ok || !result.text) return result
+  if (result.text.length < MIN_LENGTH) return { ok: false, reason: 'too short to be a useful fact' }
+  if (result.text.length > MAX_LENGTH) return { ok: false, reason: 'too long to be a single fact' }
+  return result
+}
+
+/** Full screen for facts proposed by a model or tool. */
+export function screen(raw: string): Screening {
+  return screenRecord(raw, false)
+}
+
+/** Explicit dated journal writes retain every screen except transience. This
+ * is never selected for automatic extraction or inferred from the text. */
+export function screenJournal(raw: string): Screening {
+  return screenRecord(raw, true)
+}
+
+function screenRecord(raw: string, journal: boolean): Screening {
+  const screened = screenCommon(raw)
+  if (!screened.ok || !screened.text) return screened
+  const text = screened.text
+
   const lower = text.toLowerCase()
-  if (TRANSIENT.some((phrase) => lower.includes(phrase))) {
+  if (!journal && TRANSIENT.some((phrase) => lower.includes(phrase))) {
     return { ok: false, reason: 'describes the current moment, not a durable fact' }
   }
   if (text.endsWith('?')) return { ok: false, reason: 'is a question' }
@@ -200,6 +227,21 @@ export function screen(raw: string): Screening {
   }
 
   return { ok: true, text }
+}
+
+/**
+ * Explicit user-authored preferences may be phrased as instructions. They
+ * still must not contain secrets or become a blanket permission override.
+ * Only call this on an actual user message, never model or tool output.
+ */
+export function screenUserPreference(raw: string): Screening {
+  const screened = screenCommon(raw)
+  if (!screened.ok || !screened.text) return screened
+  if (/[?？]$/.test(screened.text)) return { ok: false, reason: 'is a question' }
+  if (POLICY_TERMS.test(screened.text)) {
+    return { ok: false, reason: 'is about approvals or permissions' }
+  }
+  return screened
 }
 
 /** True when an equivalent entry is already stored. */
@@ -223,7 +265,7 @@ export function existingTexts(entries: MemoryEntry[]): string[] {
 function normalise(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }

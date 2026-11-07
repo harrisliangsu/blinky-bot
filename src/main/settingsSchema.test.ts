@@ -10,10 +10,29 @@ import { copyLeaves, settingsCopy } from '../renderer/src/lib/settingsCopy.ts'
 import { defaultSettings, normaliseSettings } from './settingsSchema.ts'
 import { compareVersions, decideUpdate, isNewer, pickRelease, readSparkleItem } from './updates/sparkleFeed.ts'
 
-test('default thinking depth is kept only when it is one of the five steps', () => {
+test('decision skill review is opt-in for legacy data and persists only an explicit boolean', () => {
+  assert.equal(defaultSettings().decisionSkillReview, false)
+  for (const value of [undefined, null, 'true', 1, false]) assert.equal(normaliseSettings({ decisionSkillReview: value }).decisionSkillReview, false)
+  const saved = normaliseSettings({ decisionSkillReview: true })
+  assert.equal(normaliseSettings(JSON.parse(JSON.stringify(saved))).decisionSkillReview, true)
+})
+
+test('saved memory extraction choices survive normalization and reload', () => {
+  for (const memoryExtraction of ['off', 'api', 'all'] as const) {
+    const settings = normaliseSettings({ memoryExtraction })
+    assert.equal(settings.memoryExtraction, memoryExtraction)
+    assert.equal(normaliseSettings(JSON.parse(JSON.stringify(settings))).memoryExtraction, memoryExtraction)
+  }
+  assert.equal(normaliseSettings({}).memoryExtraction, defaultSettings().memoryExtraction)
+  assert.equal(normaliseSettings({ memoryExtraction: 'invalid' }).memoryExtraction, defaultSettings().memoryExtraction)
+})
+
+test('default thinking depth preserves known levels and rejects unknown levels', () => {
   const kept = normaliseSettings({ defaultThinking: 'high', defaultBackendId: 'codex' })
   assert.equal(kept.defaultThinking, 'high')
-  const dropped = normaliseSettings({ defaultThinking: 'max', defaultBackendId: 'codex' })
+  assert.equal(normaliseSettings({ defaultThinking: 'max', defaultBackendId: 'codex' }).defaultThinking, 'max')
+  assert.equal(normaliseSettings({ defaultThinking: 'ultra', defaultBackendId: 'codex' }).defaultThinking, 'ultra')
+  const dropped = normaliseSettings({ defaultThinking: 'unknown', defaultBackendId: 'codex' })
   assert.equal(dropped.defaultThinking, undefined)
   const cleared = normaliseSettings({ defaultThinking: '' })
   assert.equal(cleared.defaultThinking, undefined)
@@ -55,8 +74,8 @@ test('backends settings separate providers from local CLIs, and bots are not ass
   assert.equal(zh.nav.apps, '应用')
   assert.equal(zh.nav.tools, '工具')
   assert.equal(en.nav.tools, 'Tools')
-  assert.equal(zh.nav.backends, '本地 CLI 与供应商')
-  assert.equal(en.nav.backends, 'Local CLIs & providers')
+  assert.equal(zh.nav.backends, '模型')
+  assert.equal(en.nav.backends, 'Models')
   assert.equal(zh.apps.comingSoon, '即将推出')
   assert.equal(en.apps.comingSoon, 'Coming soon')
   assert.equal(zh.account.more, '其他…')

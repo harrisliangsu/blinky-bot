@@ -7,15 +7,16 @@
  * model that would reject it.
  */
 
-export const THINKING_DEPTHS = ['off', 'low', 'medium', 'high', 'xhigh'] as const
+export const THINKING_DEPTHS = ['off', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
 
 export type ThinkingDepth = (typeof THINKING_DEPTHS)[number]
 
-export type ThinkingWire = 'codex' | 'kimi' | 'openai' | 'anthropic' | 'openrouter'
+export type ThinkingWire = 'codex' | 'kimi' | 'grok' | 'openai' | 'anthropic' | 'openrouter'
 
 const WIRES: Record<string, ThinkingWire> = {
   codex: 'codex',
   kimi: 'kimi',
+  grok: 'grok',
   openai: 'openai',
   xai: 'openai',
   anthropic: 'anthropic',
@@ -31,6 +32,27 @@ export function thinkingWire(backendId: string): ThinkingWire | null {
   return WIRES[backendId] ?? null
 }
 
+/** Prefer the model's advertised capabilities; absent metadata is unknown. */
+export function thinkingOptions(
+  backendId: string,
+  modelId: string,
+  models: ReadonlyArray<{ id: string; isDefault?: boolean; supportedThinking?: readonly ThinkingDepth[] }>,
+  configuredModel?: string
+): ThinkingDepth[] {
+  if (!modelAcceptsThinking(backendId, modelId)) return []
+  const resolved = modelId === 'default' ? (configuredModel && configuredModel !== 'default' ? configuredModel : models.find((model) => model.isDefault)?.id) : modelId
+  const advertised = models.find((model) => model.id === resolved)?.supportedThinking
+  if (advertised) return THINKING_DEPTHS.filter((depth) => advertised.includes(depth))
+  // Kimi's legacy toggle and effort-capable models expose different values.
+  // With no model metadata (including an unresolved native default), do not
+  // advertise an effort that its ACP session may reject.
+  if (backendId === 'kimi') return []
+  if (backendId === 'grok') return ['low', 'medium', 'high', 'xhigh']
+  // Codex advertises different options per model. Do not guess when unavailable.
+  if (backendId === 'codex') return []
+  return THINKING_DEPTHS.filter((depth) => depth !== 'max' && depth !== 'ultra')
+}
+
 /**
  * Whether the chosen model will accept a depth on this backend.
  *
@@ -40,7 +62,7 @@ export function thinkingWire(backendId: string): ThinkingWire | null {
 export function modelAcceptsThinking(backendId: string, modelId: string): boolean {
   const wire = thinkingWire(backendId)
   if (!wire) return false
-  if (wire === 'codex' || wire === 'kimi' || wire === 'openrouter') return true
+  if (wire === 'codex' || wire === 'kimi' || wire === 'grok' || wire === 'openrouter') return true
   const model = modelId.trim()
   if (!model || model === 'default') return false
   if (wire === 'anthropic') return /claude/i.test(model)
@@ -59,7 +81,7 @@ export function codexEffort(depth: ThinkingDepth | undefined): string | undefine
  * `off` is the value the CLI treats as thinking disabled.
  */
 export function kimiThinkingEnv(depth: ThinkingDepth | undefined): Record<string, string> | undefined {
-  if (!depth) return undefined
+  if (!depth || depth === 'max' || depth === 'ultra') return undefined
   return { KIMI_MODEL_THINKING_EFFORT: depth === 'off' ? 'off' : depth }
 }
 
@@ -69,18 +91,18 @@ export function openaiReasoningBody(
   modelId: string,
   backendId: string
 ): Record<string, unknown> | undefined {
-  if (!depth || thinkingWire(backendId) !== 'openai') return undefined
+  if (!depth || depth === 'max' || depth === 'ultra' || thinkingWire(backendId) !== 'openai') return undefined
   if (!modelAcceptsThinking(backendId, modelId)) return undefined
   return { reasoning_effort: depth === 'off' ? 'none' : depth }
 }
 
 /** OpenRouter's reasoning object. The router drops it for models that ignore effort. */
 export function openrouterReasoningBody(depth: ThinkingDepth | undefined): Record<string, unknown> | undefined {
-  if (!depth) return undefined
+  if (!depth || depth === 'max' || depth === 'ultra') return undefined
   return { reasoning: { effort: depth === 'off' ? 'none' : depth } }
 }
 
-const ANTHROPIC_BUDGET: Record<Exclude<ThinkingDepth, 'off'>, number> = {
+const ANTHROPIC_BUDGET: Partial<Record<ThinkingDepth, number>> = {
   low: 2048,
   medium: 4096,
   high: 16_000,
@@ -98,5 +120,6 @@ export function anthropicThinking(depth: ThinkingDepth | undefined): {
   if (!depth) return {}
   if (depth === 'off') return { thinking: { type: 'disabled' } }
   const budget = ANTHROPIC_BUDGET[depth]
+  if (budget === undefined) return {}
   return { thinking: { type: 'enabled', budget_tokens: budget }, minMaxTokens: budget + 4096 }
 }

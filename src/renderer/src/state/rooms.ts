@@ -13,14 +13,14 @@ export async function loadRooms(): Promise<void> {
  * prepended blindly: sharing a chat that already has a room re-opens that room,
  * so prepending listed the same room twice — once serving, once stale.
  */
-export async function createRoom(sessionId: string, name?: string): Promise<CollaborationRoom | null> {
+export async function createRoom(sessionId: string, name?: string, permission?: 'view' | 'control'): Promise<CollaborationRoom | null> {
   try {
-    const room = await bridge().rooms.create(sessionId, name)
+    const room = await bridge().rooms.create(sessionId, name, permission)
     if (room) store.patch({ rooms: [room, ...store.getState().rooms.filter((entry) => entry.id !== room.id)] })
     return room
   } catch (error) { store.toast(errText(error), 'error'); return null }
 }
-export async function removeRoom(id: string): Promise<void> {
-  try { await bridge().rooms.remove(id); store.patch({ rooms: store.getState().rooms.filter((room) => room.id !== id) }) }
-  catch (error) { store.toast(errText(error), 'error') }
+export async function removeRoom(id: string): Promise<boolean> {
+  try { if (!await bridge().rooms.remove(id)) throw new Error('Sharing could not be stopped.'); store.patch({ rooms: store.getState().rooms.filter((room) => room.id !== id) }); return true }
+  catch (error) { store.toast(errText(error), 'error'); return false }
 }

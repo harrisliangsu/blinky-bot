@@ -44,9 +44,20 @@ select {
 }
 
 :focus-visible {
-  outline: 2px solid var(--ob-accent);
+  outline: 2px solid var(--ob-border-strong);
   outline-offset: 1px;
-  border-radius: var(--ob-radius-sm);
+}
+
+/* Pointer-opened native menus and non-modal popovers also retain focus after
+   Escape. Keyboard navigation immediately restores the normal focus ring. */
+:root[data-ob-input-mode='pointer'][data-ob-input-mode] :focus-visible {
+  outline: none;
+}
+
+/* Returning focus to a mouse-opened dialog's trigger should not turn it into
+   a keyboard-highlighted control. The marker is removed on the next key or blur. */
+:focus-visible[data-ob-pointer-focus-restored][data-ob-pointer-focus-restored] {
+  outline: none;
 }
 
 ::selection {

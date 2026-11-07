@@ -7,6 +7,7 @@
  */
 
 import type { ModelInfo } from '../types'
+import { isThinkingDepth, type ThinkingDepth } from '../../../shared/thinking'
 
 /** Ids Settings will actually store. Anything else cannot be selected. */
 const MODEL_ID = /^[A-Za-z0-9._:@/-]{1,120}$/
@@ -34,11 +35,21 @@ function oneModel(entry: unknown): ModelInfo | null {
   const listed = Array.isArray(row['inputModalities'])
     ? row['inputModalities'].filter((item): item is string => typeof item === 'string')
     : null
+  const efforts = Array.isArray(row['supportedReasoningEfforts'])
+    ? [...new Set(row['supportedReasoningEfforts'].flatMap((entry): ThinkingDepth[] => {
+        if (!entry || typeof entry !== 'object') return []
+        const raw = (entry as Record<string, unknown>)['reasoningEffort']
+        const depth = raw === 'none' ? 'off' : raw
+        return isThinkingDepth(depth) ? [depth] : []
+      }))]
+    : undefined
   return {
     id,
     label: label.slice(0, 120),
     supportsTools: true,
-    supportsVision: listed === null ? true : listed.includes('image')
+    supportsVision: listed === null ? true : listed.includes('image'),
+    ...(row['isDefault'] === true ? { isDefault: true } : {}),
+    ...(efforts !== undefined ? { supportedThinking: efforts } : {})
   }
 }
 

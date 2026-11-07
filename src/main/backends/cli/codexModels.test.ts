@@ -47,3 +47,18 @@ test('an unreadable page does not invent a cursor', () => {
   assert.deepEqual(parseCodexModelPage(null), { models: [], nextCursor: null })
   assert.equal(parseCodexModelPage({ data: [], nextCursor: 'has\nnewline' }).nextCursor, null)
 })
+
+test('reasoning levels come from each model and preserve max and ultra', () => {
+  const page = parseCodexModelPage({ data: [
+    { id: 'a', supportedReasoningEfforts: [
+      { reasoningEffort: 'low' }, { reasoningEffort: 'max' },
+      { reasoningEffort: 'ultra' }, { reasoningEffort: 'none' },
+      { reasoningEffort: 'ultra' }, { reasoningEffort: 'unrecognized' }
+    ] },
+    { id: 'b', supportedReasoningEfforts: [{ reasoningEffort: 'high' }] },
+    { id: 'legacy' }, { id: 'no-thinking', supportedReasoningEfforts: [] }
+  ] })
+  assert.deepEqual(page.models.map((model) => model.supportedThinking), [
+    ['low', 'max', 'ultra', 'off'], ['high'], undefined, []
+  ])
+})

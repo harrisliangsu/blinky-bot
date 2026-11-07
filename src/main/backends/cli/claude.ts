@@ -18,6 +18,7 @@ import type {
 } from '../types'
 import {
   adoptExistingSession,
+  confirmClaudeSession,
   continuityArgs,
   forgetSession,
   isSessionIdInUse,
@@ -39,6 +40,7 @@ import {
 import { runStdioJson } from './stdioJson'
 import { claudeStreamInput, turnImages } from './cliImages'
 import { flattenTranscript, latestUserTurn, systemPromptOf } from './transcript'
+import { flushProviderBindings } from '../../store/providerBindings'
 
 export const CLAUDE_SPEC: AgentCliSpec = {
   id: 'claude',
@@ -177,6 +179,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
     const args = buildArgs(req, ctx.model, system, ctx.extraArgs, continuity, mcp.args)
     if (visual) args.push('--input-format', 'stream-json')
     return runStdioJson({
+      onTiming: req.onTiming,
       spec: CLAUDE_SPEC,
       binaryPath,
       args,
@@ -203,7 +206,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
     try {
       for await (const chunk of run(continuity)) {
         if ((chunk.type === 'text' || chunk.type === 'reasoning') && chunk.delta) answered = true
-        yield chunk
+        if (chunk.type !== 'done') yield chunk
       }
       break
     } catch (err) {
@@ -220,7 +223,10 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
       continuity = continuityArgs(req.sessionKey)
     }
   }
+  confirmClaudeSession(req.sessionKey)
   rememberSent(req.sessionKey, marks)
+  if (req.sessionKey) await flushProviderBindings()
+  yield { type: 'done' }
 }
 
 export const claudeBackend: Backend = {

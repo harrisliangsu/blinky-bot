@@ -15,15 +15,29 @@ import { PROVIDER_CATALOG } from '../../shared/providerCatalog'
 import { displayHost } from './urls'
 
 /** Scheme, host and port, lowercased. `null` when the URL will not parse. */
-function originOf(url: string): string | null {
+export function originOf(url: string): string | null {
   try {
-    const { origin } = new URL(url.trim())
+    const parsed = new URL(url.trim())
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return null
+    const { origin } = parsed
     // Opaque origins serialise as the literal string `null`; two of those must
     // never compare equal to each other.
     return origin && origin !== 'null' ? origin.toLowerCase() : null
   } catch {
     return null
   }
+}
+
+/** A custom credential is only sent to the origin explicitly saved with it. */
+export function bindCustomKey(baseUrl: string, apiKey: string | undefined, credentialOrigin: string | undefined): HostBoundKey {
+  const origin = originOf(baseUrl)
+  if (!origin) return { baseUrl, withheld: 'Invalid provider URL. Use an HTTP(S) URL without embedded credentials.' }
+  const key = apiKey?.trim()
+  if (!key) return { baseUrl }
+  if (!credentialOrigin || origin !== credentialOrigin) {
+    return { baseUrl, withheld: 'Provider address changed. Re-enter the API key to use this endpoint.' }
+  }
+  return { baseUrl, apiKey: key }
 }
 
 let origins: Map<string, string> | null = null

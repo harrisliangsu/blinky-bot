@@ -1,11 +1,20 @@
-.ob-permissions-sandbox {
-  align-items: flex-start;
-  padding: var(--ob-space-2);
-  background: var(--ob-bg-input);
-  border: 1px solid var(--ob-border-subtle);
-  border-radius: var(--ob-radius-base);
-}
-.ob-permissions-sandbox .ob-hint {
-  display: inline;
-}
-
+.ob-permissions-layout { gap: var(--ob-space-4); }
+.ob-set-main[data-settings-section='permissions'] > .ob-settings-section.ob-permissions-layout { padding: 0; background: transparent; border: 0; }
+.ob-permissions-card { display: flex; flex-direction: column; gap: var(--ob-space-3); }
+.ob-permissions-card.ob-permission-heading { flex-direction: row; align-items: center; justify-content: space-between; }
+.ob-permissions-card h3, .ob-permission-rules h3 { margin: 0 0 var(--ob-space-1); font-size: var(--ob-font-size-base); font-weight: 600; }
+.ob-permission-heading { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: var(--ob-space-4); }
+.ob-permission-heading > div { min-width: 0; }
+.ob-permission-heading > button, .ob-permission-heading > select { flex-shrink: 0; }
+.ob-permission-heading .ob-hint, .ob-permissions-card > .ob-hint { margin: 0; }
+.ob-permission-rules { display: flex; flex-direction: column; gap: var(--ob-space-2); padding-block: var(--ob-space-2); }
+.ob-permission-rule-list { border: 1px solid var(--ob-border); border-radius: var(--ob-radius-base); overflow: hidden; }
+.ob-permission-rule { display: flex; align-items: center; justify-content: space-between; gap: var(--ob-space-3); width: 100%; padding: var(--ob-space-3); background: var(--ob-bg-card); color: var(--ob-text-primary); text-align: left; border: 0; cursor: pointer; font: inherit; }
+.ob-permission-rule + .ob-permission-rule { border-top: 1px solid var(--ob-border); }
+.ob-permission-rule > span:first-child { overflow-wrap: anywhere; }
+.ob-permission-rule:hover { background: var(--ob-bg-hover); }
+.ob-permission-rule:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: -2px; }
+.ob-permission-details { border-top: 1px solid var(--ob-border); padding-top: var(--ob-space-3); }
+.ob-permission-details summary { color: var(--ob-text-secondary); cursor: pointer; }
+.ob-permission-editor-actions { display: flex; justify-content: flex-end; gap: var(--ob-space-2); margin-top: var(--ob-space-3); }
+@media (max-width: 650px) { .ob-permission-heading { flex-wrap: wrap; } }

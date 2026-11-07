@@ -1,0 +1,11 @@
+.ob-application-notice {
+  color: var(--ob-text-secondary);
+  font-size: var(--ob-font-size-sm);
+  line-height: 1.5;
+  border-left: 2px solid var(--ob-border);
+  padding: var(--ob-space-1) var(--ob-space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ob-application-notice p { margin: 0; }
+.ob-application-notice.has-error { color: var(--ob-danger); }

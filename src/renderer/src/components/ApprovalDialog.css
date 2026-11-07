@@ -1,13 +1,7 @@
-.ob-approval-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
+.ob-approval-inline {
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: var(--ob-space-8);
-  background: var(--ob-bg-overlay);
-  backdrop-filter: blur(8px);
+  width: 100%;
 }
 
 .ob-approval {
@@ -16,9 +10,10 @@
   gap: var(--ob-space-4);
   width: 100%;
   max-width: 660px;
-  max-height: 100%;
+  max-height: min(45vh, 420px);
   padding: var(--ob-card-padding);
-  background: var(--ob-bg-raised);
+  background: var(--ob-bg-canvas);
+  border: 1px solid var(--ob-border-subtle);
   border-radius: var(--ob-card-radius);
   box-shadow: var(--ob-shadow-modal);
 }
@@ -30,10 +25,7 @@
   outline: none;
 }
 
-/* An irreversible action must not look like a routine one. The card carries the
-   danger colour on its own edge, so the difference is visible before any label
-   is read — the pills and the button row alone were identical to a `read_file`
-   prompt. */
+/* Requests that cannot use a remembered approval have a distinct edge. */
 .ob-approval.is-forced {
   outline: 1px solid var(--ob-danger-secondary);
   outline-offset: -1px;
@@ -92,6 +84,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
 }
 
 /* This region is a real focus stop — it is tabbed to and scrolled from the
@@ -112,7 +106,8 @@
   line-height: var(--ob-line-height-sm);
   color: var(--ob-syntax-fg);
   background: var(--ob-syntax-bg);
-  border-radius: var(--ob-radius-3xl);
+  border: 1px solid var(--ob-border-subtle);
+  border-radius: var(--ob-control-radius);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -120,7 +115,7 @@
 .ob-approval-preview {
   display: block;
   width: 100%;
-  border-radius: var(--ob-radius-3xl);
+  border-radius: var(--ob-control-radius);
 }
 
 .ob-approval-foot {
@@ -140,4 +135,12 @@
   display: flex;
   align-items: center;
   gap: var(--ob-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 680px) {
+  .ob-approval-foot { align-items: stretch; flex-direction: column; gap: var(--ob-space-2); }
+  .ob-approval-buttons { justify-content: stretch; }
+  .ob-approval-buttons .ob-btn { flex: 1 1 auto; }
 }

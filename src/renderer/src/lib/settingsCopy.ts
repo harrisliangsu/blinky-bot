@@ -11,7 +11,7 @@ export interface SettingsCopy {
   search: string
   close: string
   nav: Record<
-    'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'apps' | 'tools' | 'updates' | 'about',
+    'general' | 'bots' | 'profile' | 'notifications' | 'permissions' | 'backends' | 'vault' | 'apps' | 'tools' | 'updates' | 'about',
     string
   >
   account: {
@@ -97,6 +97,8 @@ export interface SettingsCopy {
     thinkingMedium: string
     thinkingHigh: string
     thinkingXHigh: string
+    thinkingMax: string
+    thinkingUltra: string
     thinkingUnavailable: string
     eachBot: string
     eachBotHint: string
@@ -132,6 +134,7 @@ export interface SettingsCopy {
     allowlistHint: string
     autoHint: string
     autoWarn: string
+    cliPolicyCaveat: string
     allow: string
     allowHint: string
     deny: string
@@ -286,9 +289,27 @@ export interface SettingsCopy {
     emptyTitle: string
     emptyBody: string
     placeholder: string
+    send: string
+    stop: string
     running: string
     openProviders: string
     imageTooBig: string
+    queueLabel: string
+    queuedCount: string
+    pauseQueue: string
+    resumeQueue: string
+    queueWaiting: string
+    queueSending: string
+    queueInterrupted: string
+    removeQueued: string
+    queuedAttachments: string
+    queueFailed: string
+    queueResumeFailed: string
+    steer: string
+    steerHint: string
+    steerUnsupported: string
+    steerFailed: string
+    enqueue: string
   }
   updates: {
     version: string
@@ -321,7 +342,8 @@ const en: SettingsCopy = {
     profile: 'Profile',
     notifications: 'Notifications',
     permissions: 'Permissions',
-    backends: 'Local CLIs & providers',
+    backends: 'Models',
+    vault: 'Vault',
     apps: 'Apps',
     tools: 'Tools',
     updates: 'Updates',
@@ -364,7 +386,7 @@ const en: SettingsCopy = {
     loginHint: 'Opens BlinkyBot when you sign in to this Mac. Applies to the installed app.',
     background: 'Run in background',
     backgroundHint: 'Keep scheduled routines alive after the window closes.',
-    privacy: 'No account. No telemetry. Nothing leaves this machine except calls to the CLI or provider you configure.',
+    privacy: 'Settings are saved on this device. Connected services and tools can send data outside it.',
     themeUseLight: 'Use light theme',
     themeUseDark: 'Use dark theme',
     layout: {
@@ -384,24 +406,24 @@ const en: SettingsCopy = {
     }
   },
   bots: {
-    mode: 'Default mode for new chats',
-    modeHint: 'Bot can use tools. Ask and Plan stay read-only.',
+    mode: 'Default mode for new Bots',
+    modeHint: 'Bot can use tools. Ask and Plan request read-only behavior; enforcement depends on the selected CLI.',
     modeAgent: 'Bot',
     modeAsk: 'Ask',
     modePlan: 'Plan',
     backend: 'Default CLI',
-    backendHint: 'Bots that are not pinned use this CLI and its default model.',
+    backendHint: 'Used as the initial selection for new Bots; existing Bots keep their own choice.',
     follow: 'Use the default CLI',
     followHint: 'This Bot uses the default CLI, its default model, and the default thinking depth from Settings.',
     model: 'Default model',
-    modelHint: 'Saved on the default CLI. A Bot that follows the default uses it.',
+    modelHint: 'Used as the initial model for new Bots.',
     source: 'Source',
     sourceCli: 'Local CLI',
     sourceProvider: 'Provider',
     runtimeCli: 'Local CLI',
     runtimeProvider: 'Provider',
     runtimeModel: 'Model',
-    runtimeModelDefault: 'Default',
+    runtimeModelDefault: 'CLI or provider default',
     thinking: 'Thinking depth',
     thinkingHint: 'How hard a Bot thinks before it answers. Hidden when that CLI or provider has no depth control.',
     thinkingDefault: 'Default',
@@ -410,9 +432,11 @@ const en: SettingsCopy = {
     thinkingMedium: 'Medium',
     thinkingHigh: 'High',
     thinkingXHigh: 'Extra high',
+    thinkingMax: 'Max',
+    thinkingUltra: 'Ultra',
     thinkingUnavailable: 'This model has no thinking control.',
     eachBot: 'Each Bot',
-    eachBotHint: 'A Bot can follow the defaults above, or pick its own local CLI or provider, model, and thinking depth.',
+    eachBotHint: 'Each Bot keeps its own CLI or provider, model, and thinking depth.',
     runtimeEmpty: 'No usable local CLI or provider yet. Add one under Local CLIs & providers.',
     memory: 'Learn from conversations',
     memoryHint: 'Where a short follow-up call may save durable facts.',
@@ -430,8 +454,8 @@ const en: SettingsCopy = {
   notifications: {
     desktop: 'Desktop notifications',
     desktopHint: 'Approvals, help requests, and failed runs notify when the window is in the background.',
-    turn: 'Notify when a turn finishes',
-    turnHint: 'Also notify after a reply completes in the background.'
+    turn: 'Notify after AI replies',
+    turnHint: 'Notify after a successful reply, in foreground and background. No conversation text is included.'
   },
   permissions: {
     title: 'Computer use and approvals',
@@ -440,15 +464,16 @@ const en: SettingsCopy = {
     askOnce: 'Ask once per action',
     allowlist: 'Allowlist',
     auto: 'Auto-run',
-    askEveryHint: 'Every mutating action waits for you.',
-    askOnceHint: 'Approve an action once, then it repeats freely.',
-    allowlistHint: 'Run listed commands without asking; ask for everything else.',
-    autoHint: 'Never ask, except for destructive actions and anything outside the working folder.',
-    autoWarn: 'Auto-run answers approvals for you. Work outside the working folder and anything destructive still asks.',
+    askEveryHint: 'Every app-managed mutating action waits for you.',
+    askOnceHint: 'Approve an app-managed action once, then it repeats freely.',
+    allowlistHint: 'Run listed app-managed commands without asking; ask for the rest.',
+    autoHint: 'Ordinary app-managed actions run without asking. Forced requests, including computer control, network POSTs and high-risk commands, need confirmation; deny rules still apply.',
+    autoWarn: 'Auto-run can make local changes without a prompt. Some commands are still blocked by application rules.',
+    cliPolicyCaveat: 'CLI-owned tools do not all pass through BlinkyBot rules. Codex uses its workspace sandbox and native automatic review for requested escalations; workspace changes may not be reviewed. Kimi and Grok permission requests need confirmation, but existing native allow rules may not ask.',
     allow: 'Allowlist',
-    allowHint: 'Commands that never need approval.',
+    allowHint: 'App-managed commands that do not need approval.',
     deny: 'Denylist',
-    denyHint: 'Never run these, whatever the policy says.',
+    denyHint: 'App-managed commands on this list never run, whatever the policy says.',
     rules: 'Global rules',
     rulesHint: 'Prepended to every bot’s system prompt.',
     rulesPlaceholder: 'House rules that apply to every bot',
@@ -585,12 +610,12 @@ const en: SettingsCopy = {
   },
   apps: {
     title: 'Apps',
-    intro: 'GitHub and Git are shared by every Bot. Pushing and pull requests still wait for you.',
+    intro: 'GitHub and Git settings on this Mac are shared by Bots.',
     refresh: 'Check again',
     connect: 'Connect',
     connected: 'Connected',
     disconnected: 'Not connected',
-    unavailable: 'Not installed',
+    unavailable: 'Unavailable',
     pending: 'Waiting for sign-in',
     comingSoon: 'Coming soon',
     githubTitle: 'GitHub',
@@ -611,11 +636,29 @@ const en: SettingsCopy = {
   chat: {
     ready: 'Ready when you are',
     emptyTitle: 'What should Blinky work on?',
-    emptyBody: 'Ask a question or describe a task. Sending uses the local CLI or provider, model, and thinking depth bound to this Bot in Settings. Files stay on this machine.',
+    emptyBody: 'Ask a question or describe what you would like to do.',
     placeholder: 'Message this Bot…',
+    send: 'Send',
+    stop: 'Stop',
     running: 'Running — Esc to stop',
     openProviders: 'Open Settings → Providers',
-    imageTooBig: 'That image is too large to attach.'
+    imageTooBig: 'That image is too large to attach.',
+    queueLabel: 'Message queue',
+    queuedCount: 'Queued {count}',
+    pauseQueue: 'Pause',
+    resumeQueue: 'Resume',
+    queueWaiting: 'Waiting',
+    queueSending: 'Sending',
+    queueInterrupted: 'Execution status unknown; inspect the conversation before removing',
+    removeQueued: 'Remove queued message',
+    queuedAttachments: 'Images or attachments ({count})',
+    queueFailed: 'The message could not be sent. Please try again.',
+    queueResumeFailed: 'Resolve the interrupted message before resuming the queue.',
+    steer: 'Steer',
+    steerHint: 'Send guidance to the running Codex turn',
+    steerUnsupported: 'Live guidance is available for Codex; other backends can queue messages.',
+    steerFailed: 'Could not confirm whether guidance was applied. Check the run before trying again.',
+    enqueue: 'Queue'
   },
   updates: {
     version: 'Installed version',
@@ -651,7 +694,8 @@ const zh: SettingsCopy = {
     profile: '个人资料',
     notifications: '通知',
     permissions: '权限',
-    backends: '本地 CLI 与供应商',
+    backends: '模型',
+    vault: '保险库',
     apps: '应用',
     tools: '工具',
     updates: '更新',
@@ -694,7 +738,7 @@ const zh: SettingsCopy = {
     loginHint: '登录这台 Mac 时打开 BlinkyBot。对已安装的应用生效。',
     background: '后台运行',
     backgroundHint: '窗口关闭后，定时例程仍然继续。',
-    privacy: '没有账号，没有遥测。除了你配置的 CLI 或供应商，不会有数据离开这台电脑。',
+    privacy: '设置保存在这台设备；连接的服务和工具可能向外发送数据。',
     themeUseLight: '改用浅色',
     themeUseDark: '改用深色',
     layout: {
@@ -714,24 +758,24 @@ const zh: SettingsCopy = {
     }
   },
   bots: {
-    mode: '新对话的默认模式',
-    modeHint: 'Bot 可以使用工具。Ask 和 Plan 只读。',
+    mode: '新 Bot 的默认模式',
+    modeHint: 'Bot 可以使用工具。Ask 和 Plan 要求只读，实际限制取决于所选 CLI。',
     modeAgent: 'Bot',
     modeAsk: 'Ask',
     modePlan: 'Plan',
     backend: '默认 CLI',
-    backendHint: '没有单独指定的 Bot 使用这个 CLI 和它的默认模型。',
+    backendHint: '作为新 Bot 的初始选择；已有 Bot 保留各自的设置。',
     follow: '使用默认 CLI',
     followHint: '这个 Bot 使用设置里的默认 CLI、默认模型和思考深度。',
     model: '默认模型',
-    modelHint: '写在默认 CLI 上。沿用默认的 Bot 会用它。',
+    modelHint: '作为新 Bot 的初始模型。',
     source: '来源',
     sourceCli: '本地 CLI',
     sourceProvider: '供应商',
     runtimeCli: '本地 CLI',
     runtimeProvider: '供应商',
     runtimeModel: '模型',
-    runtimeModelDefault: '默认',
+    runtimeModelDefault: 'CLI 或供应商默认',
     thinking: '思考深度',
     thinkingHint: 'Bot 回答前思考多深。所选本地 CLI 或供应商没有这项时不显示。',
     thinkingDefault: '默认',
@@ -740,9 +784,11 @@ const zh: SettingsCopy = {
     thinkingMedium: '中',
     thinkingHigh: '高',
     thinkingXHigh: '极高',
+    thinkingMax: '最大',
+    thinkingUltra: '超高',
     thinkingUnavailable: '这个模型没有思考深度。',
     eachBot: '每个 Bot',
-    eachBotHint: 'Bot 可以沿用上面的默认，也可以单独选择本地 CLI 或供应商、模型和思考深度。',
+    eachBotHint: '每个 Bot 单独保存本地 CLI 或供应商、模型和思考深度。',
     runtimeEmpty: '还没有可用的本地 CLI 或供应商。请先在「本地 CLI 与供应商」里添加。',
     memory: '从对话中学习',
     memoryHint: '允许在一轮结束后用一次短调用记下稳定事实。',
@@ -760,8 +806,8 @@ const zh: SettingsCopy = {
   notifications: {
     desktop: '桌面通知',
     desktopHint: '窗口在后台时，审批、求助和失败的运行会通知你。',
-    turn: '一轮结束时通知',
-    turnHint: '后台完成回复时也通知。'
+    turn: 'AI 回复后通知',
+    turnHint: '成功回复后通知，前台和后台均生效；不包含对话正文。'
   },
   permissions: {
     title: '权限与电脑使用',
@@ -770,15 +816,16 @@ const zh: SettingsCopy = {
     askOnce: '同一操作只问一次',
     allowlist: '允许列表',
     auto: '自动运行',
-    askEveryHint: '每次会改动的操作都等你确认。',
-    askOnceHint: '同一操作批准一次后可以重复。',
-    allowlistHint: '列表里的命令直接运行，其余仍要询问。',
-    autoHint: '除了破坏性操作和工作目录之外的事，不再询问。',
-    autoWarn: '自动运行会替你回答审批。工作目录之外和破坏性操作仍然会问。',
+    askEveryHint: '由 BlinkyBot 管理的改动操作，每次都等你确认。',
+    askOnceHint: '由应用管理的同一操作批准一次后可以重复。',
+    allowlistHint: '应用管理的命令中，列表里的直接运行，其余仍要询问。',
+    autoHint: '应用管理的普通操作自动运行；电脑操作、网络 POST、高风险命令等强制确认的请求仍需批准，禁止规则仍然生效。',
+    autoWarn: '自动运行可直接修改本地内容；应用的禁止规则仍可能阻止部分命令。',
+    cliPolicyCaveat: 'CLI 自带工具不一定经过 BlinkyBot 的规则。Codex 对申请提权的操作使用原生自动复审，工作区内改动不一定经过复审；Kimi 和 Grok 发起审批的操作需要确认，但原生已允许的规则可能不询问。',
     allow: '允许列表',
-    allowHint: '这些命令不需要审批。',
+    allowHint: '由应用管理的这些命令不需要审批。',
     deny: '拒绝列表',
-    denyHint: '无论策略如何，都不运行这些命令。',
+    denyHint: '无论策略如何，BlinkyBot 管理的这些命令都不会运行。',
     rules: '全局规则',
     rulesHint: '会加在每个 Bot 的系统提示前面。',
     rulesPlaceholder: '适用于每个 Bot 的约定',
@@ -913,12 +960,12 @@ const zh: SettingsCopy = {
   },
   apps: {
     title: '应用',
-    intro: 'GitHub 和 Git 由每个 Bot 共用。推送和拉取请求仍会请你确认。',
+    intro: '这台 Mac 上的 GitHub 和 Git 设置由各 Bot 共用。',
     refresh: '重新检查',
     connect: '连接',
     connected: '已连接',
     disconnected: '未连接',
-    unavailable: '未安装',
+    unavailable: '不可用',
     pending: '等待登录',
     comingSoon: '即将推出',
     githubTitle: 'GitHub',
@@ -939,11 +986,29 @@ const zh: SettingsCopy = {
   chat: {
     ready: '可以开始了',
     emptyTitle: '让 Blinky 做什么？',
-    emptyBody: '直接提问或描述任务。发送时用这个 Bot 在设置里绑定的本地 CLI 或供应商、模型和思考深度。文件留在这台电脑上。',
+    emptyBody: '直接提问或描述你想完成的事。',
     placeholder: '给这个 Bot 发消息…',
+    send: '发送',
+    stop: '停止',
     running: '正在运行 — 按 Esc 停止',
     openProviders: '打开设置 → 供应商',
-    imageTooBig: '这张图片太大，附不上。'
+    imageTooBig: '这张图片太大，附不上。',
+    queueLabel: '消息队列',
+    queuedCount: '待发送 {count}',
+    pauseQueue: '暂停',
+    resumeQueue: '继续',
+    queueWaiting: '等待中',
+    queueSending: '发送中',
+    queueInterrupted: '执行状态未确认，请检查对话后移除',
+    removeQueued: '移除待发送消息',
+    queuedAttachments: '图片或附件 ({count})',
+    queueFailed: '消息未能发送，请重试。',
+    queueResumeFailed: '请先处理未确认的消息，再恢复队列。',
+    steer: '引导',
+    steerHint: '将文字发送给正在执行的 Codex',
+    steerUnsupported: '实时引导支持 Codex；其他执行器可以排队发送。',
+    steerFailed: '未确认引导是否生效，请检查当前任务后再试。',
+    enqueue: '排队'
   },
   updates: {
     version: '当前版本',

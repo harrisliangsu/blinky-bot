@@ -16,6 +16,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { AsyncQueue } from './asyncQueue'
 import { LineSplitter } from './lineStream'
 import { hydratedEnv } from './loginShellEnv'
+import { noteTiming, type TimingObserver } from './chatTiming'
 
 /** Grace between SIGTERM and SIGKILL for a child that ignores the first. */
 const KILL_GRACE_MS = 2_000
@@ -32,6 +33,7 @@ export interface ExitInfo {
 }
 
 export interface SpawnLinesOptions {
+  onTiming?: TimingObserver
   args?: string[]
   cwd?: string
   signal?: AbortSignal
@@ -63,11 +65,14 @@ export interface ProcessHandle {
 }
 
 export async function spawnLines(bin: string, opts: SpawnLinesOptions = {}): Promise<ProcessHandle> {
+  noteTiming(opts.onTiming, 'environment-start')
   const base = opts.env ?? (await hydratedEnv())
   const env = opts.extraEnv ? { ...base, ...opts.extraEnv } : base
+  noteTiming(opts.onTiming, 'environment-ready')
   // `detached` calls setsid(), making the child a process-group leader so the
   // whole tree can be signalled with process.kill(-pid). Not available on Win32.
   const ownGroup = process.platform !== 'win32'
+  noteTiming(opts.onTiming, 'process-spawn-start')
   const child = spawn(bin, opts.args ?? [], {
     cwd: opts.cwd,
     env,
@@ -75,6 +80,7 @@ export async function spawnLines(bin: string, opts: SpawnLinesOptions = {}): Pro
     windowsHide: true,
     detached: ownGroup
   })
+  child.once('spawn', () => noteTiming(opts.onTiming, 'process-spawned'))
 
   const queue = new AsyncQueue<ProcessLine>()
   const outSplitter = new LineSplitter()

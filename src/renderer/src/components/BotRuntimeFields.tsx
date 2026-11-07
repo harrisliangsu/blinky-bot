@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { listedBackends } from '../../../shared/backendSections'
 import type { BackendInfo } from '../../../shared/types'
-import { runtimeModels, runtimeSource, type RuntimeSource } from '../../../shared/botRuntime'
-import { THINKING_DEPTHS, modelAcceptsThinking, thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
+import { runtimeModels, runtimeSource } from '../../../shared/botRuntime'
+import { modelAcceptsThinking, thinkingOptions, thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import './BotRuntimeFields.css'
 
@@ -14,7 +14,7 @@ export interface RuntimeChoice {
 
 interface BotRuntimeFieldsProps {
   backends: BackendInfo[]
-  configs: Record<string, { added?: boolean; hasApiKey?: boolean; apiKey?: string } | undefined> | undefined
+  configs: Record<string, { added?: boolean; hasApiKey?: boolean; apiKey?: string; defaultModelId?: string } | undefined> | undefined
   backendId: string
   modelId: string
   thinking?: ThinkingDepth
@@ -26,7 +26,9 @@ const DEPTH_LABEL = {
   low: 'thinkingLow',
   medium: 'thinkingMedium',
   high: 'thinkingHigh',
-  xhigh: 'thinkingXHigh'
+  xhigh: 'thinkingXHigh',
+  max: 'thinkingMax',
+  ultra: 'thinkingUltra'
 } as const
 
 /**
@@ -41,76 +43,51 @@ export function BotRuntimeFields({
   thinking,
   onChange
 }: BotRuntimeFieldsProps): ReactNode {
-  const copy = useSettingsCopy().bots
+  const copyAll = useSettingsCopy()
+  const copy = copyAll.bots
   const listed = listedBackends(backends, configs, backendId)
   const current = backends.find((item) => item.id === backendId)
   const derived = runtimeSource(backendId, current?.kind)
-  const [source, setSource] = useState<RuntimeSource>(derived)
-
-  useEffect(() => {
-    setSource(derived)
-  }, [derived])
-
-  const pool = listed.filter((item) => runtimeSource(item.id, item.kind) === source)
   const models = runtimeModels(backendId, current?.models ?? [], modelId)
   const wire = thinkingWire(backendId)
   const accepts = wire !== null && modelAcceptsThinking(backendId, modelId)
+  // Here "default" delegates to the CLI itself, independently of the model
+  // preference stored on the connection (which only seeds new Bots).
+  const depths = thinkingOptions(backendId, modelId, current?.models ?? [])
   const depthLabels = copy
-
-  const pickSource = (next: RuntimeSource): void => {
-    setSource(next)
-    const first = listed.find((item) => runtimeSource(item.id, item.kind) === next)
-    if (!first || first.id === backendId) return
-    onChange({
-      backendId: first.id,
-      modelId: 'default',
-      ...(thinking && thinkingWire(first.id) ? { thinking } : {})
-    })
-  }
 
   return (
     <div className="ob-bot-runtime-grid">
-      <label>
-        {copy.source}
+      <label className="ob-bot-runtime-connection">
+        <span className="ob-sr-only">{derived === 'cli' ? copy.runtimeCli : copy.runtimeProvider}</span>
         <select
           className="ob-select ob-settings-select"
-          aria-label={copy.source}
-          value={source}
-          onChange={(e) => pickSource(e.target.value as RuntimeSource)}
+          aria-label={derived === 'cli' ? copy.runtimeCli : copy.runtimeProvider}
+          title={current?.label ?? backendId}
+          value={listed.some((item) => item.id === backendId) ? backendId : ''}
+          onChange={(e) => onChange({ backendId: e.target.value, modelId: 'default' })}
         >
-          <option value="cli">{copy.sourceCli}</option>
-          <option value="provider">{copy.sourceProvider}</option>
+          {listed.length === 0 ? <option value="">{copy.runtimeEmpty}</option> : null}
+          {(['cli', 'provider'] as const).map((source) => {
+            const pool = listed.filter((item) => runtimeSource(item.id, item.kind) === source)
+            return pool.length ? <optgroup key={source} label={source === 'cli' ? copy.sourceCli : copy.sourceProvider}>
+              {pool.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </optgroup> : null
+          })}
         </select>
       </label>
-      <label>
-        {source === 'cli' ? copy.runtimeCli : copy.runtimeProvider}
-        <select
-          className="ob-select ob-settings-select"
-          aria-label={source === 'cli' ? copy.runtimeCli : copy.runtimeProvider}
-          value={pool.some((item) => item.id === backendId) ? backendId : ''}
-          onChange={(e) =>
-            onChange({
-              backendId: e.target.value,
-              modelId: 'default',
-              ...(thinking && thinkingWire(e.target.value) ? { thinking } : {})
-            })
-          }
-        >
-          {pool.length === 0 ? <option value="">{copy.runtimeEmpty}</option> : null}
-          {pool.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {copy.runtimeModel}
+      <label className="ob-bot-runtime-model">
+        <span className="ob-sr-only">{copy.runtimeModel}</span>
         <select
           className="ob-select ob-settings-select"
           aria-label={copy.runtimeModel}
+          title={models.find((model) => model.id === modelId)?.label ?? modelId}
           value={models.some((model) => model.id === modelId) ? modelId : 'default'}
-          onChange={(e) => onChange({ backendId, modelId: e.target.value, ...(thinking ? { thinking } : {}) })}
+          onChange={(e) => {
+            const next = e.target.value
+            const supported = thinkingOptions(backendId, next, current?.models ?? [])
+            onChange({ backendId, modelId: next, ...(thinking && supported.includes(thinking) ? { thinking } : {}) })
+          }}
         >
           {models.map((model) => (
             <option key={model.id} value={model.id}>
@@ -120,14 +97,14 @@ export function BotRuntimeFields({
         </select>
       </label>
       {wire ? (
-        <label>
-          {copy.thinking}
+        <label className="ob-bot-runtime-depth">
+          <span className="ob-sr-only">{copy.thinking}</span>
           <select
             className="ob-select ob-settings-select"
             aria-label={copy.thinking}
             value={thinking ?? ''}
-            disabled={!accepts}
-            title={accepts ? undefined : copy.thinkingUnavailable}
+            disabled={!accepts || (depths.length === 0 && !thinking)}
+            title={accepts && depths.length > 0 ? (thinking ? depthLabels[DEPTH_LABEL[thinking]] : copy.thinkingDefault) : copy.thinkingUnavailable}
             onChange={(e) => {
               const next = e.target.value
               onChange({
@@ -138,7 +115,8 @@ export function BotRuntimeFields({
             }}
           >
             <option value="">{copy.thinkingDefault}</option>
-            {THINKING_DEPTHS.map((depth) => (
+            {thinking && !depths.includes(thinking) ? <option value={thinking} disabled>{depthLabels[DEPTH_LABEL[thinking]]}</option> : null}
+            {depths.map((depth) => (
               <option key={depth} value={depth}>
                 {depthLabels[DEPTH_LABEL[depth]]}
               </option>

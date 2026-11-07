@@ -8,6 +8,7 @@
  */
 
 import type { Bot, Session, Settings, ToolCall, ToolResult, ToolSchema } from '../../shared/types'
+import { liveBotTools } from './botToolScope'
 import { requestApproval } from './approval'
 import {
   deniedRuleForCall,
@@ -17,18 +18,20 @@ import {
   summarise,
   targetForCall
 } from './approvalPolicy'
-import { builtinSchema } from './builtins'
+import { builtinSchema, mergeBuiltins } from './builtins'
 import { applyTodos, normaliseTodos, runRemember, runTodoWrite } from './builtinHandlers'
 import { broadcast } from './events'
 import { errorMessage, isAbortError } from './errors'
 import { allowedInMode, isMutatingTool, modeRefusal } from './modes'
 import { captureToolStep, noteFrame } from './recorder'
 import { buildToolContext, SELF_APPROVING } from './toolContext'
-import { getTool } from './toolGateway'
+import { getTool, schemasFor } from './toolGateway'
 import { now } from './ids'
 import type { ToolEntry } from './contracts'
 import { startAppleVm } from '../vm/appleVmSupervisor'
 import { vmToken } from '../store/vmSecrets'
+import { settingsStore } from './settingsGateway'
+import { isLocalResourceTool } from '../../shared/localExecution'
 
 export interface ExecuteInput {
   session: Session
@@ -44,14 +47,30 @@ export interface ExecuteInput {
   record?: boolean
 }
 
+/** Enforce the same effective tool grant used to advertise schemas to the model.
+ * Registry aliases must resolve to the capability they implement, not acquire an
+ * independent grant. Built-ins continue working when the optional registry is
+ * unavailable, but only when the Bot explicitly enabled them. */
+export async function toolAllowedForBot(bot: Bot, name: string, resolved?: ToolEntry | null): Promise<boolean> {
+  const entry = resolved === undefined ? await getTool(name) : resolved
+  const schema = entry?.schema ?? builtinSchema(name)
+  if (!schema) return false
+  const canonical = schema.name === 'double_click' ? 'click' : schema.name
+  const enabled = liveBotTools(bot.id, bot.tools ?? [])
+  const exposed = mergeBuiltins(await schemasFor(enabled, bot.computerTarget), enabled)
+  return exposed.some((item) => item.name === canonical)
+}
+
 export async function executeCall(input: ExecuteInput): Promise<ToolResult> {
+  input = { ...input, settings: await settingsStore.get() }
   const { session, bot, call, signal } = input
   const startedAt = now()
 
   const entry = await getTool(call.name)
   const schema = entry?.schema ?? builtinSchema(call.name)
 
-  const refusal = gate(input, schema, entry !== null)
+  const permitted = await toolAllowedForBot(bot, call.name, entry)
+  const refusal = gate(input, schema, entry !== null, permitted)
   const result = refusal ?? (await approveAndRun(input, schema, entry))
 
   const finished: ToolResult = {
@@ -82,7 +101,8 @@ export async function executeCall(input: ExecuteInput): Promise<ToolResult> {
 function gate(
   input: ExecuteInput,
   schema: ToolSchema | undefined,
-  known: boolean
+  known: boolean,
+  permitted: boolean
 ): ToolResult | null {
   const { call, session, bot, signal } = input
 
@@ -95,6 +115,8 @@ function gate(
   if (!known && !builtinSchema(call.name)) {
     return fail(call, `Unknown tool "${call.name}". Use one of the tools listed in your instructions.`)
   }
+
+  if (!permitted) return fail(call, `Refused: "${call.name}" is not enabled for this bot.`)
 
   if (!allowedInMode(session.mode, call.name, schema)) {
     return fail(call, modeRefusal(session.mode, call.name))
@@ -136,9 +158,11 @@ async function approveAndRun(
     const target = targetForCall(call)
     const outcome = await requestApproval({
       sessionId: session.id,
+      botId: input.bot.id,
       toolName: call.name,
       call,
       target,
+      localExecution: input.bot.computerTarget?.kind !== 'vm' && isLocalResourceTool(call.name),
       kind: kindForTool(call.name, schema),
       summary: summarise(call.name, call, target),
       detail: detailFor(call),

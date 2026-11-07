@@ -1,0 +1,12 @@
+.ob-github-draft {
+  width: min(100%, 620px);
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid var(--border-subtle, rgba(128, 128, 128, .18));
+  border-radius: 16px;
+  background: var(--surface, rgba(128, 128, 128, .06));
+  font-size: 14px;
+}
+.ob-github-draft-target { opacity: .7; margin: 7px 0; }
+.ob-github-draft-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0; }
+.ob-github-draft-actions { display: flex; justify-content: flex-end; gap: 8px; }

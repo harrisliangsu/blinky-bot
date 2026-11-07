@@ -1,111 +1,17 @@
-/**
- * Voice input — deliberately switched off, and honest about it.
- *
- * Chromium's Web Speech API is not on-device: `webkitSpeechRecognition` streams
- * microphone audio to Google's servers, and it does so from the browser process
- * where the renderer's CSP cannot reach it. This app promises no telemetry, so
- * that alone rules the API out. Independently, src/main/app/permissions.ts
- * grants nothing but `clipboard-sanitized-write`, so audio capture is denied
- * without a prompt and every attempt ended the same way: a toast reading the raw
- * jargon "Voice input failed: not-allowed."
- *
- * The old guard could not save it. `webkitSpeechRecognition` exists in every
- * Chromium build, so `if (!Recognition) return null` never fired and the caller's
- * clear fallback — use macOS Dictation, which runs on the machine — was
- * unreachable. The policy gate below fires first instead, before anything can
- * open a microphone or reach a network.
- */
-
-interface SpeechAlternative { transcript: string }
-interface SpeechResult { 0: SpeechAlternative; isFinal: boolean }
-interface SpeechEvent { results: ArrayLike<SpeechResult>; resultIndex: number }
-interface SpeechRecognitionLike {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  onresult: ((event: SpeechEvent) => void) | null
-  onerror: ((event: { error?: string }) => void) | null
-  onend: (() => void) | null
-  start(): void
-  stop(): void
-}
-type SpeechConstructor = new () => SpeechRecognitionLike
-
-export interface VoiceSession { stop(): void }
-
-/**
- * Whether speech recognition may run at all.
- *
- * A constant, not a feature test: the reasons it may not are policy (audio
- * leaves the machine; the microphone is denied by design), and a capability
- * check would answer "yes" to both. It stays a function so the machinery below
- * remains live code — wiring up a local, on-device engine is then this one line
- * plus a constructor, not a resurrection.
- */
-function speechRecognitionAllowed(): boolean {
-  return false
-}
-
-export function startVoiceInput(callbacks: {
-  result(text: string, final: boolean): void
-  error(message: string): void
-  end(): void
-}): VoiceSession | null {
-  if (!speechRecognitionAllowed()) return null
-  const speechWindow = window as unknown as { SpeechRecognition?: SpeechConstructor; webkitSpeechRecognition?: SpeechConstructor }
-  const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition
-  if (!Recognition) return null
-  /*
-   * Construction and `start()` throw synchronously — an insecure context, a
-   * second start on a live session — and this runs inside a click handler, which
-   * React error boundaries do not catch. An uncaught throw there kills the
-   * toggle with no toast and no way back, so both are caught and answered with
-   * null: the caller then shows its fallback, which is the useful outcome.
-   */
-  let recognition: SpeechRecognitionLike
-  try {
-    recognition = new Recognition()
-  } catch {
-    return null
+import type { VoiceError } from '../../../shared/voice'
+/** No provider keys or cloud fallback: messages describe actual local failures. */
+export function voiceError(code: VoiceError | undefined, zh: boolean): string {
+  const messages: Record<VoiceError, [string, string]> = {
+    'interaction-required': ['请在当前窗口点击麦克风开始语音输入。', 'Click the microphone in the current window to start voice input.'],
+    'microphone-permission': ['麦克风未获允许。请在系统设置的隐私与安全性中允许 BlinkyBot 使用麦克风后重试。', 'Allow BlinkyBot microphone access in System Settings → Privacy & Security, then try again.'],
+    'speech-permission': ['语音识别未获允许。请在系统设置的隐私与安全性中允许 BlinkyBot 使用语音识别后重试。', 'Allow BlinkyBot speech recognition in System Settings → Privacy & Security, then try again.'],
+    'microphone-unavailable': ['无法使用麦克风。请检查输入设备后重试。', 'The microphone is unavailable. Check your input device and try again.'],
+    unavailable: ['当前语言的本地语音识别不可用。请在系统设置中启用听写并下载该语言，或更换语音语言。', 'On-device speech recognition is unavailable for this language. Enable Dictation and download the language in System Settings, or choose another language.'],
+    'helper-unavailable': ['本地语音服务未能响应，暂时无法确认识别可用性。输入草稿保留；请检查应用后重试。', 'The native speech service did not respond, so recognition availability could not be confirmed. Your draft is kept. Check the app and try again.'],
+    'host-required': ['本机语音输入请在 Mac 客户端使用；此局域网页面不会请求麦克风。', 'Use the Mac client for on-device dictation. This LAN page does not request microphone access.'],
+    recognition: ['本地识别未能完成。草稿已保留，请重试。不会改用在线识别。', 'On-device recognition could not finish. Your draft is kept. Try again; audio is never sent to an online service.'],
+    'no-speech': ['未识别到语音，草稿未改变。', 'No speech was recognized. Your draft is unchanged.'],
+    busy: ['语音输入正在使用中。', 'Voice input is already in use.']
   }
-  recognition.continuous = true
-  recognition.interimResults = true
-  recognition.lang = navigator.language || 'en-GB'
-  recognition.onresult = (event) => {
-    let finalText = ''
-    let interim = ''
-    for (let index = event.resultIndex; index < event.results.length; index += 1) {
-      const result = event.results[index]
-      const transcript = result?.[0]?.transcript ?? ''
-      if (result?.isFinal) finalText += transcript
-      else interim += transcript
-    }
-    if (finalText) callbacks.result(finalText, true)
-    if (interim) callbacks.result(interim, false)
-  }
-  // A Web Speech error code is jargon to the person who pressed the button, and
-  // the only actionable answer is the same one the caller gives when this module
-  // declines outright: dictate on the machine instead.
-  recognition.onerror = () => callbacks.error('Voice input stopped. You can use macOS Dictation in the message field instead.')
-  recognition.onend = callbacks.end
-  try {
-    recognition.start()
-  } catch {
-    return null
-  }
-  return {
-    stop: () => {
-      /*
-       * Handlers go before the stop. `stop()` is followed by a last `onend` (and
-       * sometimes a final `onresult`), and each of those closures holds the
-       * composer's setState functions — a composer that has since unmounted, or
-       * moved on to another session, would be written to by a session it no
-       * longer owns. The caller resets its own state when it calls stop.
-       */
-      recognition.onresult = null
-      recognition.onerror = null
-      recognition.onend = null
-      recognition.stop()
-    }
-  }
+  return messages[code ?? 'recognition'][zh ? 0 : 1]
 }

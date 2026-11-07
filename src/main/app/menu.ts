@@ -10,12 +10,6 @@ import { sendMenuCommand } from '../ipc'
 
 const isMac = process.platform === 'darwin'
 
-const newChatItem: MenuItemConstructorOptions = {
-  label: 'New Chat',
-  accelerator: 'CmdOrCtrl+N',
-  click: () => sendMenuCommand('new-chat')
-}
-
 const settingsItem: MenuItemConstructorOptions = {
   label: isMac ? 'Settings…' : 'Preferences…',
   accelerator: 'CmdOrCtrl+,',
@@ -45,7 +39,11 @@ function appMenu(): MenuItemConstructorOptions[] {
 }
 
 function fileMenu(): MenuItemConstructorOptions {
-  const items: MenuItemConstructorOptions[] = [newChatItem, { type: 'separator' }]
+  const items: MenuItemConstructorOptions[] = [
+    { label: 'Focus Message', accelerator: 'CmdOrCtrl+L', click: () => sendMenuCommand('focus-composer') },
+    { label: 'Find Bot', accelerator: 'CmdOrCtrl+F', click: () => sendMenuCommand('find-bot') },
+    { type: 'separator' }
+  ]
   if (isMac) {
     items.push({ role: 'close' })
   } else {
@@ -80,6 +78,8 @@ function editMenu(): MenuItemConstructorOptions {
 const viewMenu: MenuItemConstructorOptions = {
   label: 'View',
   submenu: [
+    { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+\\', click: () => sendMenuCommand('toggle-sidebar') },
+    { type: 'separator' },
     { role: 'reload' },
     { role: 'forceReload' },
     { role: 'toggleDevTools' },

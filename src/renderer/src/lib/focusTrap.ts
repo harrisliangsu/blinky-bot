@@ -39,6 +39,21 @@ const stack: Entry[] = []
 
 /** Where focus goes when the last dialog closes. */
 let returnTo: HTMLElement | null = null
+let returnToWasKeyboardFocus = false
+let keyboardInput = true
+
+// Record the way a dialog was opened before it moves focus into its panel.
+// Escape itself must not turn a mouse-opened trigger into keyboard focus.
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', () => { keyboardInput = false; document.documentElement.dataset.obInputMode = 'pointer' }, true)
+  document.addEventListener('keydown', (event) => {
+    // Escape closes a pointer-opened popover; it should not introduce a focus
+    // ring onto its trigger. Tab and other keyboard use restore visible focus.
+    if (event.key === 'Escape') return
+    keyboardInput = true
+    document.documentElement.dataset.obInputMode = 'keyboard'
+  }, true)
+}
 
 /**
  * Which open dialog owns the keyboard: the most recent blocking one, or the
@@ -93,7 +108,10 @@ export function useFocusTrap(panelRef: RefObject<HTMLElement | null>, level: Tra
     const entry: Entry = { panel: panelRef, level }
     // Captured before the dialog steals focus, and only for the first one open:
     // a second dialog would otherwise "restore" to the first dialog's panel.
-    if (stack.length === 0 && !returnTo) returnTo = activeElement()
+    if (stack.length === 0 && !returnTo) {
+      returnTo = activeElement()
+      returnToWasKeyboardFocus = keyboardInput && (returnTo?.matches(':focus-visible') ?? false)
+    }
     stack.push(entry)
 
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -131,7 +149,18 @@ export function useFocusTrap(panelRef: RefObject<HTMLElement | null>, level: Tra
         if (stack.length > 0) return
         const target = returnTo
         returnTo = null
-        if (target?.isConnected) target.focus()
+        if (!target?.isConnected) return
+        if (!returnToWasKeyboardFocus) {
+          target.setAttribute('data-ob-pointer-focus-restored', '')
+          const clear = (): void => {
+            target.removeAttribute('data-ob-pointer-focus-restored')
+            document.removeEventListener('keydown', clear, true)
+            target.removeEventListener('blur', clear)
+          }
+          document.addEventListener('keydown', clear, true)
+          target.addEventListener('blur', clear, { once: true })
+        }
+        target.focus()
       })
     }
   }, [panelRef, level])

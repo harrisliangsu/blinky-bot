@@ -189,14 +189,22 @@ export class ChromeSession {
     this.cdp?.close()
     this.cdp = undefined
     const proc = this.proc
-    this.proc = undefined
-    if (proc && proc.exitCode === null) {
-      proc.kill('SIGTERM')
-      // Chrome usually exits promptly; escalate if it does not.
-      setNodeTimeout(() => {
-        if (proc.exitCode === null) proc.kill('SIGKILL')
-      }, KILL_GRACE_MS).unref()
+    if (proc && proc.exitCode === null && proc.signalCode === null) {
+      // Callers may remove the isolated profile immediately after stop. Wait
+      // for this process to exit so it cannot keep writing into that profile.
+      await new Promise<void>((resolve, reject) => {
+        let finished = false, hardDeadline: ReturnType<typeof setNodeTimeout> | undefined
+        const finish = (): void => { if (finished) return; finished = true; clearTimeout(grace); if (hardDeadline) clearTimeout(hardDeadline); proc.off('exit', finish); resolve() }
+        const grace = setNodeTimeout(() => {
+          if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL')
+          hardDeadline = setNodeTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { proc.off('exit', finish); finished = true; reject(new Error('Browser exit could not be confirmed.')) } else finish() }, 1000)
+        }, KILL_GRACE_MS)
+        proc.once('exit', finish)
+        proc.kill('SIGTERM')
+        if (proc.exitCode !== null || proc.signalCode !== null) finish()
+      })
     }
+    if (this.proc === proc) this.proc = undefined
     this.state = 'stopped'
   }
 }

@@ -1,6 +1,16 @@
 .ob-tools-intro {
   margin: 0;
 }
+.ob-tools-tabs { display: flex; gap: var(--ob-space-2); }
+.ob-tools-tabs [aria-selected='true'] { background: var(--ob-bg-hover); border-color: var(--ob-border-subtle); }
+
+.ob-skill-search {
+  display: flex;
+  align-items: center;
+  gap: var(--ob-space-3);
+}
+.ob-skill-search input { flex: 1; min-width: 0; }
+.ob-skill-search .ob-hint { white-space: nowrap; }
 
 .ob-skill-list {
   display: flex;
@@ -23,8 +33,23 @@
 }
 
 .ob-skill-text {
+  flex: 1;
   min-width: 0;
 }
+
+.ob-skill-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ob-space-2); }
+.ob-skill-path {
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ob-text-secondary);
+  font-size: var(--ob-font-size-xs);
+}
+.ob-skill-detail { margin-top: var(--ob-space-2); color: var(--ob-text-secondary); font-size: var(--ob-font-size-xs); }
+.ob-skill-detail summary { cursor: pointer; }
+.ob-skill-detail p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ob-skill-more { align-self: flex-start; }
 
 .ob-skill-name {
   margin-right: var(--ob-space-1-5);

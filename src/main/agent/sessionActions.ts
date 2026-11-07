@@ -31,9 +31,9 @@ export async function remember(
 }
 
 /** Accepts a full entry, as the tool layer's `ToolHost.saveMemory` hook does. */
-export async function saveMemoryEntry(entry: MemoryEntry): Promise<void> {
-  if (!entry?.botId || !entry.text) return
-  await rememberFact(entry.botId, entry.text, entry.source ?? 'run', entry.tags)
+export async function saveMemoryEntry(entry: MemoryEntry): Promise<RememberOutcome> {
+  if (!entry?.botId || !entry.text) return { entry: null, reason: 'memory text is empty' }
+  return rememberFact(entry.botId, entry.text, entry.source ?? 'run', entry.tags)
 }
 
 export async function setTodos(sessionId: string, todos: TodoItem[] | unknown): Promise<boolean> {

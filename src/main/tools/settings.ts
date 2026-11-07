@@ -17,6 +17,7 @@ export function settingsOf(ctx: ToolContext): EffectiveSettings {
   if (!s) return DEFAULTS
   return {
     approvalPolicy: s.approvalPolicy ?? DEFAULTS.approvalPolicy,
+    localExecutionPolicy: s.localExecutionPolicy,
     allowlist: Array.isArray(s.allowlist) ? s.allowlist : [],
     denylist: Array.isArray(s.denylist) ? s.denylist : [],
     computerUseAllowedApps: Array.isArray(s.computerUseAllowedApps) ? s.computerUseAllowedApps : []

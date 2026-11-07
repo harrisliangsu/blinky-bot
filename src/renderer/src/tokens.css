@@ -1,23 +1,19 @@
 /*
- * OpenBOT design tokens.
- * Primitives are declared once; every semantic value is derived from them with
- * color-mix() so that flipping the surface/base pair is all a theme has to do.
- * Components must reference --ob-* tokens only — never a literal colour.
+ * BlinkyBot design tokens. Neutral surfaces give the working area a quiet
+ * hierarchy while semantic colors identify actions and status.
+ * Components should use semantic --ob-* values so both themes stay coherent.
  */
 
 :root,
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /* ── Primitives ──────────────────────────────────────────────────
-     Reference product is monochrome-on-black: pure black ground, white
-     text, neutral controls. Hues are reserved for STATE (working, error,
-     diffs) and for bot identity — never for general chrome. */
-  --ob-base: #ffffff; /* foreground */
-  --ob-accent: #e8a33d; /* warm amber: active/working states */
-  --ob-chrome: #000000; /* titlebar / window chrome */
-  --ob-editor: #0a0a0a; /* main content surface */
-  --ob-sidebar: #000000;
+  /* ── Primitives ────────────────────────────────────────────────── */
+  --ob-base: #eeeeee;
+  --ob-accent: #c6c6c6;
+  --ob-chrome: #111111;
+  --ob-editor: #171717;
+  --ob-sidebar: #111111;
 
   --ob-success: #3fa266;
   --ob-added: #70b489;
@@ -58,11 +54,11 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --ob-base: #1a1a1a;
-  --ob-accent: #3b6cf5;
+  --ob-base: #242424;
+  --ob-accent: #303030;
   --ob-chrome: #ffffff;
   --ob-editor: #ffffff;
-  --ob-sidebar: #f4f5f7;
+  --ob-sidebar: #f3f3f3;
 
   --ob-success: #2f8552;
   --ob-added: #3d8a5f;
@@ -102,9 +98,9 @@
 :root {
   /* Text tiers */
   --ob-text-primary: var(--ob-base);
-  --ob-text-secondary: color-mix(in srgb, var(--ob-base) 70%, transparent);
-  --ob-text-tertiary: color-mix(in srgb, var(--ob-base) 50%, transparent);
-  --ob-text-disabled: color-mix(in srgb, var(--ob-base) 35%, transparent);
+  --ob-text-secondary: color-mix(in srgb, var(--ob-base) 76%, transparent);
+  --ob-text-tertiary: color-mix(in srgb, var(--ob-base) 62%, transparent);
+  --ob-text-disabled: color-mix(in srgb, var(--ob-base) 42%, transparent);
   --ob-text-on-accent: var(--ob-chrome);
 
   /* Surfaces */
@@ -113,14 +109,17 @@
   --ob-bg-sidebar: var(--ob-sidebar);
   --ob-bg-raised: color-mix(in srgb, var(--ob-base) 6%, var(--ob-editor));
   --ob-bg-raised-2: color-mix(in srgb, var(--ob-base) 10%, var(--ob-editor));
-  /* Card surface: the reference UI's primary content container — a lifted
-     panel on the black ground, generous radius, no heavy border. */
+  /* Cards sit one level above the work area. */
   --ob-bg-card: color-mix(in srgb, var(--ob-base) 8%, var(--ob-editor));
   --ob-bg-hover: color-mix(in srgb, var(--ob-base) 10%, var(--ob-editor));
   --ob-bg-active: color-mix(in srgb, var(--ob-base) 16%, transparent);
   --ob-bg-focused: color-mix(in srgb, var(--ob-base) 22%, transparent);
-  --ob-bg-overlay: color-mix(in srgb, var(--ob-chrome) 62%, transparent);
+  --ob-bg-overlay: rgb(0 0 0 / 62%);
   --ob-bg-input: color-mix(in srgb, var(--ob-base) 6%, transparent);
+  --ob-glass-bg: color-mix(in srgb, var(--ob-bg-card) 86%, transparent);
+  --ob-glass-hover: color-mix(in srgb, var(--ob-bg-card) 96%, transparent);
+  --ob-glass-border: color-mix(in srgb, var(--ob-text-primary) 8%, transparent);
+  --ob-glass-shadow: 0 2px 12px color-mix(in srgb, black 10%, transparent), inset 0 1px color-mix(in srgb, white 20%, transparent);
 
   /* Hairlines */
   --ob-border-subtle: color-mix(in srgb, var(--ob-base) 8%, transparent);
@@ -168,7 +167,7 @@
   --ob-line-height-lg: calc(var(--ob-font-size-base) + 11px);
   --ob-line-height-prose: calc(var(--ob-font-size-base) + 10px);
 
-  --ob-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --ob-font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif;
   --ob-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --ob-weight-normal: 400;
@@ -213,8 +212,7 @@
   --ob-space-16: 64px;
   --ob-space-20: 80px;
 
-  /* ── Controls ─────────────────────────────────────────────────────
-     Reference product uses roomy, pill-shaped controls — not IDE rows. */
+  /* ── Controls ───────────────────────────────────────────────────── */
   --ob-height-xs: 24px;
   --ob-height-sm: 30px;
   --ob-height-base: 36px;
@@ -223,24 +221,22 @@
   --ob-sidebar-width: 272px;
   --ob-rail-width: 320px;
   --ob-content-max: 720px;
-  /* Default control shape. Pills are a signature of the reference UI. */
-  --ob-control-radius: var(--ob-radius-full);
+  --ob-control-radius: 10px;
   --ob-card-radius: var(--ob-radius-3xl);
   --ob-card-padding: var(--ob-space-6);
 
   /* ── Shadows ────────────────────────────────────────────────────── */
   --ob-shadow-workbench: 0 0 8px 2px color-mix(in srgb, var(--ob-shadow-primary) 40%, transparent);
-  --ob-shadow-popover: 0 2px 12px 2px color-mix(in srgb, var(--ob-shadow-primary) 70%, transparent);
-  --ob-shadow-modal: 0 8px 40px 4px color-mix(in srgb, var(--ob-shadow-primary) 90%, transparent);
+  --ob-shadow-popover: 0 8px 24px rgb(0 0 0 / 16%), 0 2px 6px rgb(0 0 0 / 10%);
+  --ob-shadow-modal: 0 24px 80px rgb(0 0 0 / 26%), 0 3px 12px rgb(0 0 0 / 12%);
 
   /* ── Motion ─────────────────────────────────────────────────────── */
-  --ob-transition-fast: 90ms ease;
-  --ob-transition-base: 140ms ease;
+  --ob-transition-fast: 120ms ease;
+  --ob-transition-base: 180ms ease;
 
-  /* Primary buttons stay monochrome until a theme sets these. */
-  --ob-btn-primary-fg: var(--ob-chrome);
-  --ob-btn-primary-bg: var(--ob-base);
-  --ob-btn-primary-hover: color-mix(in srgb, var(--ob-base) 86%, transparent);
+  --ob-btn-primary-fg: #171717;
+  --ob-btn-primary-bg: #e7e7e7;
+  --ob-btn-primary-hover: #ffffff;
   --ob-mark-bg: var(--ob-bg-active);
   --ob-mark-fg: var(--ob-text-primary);
   --ob-empty-mark-bg: var(--ob-accent-quaternary);
@@ -249,24 +245,27 @@
   --ob-shadow-row: none;
 }
 
-/* BoardUI light: soft gray chrome, white cards, blue actions. Dark stays as-is. */
+/* Light theme surfaces are opaque so controls remain clear over the canvas. */
 :root[data-theme='light'] {
-  --ob-bg-sidebar: #f4f5f7;
+  --ob-bg-sidebar: var(--ob-sidebar);
   --ob-bg-chrome: #ffffff;
   --ob-bg-editor: #ffffff;
   --ob-bg-card: #ffffff;
   --ob-bg-input: #ffffff;
-  --ob-bg-canvas: #f6f7f9;
-  --ob-border-subtle: color-mix(in srgb, #1a1a1a 10%, transparent);
-  --ob-border: color-mix(in srgb, #1a1a1a 14%, transparent);
+  --ob-bg-canvas: #ffffff;
+  --ob-bg-overlay: rgb(0 0 0 / 42%);
+  --ob-border-subtle: color-mix(in srgb, #000 12%, transparent);
+  --ob-border: color-mix(in srgb, #000 18%, transparent);
   --ob-btn-primary-fg: #ffffff;
-  --ob-btn-primary-bg: var(--ob-accent);
-  --ob-btn-primary-hover: color-mix(in srgb, var(--ob-accent) 86%, #000);
-  --ob-mark-bg: #1c2430;
+  --ob-btn-primary-bg: #242424;
+  --ob-btn-primary-hover: #404040;
+  --ob-mark-bg: #242424;
   --ob-mark-fg: #ffffff;
   --ob-empty-mark-bg: color-mix(in srgb, var(--ob-accent) 14%, #ffffff);
   --ob-empty-mark-fg: var(--ob-accent);
-  --ob-shadow-row: 0 1px 2px color-mix(in srgb, #101828 8%, transparent), 0 1px 3px color-mix(in srgb, #101828 6%, transparent);
+  --ob-shadow-row: 0 1px 2px rgb(0 0 0 / 8%), 0 1px 3px rgb(0 0 0 / 6%);
+  --ob-shadow-popover: 0 8px 24px rgb(0 0 0 / 16%), 0 2px 6px rgb(0 0 0 / 10%);
+  --ob-shadow-modal: 0 24px 80px rgb(0 0 0 / 26%), 0 3px 12px rgb(0 0 0 / 12%);
 }
 
 html[data-accent='amber'] { --ob-accent: #e8a33d; }

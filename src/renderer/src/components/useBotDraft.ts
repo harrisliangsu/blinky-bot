@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ThinkingDepth } from '../../../shared/thinking'
+import { resolveBotBinding } from '../../../shared/botBinding'
 import type { Bot, ComputerTarget } from '../../../shared/types'
+import type { BotTemplate } from '../../../shared/botTemplates'
 import type { RuntimeChoice } from './BotRuntimeFields'
 import {
   cancelComputerProvision,
@@ -9,9 +11,10 @@ import {
   probeComputerTarget,
   provisionComputerTarget,
   removeBot,
-  updateBot
+  updateBot,
+  useAppState
 } from '../state'
-import { EMOJI, SWATCHES } from './BotEditorIdentity'
+import { DEFAULT_AVATAR_SHAPE, DEFAULT_AVATAR_COLOR, avatarColor } from '../../../shared/botAvatars'
 
 /** A bot being edited: the saved one, or the fields a new one starts with. */
 export type BotDraft = Bot | Omit<Bot, 'id' | 'createdAt' | 'updatedAt'>
@@ -22,12 +25,14 @@ const emptyDraft = (): Omit<Bot, 'id' | 'createdAt' | 'updatedAt'> => ({
   name: '',
   description: '',
   systemPrompt: '',
-  emoji: EMOJI[0]!,
-  color: SWATCHES[0]!,
+  emoji: '✨',
+  color: avatarColor(DEFAULT_AVATAR_COLOR).hex,
+  avatarShape: DEFAULT_AVATAR_SHAPE,
+  avatarColor: DEFAULT_AVATAR_COLOR,
   backendId: '',
   modelId: 'default',
   followsDefault: true,
-  tools: ['read_file', 'list_dir', 'glob', 'grep', 'request_help'],
+  tools: ['read_file', 'list_dir', 'glob', 'grep', 'request_help', 'delegate_task'],
   computerUse: false,
   computerTarget: { kind: 'local' }
 })
@@ -60,8 +65,20 @@ export interface BotDraftForm {
  * and saving, and the provisioned VM that has to be handed over or thrown away
  * whichever way the editor is left.
  */
-export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot: Bot) => void): BotDraftForm {
-  const [draft, setDraft] = useState<BotDraft>(() => (bot ? { ...bot } : emptyDraft()))
+function fromTemplate(template?: BotTemplate): BotDraft {
+  const blank = emptyDraft()
+  return template ? { ...blank, name: template.name, description: template.description, emoji: template.emoji, color: template.color, systemPrompt: template.systemPrompt, tools: [...new Set([...template.tools, 'delegate_task'])] } : blank
+}
+
+export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot: Bot) => void, template?: BotTemplate): BotDraftForm {
+  const { settings } = useAppState()
+  const initialDraft = (): BotDraft => {
+    const draft = bot ? { ...bot } : fromTemplate(template)
+    const runtime = settings ? resolveBotBinding(draft, settings) : draft
+    // Pin once, so editing the conversation model never changes the executor.
+    return { ...draft, executionAgent: draft.executionAgent ?? { backendId: runtime.backendId, modelId: runtime.modelId, ...(runtime.thinking ? { thinking: runtime.thinking } : {}) } }
+  }
+  const [draft, setDraft] = useState<BotDraft>(initialDraft)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [targetStatus, setTargetStatus] = useState<string | null>(null)
@@ -73,10 +90,10 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
     const abandoned = provisionalTarget.current
     provisionalTarget.current = null
     if (abandoned) void discardComputerTarget(abandoned)
-    setDraft(bot ? { ...bot } : emptyDraft())
+    setDraft(initialDraft())
     setConfirmDelete(false)
     setTargetStatus(null)
-  }, [bot?.id])
+  }, [bot?.id, template?.id])
 
   useEffect(() => () => {
     editorActive.current = false
@@ -101,10 +118,10 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
     }))
 
   const save = async (): Promise<void> => {
-    if (!draft.name.trim()) return
+    if (!draft.name.trim() || saving) return
     setSaving(true)
     setTargetStatus(null)
-    if (draft.computerTarget.kind === 'vm') {
+    if (draft.computerTarget.kind === 'vm' && JSON.stringify(draft.computerTarget) !== JSON.stringify(bot?.computerTarget)) {
       const probe = await probeComputerTarget(draft.computerTarget, bot?.id)
       setTargetStatus(probe.detail ?? (probe.ok ? 'VM connection verified.' : 'The VM could not be reached.'))
       if (!probe.ok) {
@@ -123,16 +140,24 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
       name: draft.name,
       description: draft.description,
       systemPrompt: draft.systemPrompt,
-      emoji: draft.emoji,
+      // Legacy emoji is display-only. Do not overwrite a value this editor
+      // cannot change; a newly created Bot still carries its fallback identity.
+      ...(!bot ? { emoji: draft.emoji } : {}),
       color: draft.color,
+      ...(draft.avatarShape !== undefined ? { avatarShape: draft.avatarShape, avatarColor: draft.avatarColor } : {}),
       backendId: draft.backendId,
       modelId: draft.modelId,
       followsDefault: draft.followsDefault === false ? false : true,
       thinking: (draft.followsDefault === false && draft.thinking ? draft.thinking : '') as ThinkingDepth,
-      tools: draft.tools,
-      skills: draft.skills ?? [],
-      computerUse: draft.computerUse,
-      computerTarget: draft.computerTarget
+      executionAgent: draft.executionAgent,
+      // These are no longer editable here. Omitting them on existing Bots
+      // preserves live grants and avoids probing an unchanged legacy VM.
+      ...(!bot ? {
+        tools: draft.tools,
+        skills: draft.skills ?? [],
+        computerUse: draft.computerUse,
+        computerTarget: draft.computerTarget
+      } : {})
     }
     const saved = bot ? await updateBot(bot.id, edited) : await createBot(edited)
     setSaving(false)
@@ -166,6 +191,8 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
   }
 
   const close = async (): Promise<void> => {
+    if (saving) return
+    if (confirmDelete) { setConfirmDelete(false); return }
     editorActive.current = false
     await cancelComputerProvision()
     const abandoned = provisionalTarget.current
@@ -175,12 +202,13 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
   }
 
   const remove = async (): Promise<void> => {
+    if (!bot || saving || !confirmDelete) return
+    setSaving(true)
     editorActive.current = false
     await cancelComputerProvision()
     const abandoned = provisionalTarget.current
     provisionalTarget.current = null
     if (abandoned) await discardComputerTarget(abandoned)
-    if (!bot) return
     /*
      * Closing is part of deleting. Without it the drawer stayed open on a bot
      * that no longer exists, so `BotEditor` re-rendered with `bot === null` —
@@ -188,7 +216,20 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
      * build a replacement the instant you deleted one. A delete that failed has
      * already toasted and leaves the editor where it was.
      */
-    if (await removeBot(bot.id)) onClose()
+    const removed = await removeBot(bot.id)
+    setSaving(false)
+    if (removed) {
+      onClose()
+      requestAnimationFrame(() => {
+        // The deleted Bot's header/card cannot receive return focus. Keep the
+        // remaining modal's ownership, or land on persistent navigation.
+        if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement.isConnected) return
+        const dialog = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].at(-1)
+        const target = dialog?.querySelector<HTMLElement>('button:not([disabled])')
+          ?? document.querySelector<HTMLElement>('.ob-side-item-main, .ob-side-section-head button, .ob-header-left button')
+        target?.focus({ preventScroll: true })
+      })
+    } else editorActive.current = true
   }
 
   return {

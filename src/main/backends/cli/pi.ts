@@ -29,7 +29,6 @@ import { parsePiModels } from './piModels'
 import { captureCli, runStdioJson } from './stdioJson'
 import { flattenTranscript, systemPromptOf } from './transcript'
 import { promptedToolStream, withPromptedTools } from '../promptedTools'
-import { textOf } from '../messageContent'
 
 export const PI_SPEC: AgentCliSpec = {
   id: 'pi',
@@ -45,8 +44,16 @@ export const PI_SPEC: AgentCliSpec = {
   }
 }
 
-function buildArgs(model: string, system: string, extra: string[], readOnly: boolean): string[] {
-  const args = ['--print', '--mode', 'json', '--no-session']
+function buildArgs(model: string, system: string, extra: string[], readOnly: boolean, thinking?: ChatRequest['thinking']): string[] {
+  // --tools overrides --no-tools in pi's SDK; explicit extensions still load
+  // with --no-extensions. Neither may bypass the application's approval gate.
+  if (extra.some((arg) => /^(--tools|-t|--extension|-e)(=|$)/.test(arg))) {
+    throw new Error('pi extra arguments cannot enable native tools or extensions outside application approvals.')
+  }
+  if (thinking && !['off', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinking)) {
+    throw new Error('pi does not support the selected thinking depth.')
+  }
+  const args = [...extra, '--print', '--mode', 'json', '--no-session', '--no-extensions']
   /*
    * A side call has to produce text and nothing else, so it is not given tools
    * at all. Left with the session's own tool set, a background extraction whose
@@ -63,8 +70,8 @@ function buildArgs(model: string, system: string, extra: string[], readOnly: boo
     args.push('--tools', 'read')
   }
   args.push(...modelFlag('--model', { model, cwd: '', extraArgs: [] }))
+  if (thinking) args.push('--thinking', thinking)
   if (system) args.push('--append-system-prompt', system)
-  args.push(...extra)
   return args
 }
 
@@ -88,13 +95,15 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
     : flattened
 
   const stream = runStdioJson({
+    onTiming: req.onTiming,
     spec: PI_SPEC,
     binaryPath,
     args: buildArgs(
       ctx.model,
       systemPromptOf(messages),
       ctx.extraArgs,
-      req.readOnly === true || modelOnly
+      req.readOnly === true || modelOnly,
+      req.thinking
     ),
     ctx,
     // The system turn travels on --append-system-prompt above; leaving it in
@@ -105,10 +114,8 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
     signal: req.signal
   })
   if (modelOnly && req.tools?.length) {
-    const fallback = trailingTool
-      ? `Tool result:\n${textOf(trailingTool.content).trim() || '(no output)'}`
-      : undefined
-    yield* promptedToolStream(stream, req.tools, fallback)
+    // An empty public stream stays empty. Tool output is not model speech.
+    yield* promptedToolStream(stream, req.tools)
   }
   else yield* stream
 }

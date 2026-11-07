@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { BoardCard, Bot } from '../../../shared/types'
 import { openCardChat, removeCard, updateCard } from '../state'
 import { BotAvatar } from './BotAvatar'
-import { IconChat, IconClose, IconTrash } from './Icons'
+import { IconChat, IconTrash } from './Icons'
+import { FormDialog } from './FormDialog'
 import './CardEditor.css'
 
 interface CardEditorProps {
@@ -15,46 +16,54 @@ interface CardEditorProps {
 export function CardEditor({ card, bots, onClose }: CardEditorProps): ReactNode {
   const [title, setTitle] = useState(card.title)
   const [notes, setNotes] = useState(card.notes)
+  const [botId, setBotId] = useState(card.botId ?? '')
+  const [saving, setSaving] = useState(false)
+  const original = useRef({ title: card.title, notes: card.notes, botId: card.botId ?? '' })
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     setTitle(card.title)
     setNotes(card.notes)
+    setBotId(card.botId ?? '')
+    original.current = { title: card.title, notes: card.notes, botId: card.botId ?? '' }
     setConfirmDelete(false)
-  }, [card.id, card.title, card.notes])
+  }, [card.id])
 
-  const dirty = title.trim() !== card.title || notes !== card.notes
-  const assigned = card.botId ? bots.find((b) => b.id === card.botId) : undefined
+  const dirty = title.trim() !== original.current.title || notes !== original.current.notes || botId !== original.current.botId
+  const assigned = botId ? bots.find((b) => b.id === botId) : undefined
 
-  const save = (): void => {
-    if (!dirty || !title.trim()) return
-    void updateCard(card.id, { title: title.trim(), notes })
+  const save = async (): Promise<void> => {
+    if (!dirty || !title.trim() || saving) return
+    setSaving(true)
+    const patch: Partial<BoardCard> = {}
+    if (title.trim() !== original.current.title) patch.title = title.trim()
+    if (notes !== original.current.notes) patch.notes = notes
+    if (botId !== original.current.botId) patch.botId = botId
+    if (await updateCard(card.id, patch)) onClose()
+    setSaving(false)
   }
 
   return (
+    <FormDialog title="Edit card" size="md" onClose={() => { if (!saving) onClose() }}>
     <div className="ob-card-editor">
-      <header className="ob-card-editor-head">
-        <h3>Card</h3>
-        <button type="button" className="ob-icon-btn" aria-label="Close card editor" onClick={onClose}>
-          <IconClose />
-        </button>
-      </header>
 
       <div className="ob-field">
         <label htmlFor="ob-card-title">Title</label>
         <input
+          disabled={saving}
           id="ob-card-title"
           className="ob-input"
           value={title}
           maxLength={200}
           onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && save()}
+          onKeyDown={(e) => { if (e.key === 'Enter') void save() }}
         />
       </div>
 
       <div className="ob-field">
         <label htmlFor="ob-card-notes">Notes</label>
         <textarea
+          disabled={saving}
           id="ob-card-notes"
           className="ob-textarea"
           rows={7}
@@ -69,12 +78,13 @@ export function CardEditor({ card, bots, onClose }: CardEditorProps): ReactNode 
         <div className="ob-card-bot">
           <BotAvatar bot={assigned} size="sm" />
           <select
+            disabled={saving}
             id="ob-card-bot"
             className="ob-select"
-            value={card.botId ?? ''}
+            value={botId}
             // Empty string, not undefined: the store reads an absent key as
             // "leave it alone", so `undefined` could never unassign anyone.
-            onChange={(e) => void updateCard(card.id, { botId: e.target.value })}
+            onChange={(e) => setBotId(e.target.value)}
           >
             <option value="">Nobody yet</option>
             {bots.map((bot) => (
@@ -97,6 +107,7 @@ export function CardEditor({ card, bots, onClose }: CardEditorProps): ReactNode 
       </p>
 
       <footer className="ob-card-editor-foot">
+        <button type="button" className="ob-btn ob-btn-sm" disabled={saving} onClick={onClose}>Cancel</button>
         {confirmDelete ? (
           <span className="ob-card-editor-actions">
             <button
@@ -119,10 +130,11 @@ export function CardEditor({ card, bots, onClose }: CardEditorProps): ReactNode 
             Delete
           </button>
         )}
-        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!dirty || !title.trim()} onClick={save}>
+        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" disabled={saving || !dirty || !title.trim()} onClick={() => void save()}>
           Save
         </button>
       </footer>
     </div>
+    </FormDialog>
   )
 }

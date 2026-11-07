@@ -1,25 +1,58 @@
 .ob-msg {
   display: flex;
   flex-direction: column;
-  gap: var(--ob-space-2);
+  gap: var(--ob-space-1-5);
 }
 
 .ob-msg-user {
   align-items: flex-end;
 }
 
-.ob-msg-shell {
+.ob-msg-row {
+  display: flex;
+  align-items: center;
+  width: fit-content;
   max-width: 100%;
   min-width: 0;
 }
+.ob-msg-user .ob-msg-row { flex-direction: row-reverse; }
+
+.ob-msg-shell {
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.ob-msg-quote {
+  max-width: 100%;
+  margin-bottom: var(--ob-space-1);
+  padding: var(--ob-space-2) var(--ob-space-3);
+  color: var(--ob-text-secondary);
+  background: var(--ob-bg-raised);
+  border-radius: var(--ob-radius-lg);
+}
+.ob-msg-quote strong, .ob-msg-quote span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ob-font-size-sm); }
+.ob-msg-segment + .ob-msg-segment {
+  margin-top: var(--ob-space-5);
+  padding-top: var(--ob-space-5);
+}
 .ob-msg-user .ob-msg-shell {
-  max-width: 82%;
+  max-width: 760px;
+}
+.ob-msg-assistant .ob-msg-shell {
+  width: fit-content;
+  max-width: min(100%, 760px);
 }
 
 .ob-msg-author {
   display: flex;
   align-items: center;
-  gap: var(--ob-space-2-5);
+  gap: var(--ob-space-2);
+  margin-bottom: var(--ob-space-1);
+}
+.ob-msg-author .ob-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
 }
 .ob-msg-author-name {
   font-size: var(--ob-font-size-sm);
@@ -31,15 +64,44 @@
   color: var(--ob-text-disabled);
 }
 
-/* The user's turn sits on a lifted card; the assistant's flows on the ground. */
+/* Each reply has its own surface, while long content stays within the chat. */
+.ob-msg-answer {
+  min-width: 0;
+  padding: var(--ob-space-3) var(--ob-space-4-5);
+  color: var(--ob-text-primary);
+  background: color-mix(in srgb, var(--ob-text-primary) 4%, var(--ob-bg-editor));
+  border: 1px solid color-mix(in srgb, var(--ob-text-primary) 4%, transparent);
+  border-radius: var(--ob-radius-2xl);
+}
+
+.ob-msg-answer .ob-md {
+  font-size: calc(var(--ob-font-size-base) + 2px);
+  line-height: 1.55;
+  font-weight: var(--ob-weight-normal);
+}
+.ob-msg-answer .ob-md h1,
+.ob-msg-answer .ob-md h2 { font-size: 1.125em; line-height: 1.4; }
+.ob-msg-answer .ob-md h3,
+.ob-msg-answer .ob-md h4 { font-size: 1em; line-height: 1.4; }
+.ob-msg-answer .ob-md :not(pre) > code,
+.ob-msg-answer .ob-code-body { font-size: .9em; }
+
 .ob-msg-bubble {
-  padding: var(--ob-space-3-5) var(--ob-space-5);
-  font-size: var(--ob-font-size-base);
-  line-height: var(--ob-line-height-prose);
-  background: var(--ob-bg-card);
-  border-radius: var(--ob-card-radius);
+  padding: var(--ob-space-3) var(--ob-space-4-5);
+  font-size: calc(var(--ob-font-size-base) + 2px);
+  line-height: 1.55;
+  background: color-mix(in srgb, var(--ob-accent) 5%, var(--ob-bg-editor));
+  color: var(--ob-text-primary);
+  border: 1px solid color-mix(in srgb, var(--ob-accent) 10%, transparent);
+  border-radius: var(--ob-radius-2xl);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Light chat surfaces remain neutral regardless of the chosen accent. */
+:root[data-theme='light'] .ob-msg-bubble {
+  background: #f7f7f7;
+  border-color: #ececec;
 }
 
 .ob-caret {
@@ -59,6 +121,10 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .ob-caret { animation: none; }
+}
+
 .ob-msg-tools {
   display: flex;
   flex-direction: column;
@@ -72,6 +138,7 @@
   gap: var(--ob-space-2);
   margin-top: var(--ob-space-3);
 }
+.ob-msg-picture-container { display: inline-block; min-width: 96px; min-height: 28px; }
 .ob-msg-picture {
   display: block;
   max-width: min(320px, 100%);
@@ -144,30 +211,45 @@
   gap: var(--ob-space-2);
   min-width: 0;
 }
+.ob-msg-error button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ob-msg-error button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
 
-/*
- * The footer stays in the layout while hidden so revealing it on hover does not
- * shift the transcript. It is kept short deliberately: at full control height it
- * reserved ~30px of dead space under every message, which read as a large
- * unexplained gap between consecutive turns.
- */
-.ob-msg-foot {
+/* Keep actions beside the bubble and reveal them on hover or keyboard focus. */
+.ob-msg-actions {
   display: flex;
   align-items: center;
-  gap: var(--ob-space-2);
-  height: 18px;
-  font-size: var(--ob-font-size-xs);
-  color: var(--ob-text-disabled);
+  flex: 0 0 auto;
+  gap: var(--ob-space-0-5);
+  padding: 0 var(--ob-space-1);
+  color: var(--ob-text-tertiary);
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--ob-transition-base);
 }
-.ob-msg:hover .ob-msg-foot,
-.ob-msg:focus-within .ob-msg-foot {
+.ob-msg:hover .ob-msg-actions,
+.ob-msg:focus-within .ob-msg-actions,
+.ob-msg-actions.has-reactions {
   opacity: 1;
+  pointer-events: auto;
 }
-.ob-msg-reactions { display: inline-flex; gap: 3px; }
-.ob-msg-reactions button { padding: 1px 5px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: inherit; cursor: pointer; font-size: 10px; }
+.ob-msg-reaction-control { position: relative; }
+.ob-msg-reaction-summary { display: inline-flex; gap: var(--ob-space-0-5); font-size: var(--ob-font-size-xs); white-space: nowrap; }
+.ob-msg-reactions { position: absolute; z-index: 10; right: 0; top: calc(100% + var(--ob-space-1)); display: flex; gap: var(--ob-space-1); padding: var(--ob-space-1); background: var(--ob-bg-card); border: 1px solid var(--ob-border-subtle); border-radius: var(--ob-radius-lg); box-shadow: var(--ob-shadow-popover); }
+.ob-msg-reactions button { padding: var(--ob-space-1); border: 1px solid transparent; border-radius: var(--ob-radius-base); background: transparent; color: inherit; cursor: pointer; font-size: var(--ob-font-size-base); }
 .ob-msg-reactions button:hover, .ob-msg-reactions button.is-active { border-color: var(--ob-border); background: var(--ob-bg-hover); opacity: 1; }
+@media (hover: none) { .ob-msg-actions { opacity: 1; pointer-events: auto; } }
 
 /* ── Handoff divider ──────────────────────────────────────────────── */
 

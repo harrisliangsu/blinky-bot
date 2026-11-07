@@ -8,6 +8,7 @@ import { useAdminTerminal } from './ComputerFrameTerminal'
 import { useComputerScreenPolling } from './useComputerScreenPolling'
 import { useDirectScreenInput } from './useDirectScreenInput'
 import { useWindowFullScreen } from './useWindowFullScreen'
+import { VaultFillControls } from './VaultFillControls'
 import './ComputerFrame.css'
 
 /**
@@ -33,8 +34,8 @@ export function ComputerFrame(): ReactNode {
   const shouldPoll = liveViewing || (expanded && takeover)
   // A frame is an input surface, not merely decoration. Never let a bot switch
   // leave the previous bot's pixels under controls that now target another box.
-  const visibleFrame = computerFrame?.botId === activeBot?.id ? computerFrame : null
-  const directInput = useDirectScreenInput(activeBot?.id, takeover, natural)
+  const visibleFrame = computerFrame && computerFrame.botId === activeBot?.id && computerFrame.sessionId === session?.id ? computerFrame : null
+  const directInput = useDirectScreenInput(activeBot?.id, session?.id, takeover, natural)
   const { fullscreen, toggleFullscreen } = useWindowFullScreen(expanded)
   const terminal = useAdminTerminal(activeBot?.id, takeover && canAdmin)
 
@@ -45,7 +46,7 @@ export function ComputerFrame(): ReactNode {
     setNatural(null)
     setInput('')
     setUrl('')
-  }, [activeBot?.id])
+  }, [activeBot?.id, session?.id])
 
   // Never leave human controls active when a new bot run begins. The live view
   // remains read-only until the explicit stop-and-takeover handoff succeeds.
@@ -53,7 +54,7 @@ export function ComputerFrame(): ReactNode {
     if (streaming) setTakeover(false)
   }, [streaming])
 
-  useComputerScreenPolling(activeBot?.id, shouldPoll, takeover)
+  useComputerScreenPolling(activeBot?.id, session?.id, shouldPoll, takeover)
 
   const perform = async (work: () => Promise<void>): Promise<void> => {
     if (busy || (streaming && !helpRequest)) return
@@ -243,6 +244,7 @@ export function ComputerFrame(): ReactNode {
         onRefresh={() => void refresh()}
         onRestartVm={() => void restartVm()}
         onToggleTakeover={() => void toggleTakeover()}
+        vaultControls={takeover && !streaming && activeBot.computerTarget.kind === 'browser' && session ? <VaultFillControls botId={activeBot.id} sessionId={session.id} /> : null}
       />
     ) : null}
     </>

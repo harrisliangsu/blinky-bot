@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Project } from '../../../shared/types'
-import { fetchProject, newSession, openBoard, openProjectEditor, selectSession, useAppState } from '../state'
+import { fetchProject, openBoard, openBotChat, openProjectEditor, selectSession, useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
-import { IconFolder, IconList, IconPlus, IconPencil } from './Icons'
+import { IconFolder, IconList, IconPencil } from './Icons'
 import { relativeTime } from '../lib/format'
+import { resolveSettingsLang } from '../lib/settingsCopy'
 import './ProjectView.css'
 
 /**
@@ -14,7 +15,8 @@ import './ProjectView.css'
  * before deciding where to go next.
  */
 export function ProjectView(): ReactNode {
-  const { projects, projectHome, sessions, bots, currentSessionId } = useAppState()
+  const { projects, projectHome, sessions, bots, currentSessionId, settings } = useAppState()
+  const zh = resolveSettingsLang(settings?.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
   const project = projects.find((p) => p.id === projectHome)
 
   /*
@@ -58,15 +60,15 @@ export function ProjectView(): ReactNode {
                 </span>
               ))}
               <span className="ob-projview-count">
-                {chats.length} chat{chats.length === 1 ? '' : 's'}
+                {zh ? `${chats.length} 个对话` : `${chats.length} chat${chats.length === 1 ? '' : 's'}`}
               </span>
-              <span className="ob-projview-count">{project.openCards} open</span>
+              <span className="ob-projview-count">{zh ? `${project.openCards} 项待办` : `${project.openCards} open`}</span>
             </div>
           </div>
           <button
             type="button"
             className="ob-icon-btn"
-            aria-label={`Edit ${project.name}`}
+            aria-label={zh ? `编辑 ${project.name}` : `Edit ${project.name}`}
             onClick={() => openProjectEditor(project.id)}
           >
             <IconPencil size={13} />
@@ -74,21 +76,28 @@ export function ProjectView(): ReactNode {
         </header>
 
         <div className="ob-projview-actions">
-          <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => void newSession()}>
-            <IconPlus size={12} />
-            New chat
+          <button
+            type="button"
+            className="ob-btn ob-btn-sm ob-btn-primary"
+            disabled={!full?.botIds.some((id) => bots.some((bot) => bot.id === id && !bot.archived))}
+            onClick={() => {
+              const botId = full?.botIds.find((id) => bots.some((bot) => bot.id === id && !bot.archived))
+              if (botId) void openBotChat(botId)
+            }}
+          >
+            {zh ? '打开对话' : 'Open conversation'}
           </button>
           <button type="button" className="ob-btn ob-btn-sm" onClick={() => void openBoard(project.id)}>
             <IconList size={12} />
-            Board
+            {zh ? '看板' : 'Board'}
           </button>
         </div>
 
         <section className="ob-projview-section">
-          <h2>Chats</h2>
+          <h2>{zh ? '对话' : 'Chats'}</h2>
           {chats.length === 0 ? (
             <p className="ob-projview-empty">
-              No chats yet. Start one and it will be filed here automatically.
+              {zh ? '此项目暂无对话。' : 'No conversations in this project yet.'}
             </p>
           ) : (
             <ul className="ob-projview-list">
@@ -105,7 +114,7 @@ export function ProjectView(): ReactNode {
                       ))}
                     </span>
                     <span className="ob-projview-chat-title">{chat.title}</span>
-                    <span className="ob-projview-chat-when">{relativeTime(chat.updatedAt)}</span>
+                    <span className="ob-projview-chat-when">{zh ? new Date(chat.updatedAt).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : relativeTime(chat.updatedAt)}</span>
                   </button>
                 </li>
               ))}
@@ -117,7 +126,7 @@ export function ProjectView(): ReactNode {
           <h2>Bots</h2>
           {members.length === 0 ? (
             <p className="ob-projview-empty">
-              No bots assigned. Add them in the project settings so new chats start with the right team.
+              {zh ? '尚未添加 Bot。可在项目设置中添加。' : 'No bots assigned. Add them in the project settings.'}
             </p>
           ) : (
             <ul className="ob-projview-bots">
@@ -132,10 +141,10 @@ export function ProjectView(): ReactNode {
         </section>
 
         <section className="ob-projview-section">
-          <h2>Folder</h2>
+          <h2>{zh ? '文件夹' : 'Folder'}</h2>
           <p className="ob-projview-folder">
             <IconFolder size={12} />
-            <span>{full?.cwd || 'Not set'}</span>
+            <span>{full?.cwd || (zh ? '未设置' : 'Not set')}</span>
           </p>
         </section>
       </div>

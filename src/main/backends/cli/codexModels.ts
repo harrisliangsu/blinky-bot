@@ -14,7 +14,8 @@ import type { ModelInfo } from '../types'
 import { parseCodexModelPage } from './codexModelList'
 
 /** Wall clock for the whole probe, inside detection's own budget. */
-const LIST_BUDGET_MS = 5_000
+const LIST_BUDGET_MS = 20_000
+const inFlight = new Map<string, Promise<ModelInfo[]>>()
 
 function withDeadline<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -32,6 +33,19 @@ function withDeadline<T>(promise: Promise<T>, ms: number, what: string): Promise
  * Throws when the process never answers; the caller keeps the CLI default.
  */
 export async function listCodexModels(binaryPath: string, cwd: string): Promise<ModelInfo[]> {
+  const key = JSON.stringify([binaryPath, cwd])
+  const pending = inFlight.get(key)
+  if (pending) return pending
+  const probe = probeCodexModels(binaryPath, cwd)
+  inFlight.set(key, probe)
+  try {
+    return await probe
+  } finally {
+    if (inFlight.get(key) === probe) inFlight.delete(key)
+  }
+}
+
+async function probeCodexModels(binaryPath: string, cwd: string): Promise<ModelInfo[]> {
   const handle = await spawnLines(binaryPath, {
     args: ['app-server'],
     cwd,
@@ -55,9 +69,10 @@ export async function listCodexModels(binaryPath: string, cwd: string): Promise<
       peer.request('initialize', {
         clientInfo: { name: 'BlinkyBot', title: 'BlinkyBot', version: '0.1.0' }
       }),
-      3_500,
+      7_000,
       'initialize'
     )
+    peer.notify('initialized')
     const seen = new Set<string>()
     const models: ModelInfo[] = []
     let cursor: string | null = null
@@ -68,7 +83,7 @@ export async function listCodexModels(binaryPath: string, cwd: string): Promise<
           includeHidden: false,
           ...(cursor ? { cursor } : {})
         }),
-        2_500,
+        12_000,
         'model/list'
       )
       const parsed = parseCodexModelPage(result)

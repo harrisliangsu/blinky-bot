@@ -8,10 +8,13 @@
 import type { AgentEvent } from '../../shared/types'
 import { broadcast as sendToWindows } from '../ipc/broadcast'
 import { errorMessage } from './errors'
+import { recordLiveMessage } from './liveMessages'
+import { createVaultEventProjection } from '../store/vaultEvents'
 
 type Listener = (event: AgentEvent) => void
 
 const listeners = new Set<Listener>()
+const projectPrivateOutput = createVaultEventProjection()
 
 export function onAgentEvent(listener: Listener): () => void {
   listeners.add(listener)
@@ -19,6 +22,11 @@ export function onAgentEvent(listener: Listener): () => void {
 }
 
 export function broadcast(event: AgentEvent): void {
+  for (const safeEvent of projectPrivateOutput(event)) publish(safeEvent)
+}
+
+function publish(event: AgentEvent): void {
+  recordLiveMessage(event)
   for (const listener of listeners) {
     try {
       listener(event)

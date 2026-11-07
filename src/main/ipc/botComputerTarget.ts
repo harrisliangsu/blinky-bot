@@ -11,6 +11,10 @@
 import type { ComputerProbeResult, ComputerTarget } from '../../shared/types'
 import { vmToken } from '../store/vmSecrets'
 import { VmComputerProvider } from '../tools/computer/vmProvider'
+import { getComputerProvider } from '../tools/computer'
+import { dataRoot } from '../store/paths'
+import { getBot } from '../store/bots'
+import { getSession } from '../store/sessions'
 import {
   destroyAppleVm,
   provisionalAppleVmToken,
@@ -25,7 +29,8 @@ export function asComputerTarget(value: unknown): ComputerTarget {
   const target = value as Record<string, unknown>
   if (target['kind'] === 'local') return { kind: 'local' }
   if (target['kind'] === 'browser') {
-    return { kind: 'browser', botId: asString(target['botId'], 128).trim() }
+    if (target['provider'] !== undefined && target['provider'] !== 'ego' && target['provider'] !== 'chrome') throw new TypeError('unknown browser provider')
+    return { kind: 'browser', botId: asString(target['botId'], 128).trim(), provider: target['provider'] === 'ego' ? 'ego' : 'chrome' }
   }
   if (target['kind'] !== 'vm') throw new TypeError('unknown computer target')
   const vmId = asString(target['vmId'], 128).trim()
@@ -53,10 +58,19 @@ export async function probeTarget(
   signal?: AbortSignal
 ): Promise<ComputerProbeResult> {
   if (target.kind !== 'vm') {
+    if (target.kind === 'browser') {
+      const owner = botId || target.botId
+      if (!owner) return { ok: false, detail: 'Save the Bot before checking its browser.' }
+      const sessionId = getBot(owner)?.activeConversationId
+      const session = sessionId ? getSession(sessionId) : undefined
+      if (!session || !session.botIds.includes(owner)) return { ok: false, detail: 'Open this Bot conversation before checking its browser.' }
+      const provider = getComputerProvider({ ...target, botId: owner }, { botId: owner, sessionId, dataDir: dataRoot() })
+      return { ...await provider.probe(signal), isolatedExecution: false }
+    }
     return {
       ok: true,
-      detail: target.kind === 'local' ? 'This Mac is selected.' : 'The isolated browser profile is ready.',
-      isolatedExecution: target.kind === 'local'
+      detail: 'This Mac is selected.',
+      isolatedExecution: true
     }
   }
   const controlToken = (): string | undefined =>

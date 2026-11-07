@@ -11,7 +11,13 @@
 import type { ApprovalDecision, Attachment, Routine } from '../../shared/types'
 
 export interface AgentLoopModule {
+  receiveGitHubDraftResult(draft: import('../../shared/drafts').GitHubCommentDraft): Promise<void>
+  receiveGmailDraftResult(draft: import('../../shared/drafts').GmailDraft): Promise<void>
+  receiveCalendarDraftResult(draft: import('../../shared/drafts').CalendarDraft): Promise<void>
+  receiveXDraftResult(draft: import('../../shared/drafts').XDraft): Promise<void>
+  receiveSlackDraftResult(draft: import('../../shared/drafts').SlackDraft): Promise<void>
   sendMessage(sessionId: string, text: string, attachments?: Attachment[]): Promise<void> | void
+  receiveAgentResult(sessionId: string, taskId: string, title: string, result: string, onRecorded: () => Promise<void>): Promise<boolean>
   stopSession(sessionId: string): Promise<void> | void
   respondToApproval(requestId: string, decision: ApprovalDecision): Promise<void> | void
   runRoutine(routineId: string, sessionId: string): Promise<void> | void

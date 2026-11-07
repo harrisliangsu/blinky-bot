@@ -154,13 +154,13 @@ export async function loadBoard(projectId: string): Promise<void> {
  * rather than the last known truth. A thrown failure reconciles by re-reading
  * instead, since the snapshot cannot say what else has happened since.
  */
-async function mutate(run: (projectId: string) => Promise<Board | null>, rollbackTo?: Board | null): Promise<void> {
+async function mutate(run: (projectId: string) => Promise<Board | null>, rollbackTo?: Board | null): Promise<boolean> {
   const projectId = store.getState().currentProjectId
-  if (!projectId) return
+  if (!projectId) return false
   const previous = rollbackTo === undefined ? store.getState().board : rollbackTo
   try {
     const board = await run(projectId)
-    if (!stillOpen(projectId)) return
+    if (!stillOpen(projectId)) return false
     if (!board) {
       // The board channels answer null instead of throwing, so a refused change
       // arrives here rather than in the catch. Put the last known truth back and
@@ -168,10 +168,11 @@ async function mutate(run: (projectId: string) => Promise<Board | null>, rollbac
       store.patch({ board: previous })
       store.toast(REFUSED, 'error')
       await loadBoard(projectId)
-      return
+      return false
     }
     store.patch({ board })
     await loadProjects()
+    return true
   } catch (e) {
     store.toast(errText(e), 'error')
     /*
@@ -182,21 +183,22 @@ async function mutate(run: (projectId: string) => Promise<Board | null>, rollbac
      * optimistic patch stands for the moment it takes to fetch it.
      */
     if (stillOpen(projectId)) await loadBoard(projectId)
+    return false
   }
 }
 
-export async function addCard(columnId: string, title: string): Promise<void> {
+export async function addCard(columnId: string, title: string): Promise<boolean> {
   const clean = title.trim()
-  if (!clean) return
+  if (!clean) return false
   const add = reach('addCard')
-  if (!add) return unavailable()
-  await mutate((projectId) => add(projectId, columnId, { title: clean, notes: '' }))
+  if (!add) { unavailable(); return false }
+  return mutate((projectId) => add(projectId, columnId, { title: clean, notes: '' }))
 }
 
-export async function updateCard(cardId: string, patch: Partial<BoardCard>): Promise<void> {
+export async function updateCard(cardId: string, patch: Partial<BoardCard>): Promise<boolean> {
   const update = reach('updateCard')
-  if (!update) return unavailable()
-  await mutate((projectId) => update(projectId, cardId, patch))
+  if (!update) { unavailable(); return false }
+  return mutate((projectId) => update(projectId, cardId, patch))
 }
 
 export async function removeCard(cardId: string): Promise<void> {
@@ -219,20 +221,20 @@ export async function moveCard(cardId: string, toColumnId: string, visualIndex: 
   await mutate((projectId) => move(projectId, cardId, toColumnId, toIndex), board)
 }
 
-export async function addColumn(name: string): Promise<void> {
+export async function addColumn(name: string): Promise<boolean> {
   const clean = name.trim()
-  if (!clean) return
+  if (!clean) return false
   const add = reach('addColumn')
-  if (!add) return unavailable()
-  await mutate((projectId) => add(projectId, clean))
+  if (!add) { unavailable(); return false }
+  return mutate((projectId) => add(projectId, clean))
 }
 
-export async function renameColumn(columnId: string, name: string): Promise<void> {
+export async function renameColumn(columnId: string, name: string): Promise<boolean> {
   const clean = name.trim()
-  if (!clean) return
+  if (!clean) return false
   const rename = reach('renameColumn')
-  if (!rename) return unavailable()
-  await mutate((projectId) => rename(projectId, columnId, clean))
+  if (!rename) { unavailable(); return false }
+  return mutate((projectId) => rename(projectId, columnId, clean))
 }
 
 export async function removeColumn(columnId: string): Promise<void> {

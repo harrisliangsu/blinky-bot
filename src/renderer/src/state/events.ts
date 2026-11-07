@@ -1,11 +1,22 @@
 import type { AgentEvent, Message, Session, SessionSummary } from '../../../shared/types'
 import { noteFrame, notePointer } from './computer'
 import { store } from './core'
-import { mergeSummary } from './sessionSummary'
+import { mergeSummary, mergeSessionSummary } from './sessionSummary'
+import { summariseTask } from '../../../shared/activity'
 import { adoptSession, loadSessions } from './sessions'
 import { withPendingSettings } from './preferences'
 
 const isCurrent = (sessionId: string): boolean => store.getState().currentSessionId === sessionId
+const loadingEvents = new Map<string, AgentEvent[]>()
+
+/** Replay events received while loading a conversation after its live snapshot. */
+export function replayLoadingEvents(sessionId: string): void {
+  const events = loadingEvents.get(sessionId) ?? []
+  loadingEvents.delete(sessionId)
+  for (const event of events) applyEvent(event)
+}
+
+export function discardLoadingEvents(sessionId: string): void { loadingEvents.delete(sessionId) }
 
 /*
  * Must carry EVERY field the sidebar filters on. `projectId` was missing, so
@@ -43,7 +54,25 @@ export function dropApprovals(sessionId: string): void {
 
 /** Reduces one event from the agent process into renderer state. */
 export function applyEvent(event: AgentEvent): void {
+  const target = event.type === 'session-updated' ? event.session.id : 'sessionId' in event ? event.sessionId : undefined
+  if (target && isCurrent(target) && store.getState().sessionLoading && ['session-updated', 'message-start', 'message-updated', 'message-removed', 'text-delta', 'reasoning-delta', 'tool-call', 'tool-result', 'message-end', 'run-started', 'done', 'error'].includes(event.type)) {
+    const events = loadingEvents.get(target) ?? []
+    events.push(event)
+    loadingEvents.set(target, events)
+    return
+  }
   switch (event.type) {
+    case 'room-devices-changed':
+    case 'workspace-updated': return
+    case 'session-summary-updated':
+      mergeSessionSummary(event.summary)
+      return
+    case 'run-started':
+      if (isCurrent(event.sessionId)) store.patch({ streaming: true, runError: null })
+      return
+    case 'message-queue-updated':
+      // The composer subscribes directly so the queue is scoped to its Bot.
+      return
     case 'session-updated': {
       mergeSummary(event.session)
       if (isCurrent(event.session.id)) {
@@ -53,23 +82,48 @@ export function applyEvent(event: AgentEvent): void {
       return
     }
 
+    case 'message-updated': {
+      if (!isCurrent(event.sessionId)) return
+      reconcileOptimistic(event.message)
+      if (store.hasMessage(event.message.id)) store.patchMessage(event.message.id, event.message)
+      else store.appendMessage(event.message)
+      if (event.moveToEnd) store.moveMessageToEnd(event.message.id)
+      if (event.message.streaming) store.patch({ streaming: true })
+      return
+    }
+    case 'message-removed':
+      if (isCurrent(event.sessionId)) store.dropMessage(event.messageId)
+      return
+
     case 'message-start': {
       if (!isCurrent(event.sessionId)) return
       reconcileOptimistic(event.message)
       // A snapshot may already carry this turn — appending again would put a
       // duplicate id in the visible order.
-      if (store.hasMessage(event.message.id)) store.patchMessage(event.message.id, event.message)
-      else store.appendMessage(event.message)
+      if (!store.hasMessage(event.message.id)) store.appendMessage(event.message)
       if (event.message.streaming) store.patch({ streaming: true })
       return
     }
 
     case 'text-delta':
-      if (isCurrent(event.sessionId)) store.queueDelta(event.messageId, 'text', event.delta)
+      if (isCurrent(event.sessionId)) {
+        store.queueDelta(event.messageId, 'text', event.delta, event.segment)
+        if (event.segment) store.moveMessageToEnd(event.messageId)
+      }
       return
 
     case 'reasoning-delta':
       if (isCurrent(event.sessionId)) store.queueDelta(event.messageId, 'reasoning', event.delta)
+      return
+
+    case 'agent-trace':
+      // Executor-only details are read by its separate transcript viewer.
+      return
+
+    case 'backend-notice':
+      // Retry/fallback is implementation progress; terminal failures still
+      // arrive as error events. Surface only actionable warnings here.
+      if (isCurrent(event.sessionId) && event.category === 'warning') store.toast(event.message, 'info')
       return
 
     case 'tool-call': {
@@ -103,8 +157,14 @@ export function applyEvent(event: AgentEvent): void {
       // which is protocol and must never be shown.
       store.patchMessage(event.messageId, {
         streaming: false,
-        ...(event.content !== undefined ? { content: event.content } : {})
+        ...(event.content !== undefined ? { content: event.content } : {}),
+        displayContent: event.displayContent,
+        segments: event.segments,
+        toolCalls: event.toolCalls,
+        error: event.error,
+        internal: event.internal
       })
+      if (store.getMessage(event.messageId)?.role === 'assistant') store.moveMessageToEnd(event.messageId)
       /*
        * This message ending is not the run ending. A tool call is committed
        * before its approval/execution, and another model turn follows the tool
@@ -117,7 +177,7 @@ export function applyEvent(event: AgentEvent): void {
 
     case 'todos':
       if (isCurrent(event.sessionId)) {
-        store.patch({ todos: event.todos, railOpen: store.getState().railOpen || event.todos.length > 0 })
+        store.patch({ todos: event.todos })
       }
       return
 
@@ -140,6 +200,10 @@ export function applyEvent(event: AgentEvent): void {
       }
       return
 
+    case 'approval-resolved': {
+      store.patch({ approvals: store.getState().approvals.filter((a) => a.id !== event.requestId) })
+      break
+    }
     case 'approval-request': {
       // A re-delivered request must not queue twice: the count behind the
       // dialog is what tells the user how much is still waiting on them.
@@ -184,9 +248,17 @@ export function applyEvent(event: AgentEvent): void {
       return
     }
 
-    case 'task-updated': {
+    case 'task-updated':
+    case 'task-summary-updated': {
       const current = store.getState().tasks
-      store.patch({ tasks: [event.task, ...current.filter((task) => task.id !== event.task.id)].sort((a, b) => b.updatedAt - a.updatedAt) })
+      const task = event.type === 'task-updated' ? summariseTask(event.task) : event.task
+      store.patch({ tasks: [task, ...current.filter((item) => item.id !== task.id)].sort((a, b) => b.updatedAt - a.updatedAt) })
+      return
+    }
+
+    case 'routine-updated': {
+      const current = store.getState().routines
+      store.patch({ routines: [event.routine, ...current.filter((item) => item.id !== event.routine.id)] })
       return
     }
 
@@ -239,6 +311,18 @@ export function applyEvent(event: AgentEvent): void {
       // writing back a list that no longer reflects disk.
       store.patch({ settings: withPendingSettings(event.settings) })
       break
+
+    case 'task-clarification-updated':
+    case 'send-rules-updated':
+      // Conversation-local cards subscribe directly and reconcile persisted state.
+      break
+    case 'github-draft-updated':
+    case 'gmail-draft-updated':
+    case 'calendar-draft-updated':
+    case 'x-draft-updated':
+    case 'slack-draft-updated':
+      // The transcript subscribes directly so drafts stay scoped to their chat.
+      return
 
     case 'backends-updated':
       store.patch({ backends: event.backends, backendsLoading: false, backendsError: null })

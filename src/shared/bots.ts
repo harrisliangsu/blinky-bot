@@ -2,6 +2,7 @@
 
 import type { ComputerTarget } from './computer'
 import type { ThinkingDepth } from './thinking'
+import type { AvatarShapeId, AvatarColorId } from './botAvatars'
 
 export interface MemoryEntry {
   id: string
@@ -20,12 +21,18 @@ export interface Bot {
   systemPrompt: string
   emoji: string
   color: string
+  /** Absent/empty retains the original custom emoji identity. */
+  avatarShape?: AvatarShapeId | ''
+  avatarColor?: AvatarColorId | ''
   backendId: string
   modelId: string
+  /** Optional independently configured runtime for delegated execution. */
+  executionAgent?: { backendId: string; modelId: string; thinking?: ThinkingDepth }
+  /** @deprecated Legacy input only. Ignored and removed on load/save. */
+  executionAgentDisabled?: boolean
   /**
-   * When true, this Bot follows Settings' default CLI, that CLI's default
-   * model, and the default thinking depth. Absent on older files: a generic
-   * `default` model still follows.
+   * Legacy migration marker. Old followers are frozen to their effective
+   * choice when loaded; newly saved Bots keep independent selections.
    */
   followsDefault?: boolean
   /**
@@ -44,6 +51,11 @@ export interface Bot {
   computerTarget: ComputerTarget
   archived?: boolean
   pinned?: boolean
+  /**
+   * This bot's one home conversation. Clicking the bot opens it. Clearing the
+   * chat empties this conversation; it does not point the bot somewhere else.
+   */
+  activeConversationId?: string
   createdAt: number
   updatedAt: number
 }

@@ -11,22 +11,35 @@ import {
   openrouterReasoningBody,
   thinkingWire
 } from './thinking.ts'
+import { thinkingOptions } from './thinking.ts'
+
+test('thinking choices follow the selected model, including its reported default', () => {
+  const models = [{ id: 'a', isDefault: true, supportedThinking: ['low', 'max', 'ultra'] as const }, { id: 'b', supportedThinking: ['high'] as const }]
+  assert.deepEqual(thinkingOptions('codex', 'default', models), ['low', 'max', 'ultra'])
+  assert.deepEqual(thinkingOptions('codex', 'b', models), ['high'])
+  assert.deepEqual(thinkingOptions('codex', 'unknown', models), [])
+})
 
 test('thinking depth is a closed set', () => {
   assert.equal(isThinkingDepth('high'), true)
-  assert.equal(isThinkingDepth('max'), false)
+  assert.equal(isThinkingDepth('max'), true)
+  assert.equal(isThinkingDepth('ultra'), true)
   assert.equal(isThinkingDepth(''), false)
 })
 
 test('only backends with a real depth control advertise one', () => {
   assert.equal(thinkingWire('codex'), 'codex')
   assert.equal(thinkingWire('kimi'), 'kimi')
+  assert.deepEqual(thinkingOptions('kimi', 'default', []), [])
+  assert.deepEqual(thinkingOptions('kimi', 'legacy', [{ id: 'legacy', supportedThinking: ['max'] }]), ['max'])
   assert.equal(thinkingWire('openai'), 'openai')
   assert.equal(thinkingWire('xai'), 'openai')
   assert.equal(thinkingWire('anthropic'), 'anthropic')
   assert.equal(thinkingWire('openrouter'), 'openrouter')
   assert.equal(thinkingWire('claude'), null)
-  assert.equal(thinkingWire('grok'), null)
+  assert.equal(thinkingWire('grok'), 'grok')
+  assert.deepEqual(thinkingOptions('grok', 'default', []), ['low', 'medium', 'high', 'xhigh'])
+  assert.deepEqual(thinkingOptions('grok', 'b', [{ id: 'b', supportedThinking: ['high'] }]), ['high'])
   assert.equal(thinkingWire('opencode'), null)
   assert.equal(thinkingWire('pi'), null)
 })
@@ -35,9 +48,12 @@ test('codex and kimi map the same steps onto their own controls', () => {
   assert.equal(codexEffort(undefined), undefined)
   assert.equal(codexEffort('off'), 'none')
   assert.equal(codexEffort('xhigh'), 'xhigh')
+  assert.equal(codexEffort('max'), 'max')
+  assert.equal(codexEffort('ultra'), 'ultra')
   assert.equal(kimiThinkingEnv(undefined), undefined)
   assert.deepEqual(kimiThinkingEnv('off'), { KIMI_MODEL_THINKING_EFFORT: 'off' })
   assert.deepEqual(kimiThinkingEnv('high'), { KIMI_MODEL_THINKING_EFFORT: 'high' })
+  assert.equal(kimiThinkingEnv('ultra'), undefined)
 })
 
 test('openai reasoning effort is sent only to a reasoning model', () => {
@@ -60,6 +76,7 @@ test('openrouter and anthropic get their own bodies', () => {
   assert.ok((high.minMaxTokens ?? 0) > (high.thinking?.budget_tokens as number))
   assert.deepEqual(anthropicThinking('off').thinking, { type: 'disabled' })
   assert.deepEqual(anthropicThinking(undefined), {})
+  assert.deepEqual(anthropicThinking('ultra'), {})
 })
 
 test('a provider id is not treated as a local CLI', () => {

@@ -11,7 +11,7 @@ export async function chooseAttachments(): Promise<Attachment[]> {
   return paths.map((path, i) => ({
     id: `att-${Date.now()}-${i}`,
     kind: 'file' as const,
-    name: basename(path),
+    name: window.openbot.environment?.kind === 'browser' ? decodeURIComponent(basename(path)) : basename(path),
     path
   }))
 }

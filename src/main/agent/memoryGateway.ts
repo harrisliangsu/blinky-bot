@@ -1,7 +1,7 @@
 /** Bot memory reads/writes, over `store/memory`. */
 
 import type { MemoryEntry } from '../../shared/types'
-import { addBotMemory, listBotMemory } from '../store/memory'
+import { addBotMemoryDurable, listBotMemory } from '../store/memory'
 import { errorMessage } from './errors'
 
 export const memoryStore = {
@@ -22,7 +22,7 @@ export const memoryStore = {
     tags?: string[]
   ): Promise<MemoryEntry | null> {
     try {
-      return addBotMemory(botId, text, source, tags)
+      return await addBotMemoryDurable(botId, text, source, tags)
     } catch (err) {
       console.warn(`[agent] memory save failed: ${errorMessage(err)}`)
       return null

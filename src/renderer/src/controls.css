@@ -1,6 +1,4 @@
-/* Shared control primitives.
-   The reference product's signature control is a full pill: dark fill, hairline
-   outline, white label, roomy sides. Everything here follows that shape. */
+/* Shared controls: compact enough for a desktop, with clear interaction states. */
 
 .ob-btn {
   display: inline-flex;
@@ -17,11 +15,14 @@
   border-radius: var(--ob-control-radius);
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--ob-transition-fast), border-color var(--ob-transition-fast);
+  transition: background var(--ob-transition-fast), border-color var(--ob-transition-fast), box-shadow var(--ob-transition-fast);
 }
 .ob-btn:hover:not(:disabled) {
   background: var(--ob-bg-active);
   border-color: var(--ob-border-strong);
+}
+.ob-btn:active:not(:disabled) {
+  background: var(--ob-bg-focused);
 }
 .ob-btn:disabled {
   color: var(--ob-text-disabled);
@@ -37,12 +38,7 @@
   padding: 0 var(--ob-space-6);
   font-size: var(--ob-font-size-base);
 }
-/*
- * Primary actions are monochrome — the foreground colour inverted against the
- * ground. Colour is reserved for STATE (working, error, diff), so an amber
- * Send button reads as a warning rather than the main action. Inverts
- * correctly in light theme because both tokens flip together.
- */
+/* Primary actions have a distinct treatment from destructive actions. */
 .ob-btn-primary {
   color: var(--ob-btn-primary-fg);
   background: var(--ob-btn-primary-bg);
@@ -51,6 +47,9 @@
 .ob-btn-primary:hover:not(:disabled) {
   background: var(--ob-btn-primary-hover);
   border-color: transparent;
+}
+.ob-btn-primary:active:not(:disabled) {
+  background: var(--ob-btn-primary-hover);
 }
 .ob-btn-primary:disabled {
   color: var(--ob-text-disabled);
@@ -111,6 +110,7 @@
   background: var(--ob-bg-input);
   border: 1px solid var(--ob-border-subtle);
   border-radius: var(--ob-control-radius);
+  transition: border-color var(--ob-transition-fast), box-shadow var(--ob-transition-fast), background var(--ob-transition-fast);
 }
 .ob-input,
 .ob-select {
@@ -129,14 +129,26 @@
 .ob-input:focus,
 .ob-select:focus,
 .ob-textarea:focus {
-  outline: none;
   border-color: var(--ob-border-strong);
-  background: var(--ob-bg-active);
+  background-color: var(--ob-bg-input);
+}
+.ob-input:focus-visible,
+.ob-select:focus-visible,
+.ob-textarea:focus-visible {
+  outline: 2px solid var(--ob-border-strong);
+  outline-offset: 2px;
 }
 .ob-select {
   appearance: none;
-  padding-right: var(--ob-space-6);
+  padding-right: var(--ob-space-10);
   cursor: pointer;
+  /* Native select semantics with an always-visible disclosure indicator. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ob-text-secondary) 50%),
+    linear-gradient(135deg, var(--ob-text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 50%, calc(100% - 14px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 
 .ob-field {
@@ -175,7 +187,8 @@
   align-self: flex-start;
   gap: var(--ob-space-0-5);
   padding: var(--ob-space-0-75);
-  background: var(--ob-bg-input);
+  background: var(--ob-bg-raised);
+  border: 1px solid var(--ob-border-subtle);
   border-radius: var(--ob-control-radius);
 }
 .ob-mode-btn {
@@ -195,7 +208,8 @@
 }
 .ob-mode-btn.is-active {
   color: var(--ob-text-primary);
-  background: var(--ob-bg-focused);
+  background: var(--ob-bg-card);
+  box-shadow: var(--ob-shadow-row);
 }
 .ob-mode-btn:disabled {
   color: var(--ob-text-disabled);

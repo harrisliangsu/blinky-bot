@@ -10,12 +10,12 @@
 import type { ProjectSummary } from '../../shared/types'
 import { openCardCount } from './board'
 import { listProjects, type StoredProject } from './projects'
-import { allSessions } from './sessions'
+import { listSessions } from './sessions'
 
 /** How many chats are filed in each project, in one pass over the sessions. */
 function sessionCounts(): Map<string, number> {
   const counts = new Map<string, number>()
-  for (const session of allSessions()) {
+  for (const session of listSessions()) {
     const projectId = session.projectId
     if (projectId) counts.set(projectId, (counts.get(projectId) ?? 0) + 1)
   }

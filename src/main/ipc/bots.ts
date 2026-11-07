@@ -6,11 +6,13 @@ import {
   duplicateBot,
   getBot,
   listBots,
-  removeBot,
+  removeBotDurable,
+  retryBotRemoval,
   setVmCapabilityProbe,
   updateBot
 } from '../store/bots'
-import { addBotMemory, listBotMemory, removeBotMemory } from '../store/memory'
+import { listBotMemory } from '../store/memory'
+import { deleteUserMemory, saveUserMemory } from './memory'
 import { removeBotFromProjects } from '../store/projects'
 import { removeBotFromGroups } from '../store/groups'
 import { removeRoutinesForBot } from '../store/routines'
@@ -19,65 +21,59 @@ import { dataRoot } from '../store/paths'
 import { clearVmToken } from '../store/vmSecrets'
 import { loopFn } from './agentRuntime'
 import { releaseComputerProvidersForBot } from '../tools/computer'
+import { peekBrowserScopeMode } from '../tools/computer/browserScope'
 import { removeBrowser } from '../tools/computer/browser'
 import { adoptAppleVm, destroyAppleVm, provisionalAppleVmToken } from '../vm/appleVmSupervisor'
-import { asComputerTarget, destroyVm, probeTarget } from './botComputerTarget'
+import { asComputerTarget, probeTarget } from './botComputerTarget'
 import { forgetReadyTakeover, registerTakeoverIpc } from './botTakeover'
 import { registerVmProvisionIpc } from './botVmProvision'
+import { registerBotResourcesIpc } from './botResources'
 import { broadcast } from './broadcast'
 import { CHANNELS } from './channels'
-import { emptyArray, handle, handleVoid, nullResult } from './handler'
+import { emptyArray, handle, handleEvent, nullResult } from './handler'
 import { asId, asPatch, asString } from './validate'
 
 async function removeBotEverywhere(botId: string): Promise<void> {
   const bot = getBot(botId)
   if (!bot) return
-  forgetReadyTakeover(botId)
+  await retryBotRemoval(botId)
+  const { prepareBotTaskRemoval } = await import('../tasks')
+  const release = await prepareBotTaskRemoval(botId)
+  try {
+    forgetReadyTakeover(botId)
 
-  const affectedSessions = allSessions().filter(
-    (session) => session.botIds.includes(botId) || session.activeBotId === botId
-  )
-  const stop = await loopFn('stopSession')
-  if (stop) {
-    await Promise.all(
-      affectedSessions.map((session) =>
-        Promise.resolve(stop(session.id)).catch((error) =>
-          console.warn('[openbot/bots] could not stop session before bot deletion', session.id, error)
-        )
-      )
+    const affectedSessions = allSessions().filter(
+      (session) => session.botIds.includes(botId) || session.activeBotId === botId
     )
-  }
-
-  if (bot.computerTarget.kind === 'vm') {
-    try {
-      await destroyVm(botId, bot.computerTarget)
-    } catch (error) {
-      // Local deletion must not become impossible when a remote VM has already
-      // disappeared. The supervisor can garbage-collect the opaque VM id.
-      console.warn('[openbot/bots] VM destruction did not complete', botId, error)
+    const stop = await loopFn('stopSession')
+    if (!stop && affectedSessions.length) throw new Error('The agent runtime must be available before deleting this bot.')
+    if (stop) {
+      await Promise.all(
+        affectedSessions.map((session) => Promise.resolve(stop(session.id)))
+      )
     }
-  }
 
-  await releaseComputerProvidersForBot(botId).catch((error) =>
-    console.warn('[openbot/bots] could not release a computer provider', botId, error)
-  )
-  await removeBrowser(botId, { userDataDir: dataRoot(), deleteProfile: true }).catch((error) =>
-    console.warn('[openbot/bots] could not delete a browser profile', botId, error)
-  )
-  removeRoutinesForBot(botId)
-  removeBotFromGroups(botId)
-  removeBotFromProjects(botId)
-  const sessions = removeBotFromAllSessions(botId)
-  if (removeBot(botId)) {
-    for (const session of sessions) broadcast({ type: 'session-updated', session })
-  }
+    // Deleting a Bot is not permission to destroy its working computer or
+    // signed-in browser data. Release live handles; retain persistent storage.
+    await releaseComputerProvidersForBot(botId).catch((error) =>
+      console.warn('[openbot/bots] could not release a computer provider', botId, error)
+    )
+    await removeBrowser(botId, { userDataDir: dataRoot() }).catch((error) =>
+      console.warn('[openbot/bots] could not release a browser', botId, error)
+    )
+    if (await removeBotDurable(botId)) {
+      removeRoutinesForBot(botId)
+      removeBotFromGroups(botId)
+      removeBotFromProjects(botId)
+      const sessions = removeBotFromAllSessions(botId)
+      for (const session of sessions) broadcast({ type: 'session-updated', session })
+    }
+  } finally { release() }
 }
 
-function placeholderEntry(botId: string, text: string): MemoryEntry {
-  return { id: '', botId, text, source: 'user', createdAt: Date.now() }
-}
 
 export function registerBotIpc(): void {
+  registerBotResourcesIpc()
   /*
    * Capabilities read out of `bots/<id>.json` prove nothing — they are the
    * record of a probe, not evidence of one — so the store drops them on load
@@ -94,6 +90,11 @@ export function registerBotIpc(): void {
   handle<Bot[]>(CHANNELS.botsList, () => listBots(), emptyArray)
 
   handle<Bot | null>(CHANNELS.botsGet, ([id]) => getBot(asId(id)), nullResult)
+  handle<{ mode: 'legacy' | 'session' } | { error: string }>(CHANNELS.botsBrowserScope, ([id]) => {
+    const botId = asId(id)
+    if (!getBot(botId)) return { error: 'Bot not found.' }
+    return { mode: peekBrowserScopeMode(botId, dataRoot()) }
+  }, () => ({ error: 'Browser scope is unavailable.' }))
 
   handle<BotSaveResult>(CHANNELS.botsDuplicate, ([id]) => {
     const bot = duplicateBot(asId(id))
@@ -182,33 +183,18 @@ export function registerBotIpc(): void {
     })
   )
 
-  handleVoid(CHANNELS.botsRemove, async ([id]) => {
+  handle<{ ok: true } | { ok: false; error: string }>(CHANNELS.botsRemove, async ([id]) => {
     await removeBotEverywhere(asId(id))
-  })
+    return { ok: true }
+  }, () => ({ ok: false, error: 'Bot 删除未能完成，会话记录保留。请重试。' }))
 
   handle<MemoryEntry[]>(CHANNELS.botsMemory, ([id]) => listBotMemory(asId(id)), emptyArray)
 
-  handle<MemoryEntry>(
+  handleEvent<MemoryEntry | null>(
     CHANNELS.botsAddMemory,
-    ([id, text]) => {
-      const botId = asId(id)
-      // Without this an unknown id quietly creates `memory/<id>.json` for a bot
-      // that does not exist, and nothing ever cleans it up.
-      if (!getBot(botId)) throw new TypeError(`unknown bot: ${botId}`)
-      const body = asString(text, 20_000).trim()
-      if (!body) throw new TypeError('memory text is empty')
-      const entry = addBotMemory(botId, body, 'user')
-      broadcast({ type: 'memory-updated', botId, entry })
-      return entry
-    },
-    (args) => {
-      const id = typeof args[0] === 'string' ? args[0] : ''
-      const text = typeof args[1] === 'string' ? args[1] : ''
-      return placeholderEntry(id, text)
-    }
+    (_event, [id, request]) => saveUserMemory(id, request),
+    nullResult
   )
 
-  handleVoid(CHANNELS.botsRemoveMemory, ([id, entryId]) => {
-    removeBotMemory(asId(id), asId(entryId))
-  })
+  handleEvent<boolean>(CHANNELS.botsRemoveMemory, (_event, [id, entryId]) => deleteUserMemory(id, entryId), () => false)
 }

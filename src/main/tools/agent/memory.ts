@@ -33,7 +33,7 @@ export const schema: ToolSchema = {
     type: 'object',
     properties: {
       text: { type: 'string', description: 'The fact to remember, in one or two sentences.' },
-      tags: { type: 'array', items: { type: 'string' }, description: 'Optional labels for grouping.' }
+      tags: { type: 'array', items: { type: 'string' }, description: 'Optional labels. Use profile for durable preferences or facts; use journal for dated historical notes, including the date in the text.' }
     },
     required: ['text']
   },
@@ -80,7 +80,9 @@ export const rememberTool = defineTool(schema, async (args, ctx) => {
    * The fallback path has no such broadcast, so it keeps its own.
    */
   if (ctx.host?.saveMemory) {
-    await ctx.host.saveMemory(entry)
+    const outcome = await ctx.host.saveMemory(entry)
+    if (!outcome.entry) return { callId: ctx.callId ?? '', name: NAME, ok: outcome.reason === 'already remembered', output: outcome.reason }
+    return { callId: ctx.callId ?? '', name: NAME, ok: true, output: `Remembered: ${outcome.entry.text}`, detail: { entry: outcome.entry } }
   } else {
     await appendToFallbackStore(ctx, entry)
     safeEmit(ctx, { type: 'memory-updated', botId: ctx.botId, entry })

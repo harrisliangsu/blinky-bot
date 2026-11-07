@@ -65,7 +65,7 @@ export async function adoptReadyDefaultBackend(): Promise<string | null> {
   const nextDefault = pickDefaultBackend(choices)
   const plan = retargetPlan({
     defaultBackendId: settings.defaultBackendId,
-    bots: listBots().map((bot) => ({ id: bot.id, backendId: bot.backendId })),
+    bots: listBots().filter((bot) => bot.followsDefault !== false).map((bot) => ({ id: bot.id, backendId: bot.backendId })),
     readyIds,
     nextDefault
   })

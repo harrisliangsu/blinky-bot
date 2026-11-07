@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { withUserIdentity } from '../loginShellEnv.ts'
+import { cacheableShellEnv, withUserIdentity } from '../loginShellEnv.ts'
 import {
   CLI_AUTH_METHODS,
   authMethod,
@@ -170,6 +170,18 @@ describe('cli auth status parsers', () => {
 })
 
 describe('cli child environment', () => {
+  it('passes login shell proxy settings to children without caching them', () => {
+    const captured = {
+      PATH: '/bin', HTTPS_PROXY: 'http://user:secret@proxy:8080',
+      http_proxy: 'http://proxy:8080', NO_PROXY: 'localhost', no_proxy: '127.0.0.1'
+    }
+    const child = withUserIdentity({}, captured)
+    assert.equal(child.HTTPS_PROXY, captured.HTTPS_PROXY)
+    assert.equal(child.http_proxy, captured.http_proxy)
+    assert.equal(child.NO_PROXY, captured.NO_PROXY)
+    assert.equal(child.no_proxy, captured.no_proxy)
+    assert.deepEqual(cacheableShellEnv(captured), { PATH: '/bin' })
+  })
   it('keeps the login shell home and fills HOME when the child env dropped it', () => {
     const filled = withUserIdentity({ HOME: '   ', PATH: '/usr/bin' })
     assert.ok(filled.HOME && filled.HOME.trim().length > 0)

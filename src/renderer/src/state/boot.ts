@@ -6,7 +6,7 @@ import { applyEvent } from './events'
 import { loadBackends, loadSettings } from './preferences'
 import { loadProjects } from './projects'
 import { loadRoutines } from './routines'
-import { loadSessions, selectSession } from './sessions'
+import { loadSessions, openBotChat, selectSession } from './sessions'
 import { loadActivity } from './activity'
 import { loadGroups } from './groups'
 import { loadRooms } from './rooms'
@@ -35,8 +35,10 @@ export async function boot(): Promise<void> {
 
     await Promise.all([loadSettings(), loadBots(), loadGroups(), loadRooms(), loadSkills(), loadBackends(false), loadRoutines(), loadProjects(), loadSessions(), loadActivity()])
 
-    const first = store.getState().sessions.find((s) => !s.archived)
-    if (first) await selectSession(first.id)
+    const firstBot = store.getState().bots.find((bot) => !bot.archived)
+    const initial = api.environment?.kind === 'browser' ? api.environment.initialSessionId : undefined
+    if (initial && store.getState().sessions.some(session => session.id === initial)) await selectSession(initial)
+    else if (firstBot) await openBotChat(firstBot.id)
 
     store.patch({ ready: true })
     // First paint uses the persisted backend cache. Refresh the machine probes

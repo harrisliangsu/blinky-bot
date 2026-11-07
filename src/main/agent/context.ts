@@ -13,6 +13,7 @@ import { groupBlocks, toProviderMessages } from './history'
 import { filterToolsForMode } from './modes'
 import { composeSystemPrompt } from './systemPrompt'
 import { estimateTokens } from './tokens'
+import { rankMemory } from './memoryRecall'
 
 export interface ContextInput {
   session: Session
@@ -49,7 +50,9 @@ export function buildContext(input: ContextInput): BuiltContext {
     bot: input.bot,
     session: input.session,
     settings: input.settings,
-    memory: input.memory,
+    // Ignore internal task-result messages: their contents are not the user's
+    // current topic and must not steer retrieval of unrelated memories.
+    memory: rankMemory(input.memory, [...(input.session.messages ?? [])].reverse().find((message) => message.role === 'user' && !message.internal)?.content ?? ''),
     schemas: tools,
     roster: input.roster,
     contextWindow,

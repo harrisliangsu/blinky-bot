@@ -7,8 +7,8 @@
   /* Positioning context for the rail when it floats on a narrow window. */
   position: relative;
 }
-
 .ob-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -16,9 +16,4 @@
   min-height: 0;
   background: var(--ob-bg-editor);
 }
-
-@media (max-width: 900px) {
-  .ob-sidebar {
-    display: none;
-  }
-}
+.ob-approval-elsewhere { align-self: center; margin: var(--ob-space-2); }

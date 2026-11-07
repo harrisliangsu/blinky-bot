@@ -15,6 +15,7 @@ import {
 import { CardEditor } from './CardEditor'
 import { IconPlus } from './Icons'
 import { KanbanColumn } from './KanbanColumn'
+import { FormDialog } from './FormDialog'
 import { Modal } from './Modal'
 import './KanbanBoard.css'
 
@@ -27,6 +28,7 @@ export function KanbanBoard(): ReactNode {
   const [movedId, setMovedId] = useState<string | null>(null)
   const [columnName, setColumnName] = useState('')
   const [addingColumn, setAddingColumn] = useState(false)
+  const [savingColumn, setSavingColumn] = useState(false)
 
   const project = projects.find((p) => p.id === currentProjectId) ?? null
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
@@ -56,12 +58,12 @@ export function KanbanBoard(): ReactNode {
     if (found) void openCardChat(found.card)
   }
 
-  const commitColumn = (): void => {
+  const commitColumn = async (): Promise<void> => {
     const clean = columnName.trim()
-    if (!clean) return
-    void addColumn(clean)
-    setColumnName('')
-    setAddingColumn(false)
+    if (!clean || savingColumn) return
+    setSavingColumn(true)
+    if (await addColumn(clean)) { setColumnName(''); setAddingColumn(false) }
+    setSavingColumn(false)
   }
 
   const cardTotal = columns.reduce((total, c) => total + c.cards.length, 0)
@@ -84,7 +86,7 @@ export function KanbanBoard(): ReactNode {
         ) : null
       }
     >
-      <div className={`ob-kb${editing ? ' is-editing' : ''}`}>
+      <div className="ob-kb">
         {boardLoading ? (
           <p className="ob-hint">Loading board…</p>
         ) : !board ? (
@@ -93,7 +95,7 @@ export function KanbanBoard(): ReactNode {
           </p>
         ) : (
           <div className="ob-kb-scroll" onDragEnd={clearDrag}>
-            {columns.length === 0 && !addingColumn ? (
+            {columns.length === 0 ? (
               <div className="ob-empty">
                 <h3 className="ob-empty-title">An empty board</h3>
                 <p className="ob-empty-body">Columns are the stages work moves through. Start with one and add cards to it.</p>
@@ -124,39 +126,35 @@ export function KanbanBoard(): ReactNode {
                   setMovedId(cardId)
                   void moveCard(cardId, toColumnId, visualIndex)
                 }}
-                onAddCard={(title) => void addCard(column.id, title)}
-                onRename={(name) => void renameColumn(column.id, name)}
+                onAddCard={(title) => addCard(column.id, title)}
+                onRename={(name) => renameColumn(column.id, name)}
                 onRemove={() => void removeColumn(column.id)}
                 {...(canMarkDone ? { onToggleDone: (done: boolean) => void setColumnDone(column.id, done) } : {})}
               />
             ))}
 
             {addingColumn ? (
+              <FormDialog title="Add column" size="sm" fallbackFocus=".ob-kb-addcol" onClose={() => { if (!savingColumn) setAddingColumn(false) }}>
               <form
-                className="ob-kb-newcol"
+                className="ob-field"
                 onSubmit={(e) => {
                   e.preventDefault()
-                  commitColumn()
+                  void commitColumn()
                 }}
               >
                 <input
                   className="ob-input"
+                  disabled={savingColumn}
                   value={columnName}
                   autoFocus
                   maxLength={40}
                   placeholder="Column name"
                   aria-label="New column name"
                   onChange={(e) => setColumnName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      e.stopPropagation()
-                      setColumnName('')
-                      setAddingColumn(false)
-                    }
-                  }}
+
                 />
                 <div className="ob-kb-newcol-foot">
-                  <button type="submit" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!columnName.trim()}>
+                  <button type="submit" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!columnName.trim() || savingColumn}>
                     Add
                   </button>
                   <button
@@ -171,7 +169,9 @@ export function KanbanBoard(): ReactNode {
                   </button>
                 </div>
               </form>
-            ) : columns.length > 0 ? (
+              </FormDialog>
+            ) : null}
+            {columns.length > 0 ? (
               <button type="button" className="ob-kb-addcol" onClick={() => setAddingColumn(true)}>
                 <IconPlus size={12} />
                 Add column
@@ -181,19 +181,7 @@ export function KanbanBoard(): ReactNode {
         )}
 
         {editing ? (
-          <aside
-            className="ob-kb-drawer"
-            aria-label="Card editor"
-            onKeyDown={(e) => {
-              // Escape closes the drawer, not the board: typed notes are only in
-              // the field until Save, and the modal would take them with it.
-              if (e.key !== 'Escape') return
-              e.stopPropagation()
-              setEditingId(null)
-            }}
-          >
-            <CardEditor card={editing} bots={bots} onClose={() => setEditingId(null)} />
-          </aside>
+          <CardEditor key={editing.id} card={editing} bots={bots} onClose={() => setEditingId(null)} />
         ) : null}
       </div>
     </Modal>

@@ -4,13 +4,15 @@
  */
 
 import { errorMessage } from './httpErrors'
-import { diagnosticTail } from './secretRedaction'
+import { diagnosticTail } from './vaultRedaction'
 import { spawnLines } from './spawnProcess'
 
 export type ProbeOutcome = 'missing' | 'timeout' | 'nonzero' | 'success'
 
 export interface VersionProbeResult {
   outcome: ProbeOutcome
+  /** A killed process is a startup failure, not proof of invalid credentials. */
+  signal?: NodeJS.Signals
   version?: string
   /** Redacted stdout + stderr, safe to show in a status detail. */
   output: string
@@ -62,7 +64,7 @@ export async function probeVersion(
     }
     if (timedOut) return { outcome: 'timeout', output }
     const version = parseVersion(output)
-    if (info.code !== 0) return { outcome: 'nonzero', output, ...(version ? { version } : {}) }
+    if (info.code !== 0) return { outcome: 'nonzero', output, ...(info.signal ? { signal: info.signal } : {}), ...(version ? { version } : {}) }
     return { outcome: 'success', output, ...(version ? { version } : {}) }
   } catch (err) {
     return { outcome: 'missing', output: errorMessage(err) }

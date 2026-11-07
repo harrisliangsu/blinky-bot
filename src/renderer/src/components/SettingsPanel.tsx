@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { followsSettingsDefault } from '../../../shared/botBinding'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { runtimeModels } from '../../../shared/botRuntime'
 import { listedBackends } from '../../../shared/backendSections'
-import { thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
-import type { AgentMode, Bot, Settings, UpdateReport } from '../../../shared/types'
-import { SETTINGS_SECTIONS, takeSettingsTab, type SettingsSection } from '../lib/settingsNavigation'
+import { thinkingOptions, thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
+import type { AgentMode, Settings, UpdateReport } from '../../../shared/types'
+import { SETTINGS_SECTIONS, takeSettingsTab, rememberSettingsSection, settingsScroll, saveSettingsScroll, type SettingsSection } from '../lib/settingsNavigation'
+import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { loadSettings, store, toggleWorkspace, updateBot, updateSettings, useAppState } from '../state'
-import { BotRuntimeFields, type RuntimeChoice } from './BotRuntimeFields'
+import { loadSettings, store, updateSettings, useAppState } from '../state'
+import { IconSearch } from './Icons'
 import { Modal } from './Modal'
 import { SettingsApps } from './SettingsApps'
 import { SettingsBackends } from './SettingsBackends'
-import { SettingsPermissions } from './SettingsPermissions'
+import { LocalExecutionControl, SettingsPermissions } from './SettingsPermissions'
 import { SettingsTools } from './SettingsTools'
+import { SettingsVault } from './SettingsVault'
+import { UserProfileSettings } from './UserProfileSettings'
+import { VoicePreferences } from './VoicePreferences'
+import { DecisionReviewPreference } from './DecisionReviewPreference'
+import { NotificationDelivery } from './NotificationDelivery'
 import './SettingsPanel.css'
 
 const SCALES = [80, 90, 100, 110, 125, 150] as const
@@ -27,10 +32,8 @@ const ACCENTS: Array<{ id: Settings['accent']; color: string }> = [
   { id: 'orange', color: '#e08a3c' },
   { id: 'red', color: '#e34671' }
 ]
-const PROFILE_COLORS = ['#7c9cff', '#5ad1a5', '#e0a3ff', '#f0b429', '#f07178', '#8b95a7']
-const EMOJIS = ['🙂', '✨', '🌿', '🦊', '🌙', '📚']
 
-function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (next: boolean) => void }): ReactNode {
+function Switch({ on, label, onChange, disabled = false }: { on: boolean; label: string; onChange: (next: boolean) => void; disabled?: boolean }): ReactNode {
   return (
     <button
       type="button"
@@ -38,6 +41,7 @@ function Switch({ on, label, onChange }: { on: boolean; label: string; onChange:
       className={`ob-switch${on ? ' is-on' : ''}`}
       aria-checked={on}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!on)}
     />
   )
@@ -67,8 +71,23 @@ function Row({ title, hint, children }: { title: string; hint?: string; children
 function General({ settings }: { settings: Settings }): ReactNode {
   const copy = useSettingsCopy()
   const g = copy.general
+  const zh = resolveSettingsLang(settings.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
+  const [runner, setRunner] = useState<Awaited<ReturnType<typeof window.openbot.routines.backgroundStatus>> | null>(null)
+  useEffect(() => {
+    let active = true
+    const refresh = (): void => { void window.openbot.routines.backgroundStatus().then((value) => { if (active) setRunner(value) }).catch(() => { if (active) setRunner({ state: 'error', error: 'Unable to read background status.' }) }) }
+    refresh(); const timer = setInterval(refresh, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [settings.runRoutinesWhenClosed])
+  const runnerText = runner?.state === 'active' ? (zh ? '后台运行已注册。' : 'Background runner registered.') : runner?.state === 'error' ? `${zh ? '后台不可用' : 'Background unavailable'}: ${runner.error ?? ''}` : runner?.state === 'unavailable' ? (zh ? '此构建不注册后台任务。' : 'This build does not register background jobs.') : (zh ? '关闭或没有自动例程时不会注册后台任务。' : 'No background job is registered when disabled or no automatic routines exist.')
   return (
     <div className="ob-set-stack">
+      <Card title={zh ? '智能工作' : 'Intelligent work'}><DecisionReviewPreference enabled={settings.decisionSkillReview === true} zh={zh} /></Card>
+      <Card title={zh ? '局域网共享' : 'Local network sharing'}>
+        <Row title={zh ? '远程连接与共享' : 'Remote access and sharing'} hint={zh ? '在同一 Wi-Fi 连接设备，由主机明确批准工作区访问范围和查看或操作权限。' : 'Connect devices on the same Wi-Fi, with explicit host approval of workspace scope and viewing or control permissions.'}>
+          <button type="button" className="ob-btn ob-btn-sm" data-open-rooms onClick={() => store.setModal('rooms')}>{zh ? '打开' : 'Open'}</button>
+        </Row>
+      </Card>
       <Card title={g.appearance}>
         <Row title={g.theme} hint={g.themeHint}>
           <div className="ob-mode" role="group" aria-label={g.theme}>
@@ -105,6 +124,7 @@ function General({ settings }: { settings: Settings }): ReactNode {
             <option value="system">{g.followSystem}</option>
           </select>
         </Row>
+        <VoicePreferences settings={settings} zh={zh} />
         <Row title={g.scale} hint={g.scaleHint}>
           <select
             className="ob-select ob-settings-select"
@@ -147,9 +167,6 @@ function General({ settings }: { settings: Settings }): ReactNode {
             <option value="mod-enter">{g.sendMod}</option>
           </select>
         </Row>
-        <Row title={g.steps} hint={g.stepsHint}>
-          <Switch on={settings.expandSteps === true} label={g.steps} onChange={(expandSteps) => void updateSettings({ expandSteps })} />
-        </Row>
         <Row title={g.links} hint={g.linksHint}>
           <select
             className="ob-select ob-settings-select"
@@ -162,6 +179,7 @@ function General({ settings }: { settings: Settings }): ReactNode {
           </select>
         </Row>
       </Card>
+      <LocalExecutionControl settings={settings} />
       <Card title={g.behavior}>
         <Row title={g.login} hint={g.loginHint}>
           <Switch
@@ -170,58 +188,18 @@ function General({ settings }: { settings: Settings }): ReactNode {
             onChange={(launchAtLogin) => void updateSettings({ launchAtLogin })}
           />
         </Row>
-        <Row title={g.background} hint={g.backgroundHint}>
+        {typeof navigator === 'undefined' || navigator.platform.toLowerCase().includes('mac') ? <Row title={zh ? '关闭应用后运行例程和渠道' : 'Run routines and channels when closed'} hint={`${zh ? 'Mac 需保持唤醒且账户已登录。' : 'The Mac must be awake and your account signed in. '}${runnerText}`}>
+          <Switch on={settings.runRoutinesWhenClosed !== false} label={zh ? '关闭应用后运行例程和渠道' : 'Run routines and channels when closed'} onChange={(runRoutinesWhenClosed) => void updateSettings({ runRoutinesWhenClosed })} />
+        </Row> : null}
+        {typeof navigator === 'undefined' || !navigator.platform.toLowerCase().includes('mac') ? <Row title={g.background} hint={g.backgroundHint}>
           <Switch
             on={settings.runInBackground === true}
             label={g.background}
             onChange={(runInBackground) => void updateSettings({ runInBackground })}
           />
-        </Row>
+        </Row> : null}
       </Card>
-      <LayoutCard />
-      <p className="ob-settings-privacy">{g.privacy}</p>
     </div>
-  )
-}
-
-/**
- * Workspace, the activity panel, inbox, and shared rooms. They used to sit in
- * the chat header; Settings is where they stay reachable.
- */
-function LayoutCard(): ReactNode {
-  const g = useSettingsCopy().general.layout
-  const { railOpen, workspace, activity, tasks } = useAppState()
-  const waiting = activity.filter((item) => !item.read).length + tasks.filter((task) => task.status === 'queued' || task.status === 'running').length
-
-  return (
-    <Card title={g.title}>
-      <Row title={g.chats} hint={g.chatsHint}>
-        <button
-          type="button"
-          className="ob-btn ob-btn-sm"
-          aria-label={`${g.chats}: ${workspace.open ? g.chatsClose : g.chatsOpen}`}
-          onClick={() => {
-            toggleWorkspace()
-            store.setModal(null)
-          }}
-        >
-          {workspace.open ? g.chatsClose : g.chatsOpen}
-        </button>
-      </Row>
-      <Row title={g.side} hint={g.sideHint}>
-        <Switch on={railOpen} label={g.side} onChange={() => store.toggleRail()} />
-      </Row>
-      <Row title={g.inbox} hint={waiting > 0 ? `${g.inboxHint} (${waiting})` : g.inboxHint}>
-        <button type="button" className="ob-btn ob-btn-sm" aria-label={`${g.inbox}: ${g.inboxOpen}`} onClick={() => store.setModal('activity')}>
-          {g.inboxOpen}
-        </button>
-      </Row>
-      <Row title={g.rooms} hint={g.roomsHint}>
-        <button type="button" className="ob-btn ob-btn-sm" aria-label={`${g.rooms}: ${g.roomsOpen}`} onClick={() => store.setModal('rooms')}>
-          {g.roomsOpen}
-        </button>
-      </Row>
-    </Card>
   )
 }
 
@@ -231,14 +209,17 @@ function saveDefaultThinking(value: string): void {
 
 function Bots({ settings }: { settings: Settings }): ReactNode {
   const copy = useSettingsCopy()
-  const { backends, bots } = useAppState()
+  const { backends } = useAppState()
   const b = copy.bots
+  const zh = resolveSettingsLang(settings.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
   const modes: AgentMode[] = ['agent', 'ask', 'plan']
   const chosen = backends.find((item) => item.id === settings.defaultBackendId)
   // Catalog aliases plus whatever this CLI or provider just reported, so the
   // list follows the selected row instead of a single hardcoded "default".
   const models = runtimeModels(settings.defaultBackendId, chosen?.models ?? [], settings.defaultModelId)
   const showDefaultThinking = thinkingWire(settings.defaultBackendId) !== null
+  const depths = thinkingOptions(settings.defaultBackendId, settings.defaultModelId, chosen?.models ?? [], settings.backends[settings.defaultBackendId]?.defaultModelId)
+  const depthLabels: Record<ThinkingDepth, string> = { off: b.thinkingOff, low: b.thinkingLow, medium: b.thinkingMedium, high: b.thinkingHigh, xhigh: b.thinkingXHigh, max: b.thinkingMax, ultra: b.thinkingUltra }
   return (
     <div className="ob-set-stack">
     <Card title={copy.nav.bots}>
@@ -256,7 +237,8 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
           ))}
         </select>
       </Row>
-      <Row title={b.backend} hint={b.backendHint}>
+      <div className="ob-set-default-models" role="group" aria-label={zh ? '默认模型' : 'Default model'}>
+        <label><span className="ob-sr-only">{b.backend}</span>
         <select
           className="ob-select ob-settings-select"
           aria-label={b.backend}
@@ -267,11 +249,7 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             void updateSettings({
               defaultBackendId,
               defaultModelId,
-              defaultThinking: thinkingWire(defaultBackendId) ? settings.defaultThinking : ('' as ThinkingDepth),
-              backends: {
-                ...settings.backends,
-                [defaultBackendId]: { ...(settings.backends[defaultBackendId] ?? { enabled: true }), defaultModelId }
-              }
+              defaultThinking: '' as ThinkingDepth
             })
           }}
         >
@@ -287,8 +265,8 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             </option>
           ))}
         </select>
-      </Row>
-      <Row title={b.model} hint={b.modelHint}>
+      </label>
+      <label><span className="ob-sr-only">{b.model}</span>
         <select
           className="ob-select ob-settings-select"
           aria-label={b.model}
@@ -298,10 +276,7 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             const id = settings.defaultBackendId
             void updateSettings({
               defaultModelId,
-              backends: {
-                ...settings.backends,
-                [id]: { ...(settings.backends[id] ?? { enabled: true }), defaultModelId }
-              }
+              defaultThinking: settings.defaultThinking && thinkingOptions(id, defaultModelId, chosen?.models ?? [], defaultModelId).includes(settings.defaultThinking) ? settings.defaultThinking : ('' as ThinkingDepth)
             })
           }}
         >
@@ -311,9 +286,9 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             </option>
           ))}
         </select>
-      </Row>
+      </label>
       {showDefaultThinking ? (
-        <Row title={b.thinking} hint={b.thinkingHint}>
+        <label><span className="ob-sr-only">{b.thinking}</span>
           <select
             className="ob-select ob-settings-select"
             aria-label={b.thinking}
@@ -321,153 +296,23 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
             onChange={(e) => saveDefaultThinking(e.target.value)}
           >
             <option value="">{b.thinkingDefault}</option>
-            <option value="off">{b.thinkingOff}</option>
-            <option value="low">{b.thinkingLow}</option>
-            <option value="medium">{b.thinkingMedium}</option>
-            <option value="high">{b.thinkingHigh}</option>
-            <option value="xhigh">{b.thinkingXHigh}</option>
+            {settings.defaultThinking && !depths.includes(settings.defaultThinking) ? <option value={settings.defaultThinking} disabled>{depthLabels[settings.defaultThinking]}</option> : null}
+            {depths.map((depth) => <option key={depth} value={depth}>{depthLabels[depth]}</option>)}
           </select>
-        </Row>
-      ) : null}
-      <Row title={b.memory} hint={b.memoryHint}>
-        <select
-          className="ob-select ob-settings-select"
-          aria-label={b.memory}
-          value={settings.memoryExtraction ?? 'api'}
-          onChange={(e) =>
-            void updateSettings({ memoryExtraction: e.target.value as NonNullable<Settings['memoryExtraction']> })
-          }
-        >
-          <option value="api">{b.memoryApi}</option>
-          <option value="all">{b.memoryAll}</option>
-          <option value="off">{b.memoryOff}</option>
-        </select>
-      </Row>
-    </Card>
-    <Card title={b.eachBot}>
-      <p className="ob-hint">{b.eachBotHint}</p>
-      {bots.map((bot) => (
-        <BotRuntimeRow key={bot.id} bot={bot} settings={settings} />
-      ))}
-    </Card>
-    </div>
-  )
-}
-
-function BotRuntimeRow({ bot, settings }: { bot: Bot; settings: Settings }): ReactNode {
-  const copy = useSettingsCopy().bots
-  const { backends } = useAppState()
-  const follows = followsSettingsDefault(bot)
-  const pin = (choice: RuntimeChoice): void => {
-    void updateBot(bot.id, {
-      followsDefault: false,
-      backendId: choice.backendId,
-      modelId: choice.modelId,
-      thinking: (choice.thinking ?? '') as ThinkingDepth
-    })
-  }
-  return (
-    <div className="ob-bot-runtime" data-bot-runtime={bot.id}>
-      <div className="ob-bot-runtime-head">
-        <strong>
-          {bot.emoji} {bot.name}
-        </strong>
-        <label className="ob-check">
-          <input
-            type="checkbox"
-            checked={follows}
-            onChange={(e) => {
-              if (e.target.checked) {
-                void updateBot(bot.id, { followsDefault: true, modelId: 'default', thinking: '' as ThinkingDepth })
-                return
-              }
-              void updateBot(bot.id, {
-                followsDefault: false,
-                backendId: bot.backendId || settings.defaultBackendId,
-                modelId: bot.modelId || 'default',
-                ...(bot.thinking ? { thinking: bot.thinking } : {})
-              })
-            }}
-          />
-          <span>{copy.follow}</span>
         </label>
+      ) : null}
       </div>
-      {follows ? null : (
-        <BotRuntimeFields
-          backends={backends}
-          configs={settings.backends}
-          backendId={bot.backendId}
-          modelId={bot.modelId}
-          thinking={bot.thinking}
-          onChange={pin}
-        />
-      )}
-    </div>
-  )
-}
-
-function Profile({ settings }: { settings: Settings }): ReactNode {
-  const copy = useSettingsCopy()
-  const p = copy.profile
-  const [name, setName] = useState<string | null>(null)
-  return (
-    <Card title={copy.nav.profile}>
-      <Row title={p.name} hint={p.nameHint}>
-        <input
-          className="ob-input ob-set-input"
-          aria-label={p.name}
-          value={name ?? settings.profileName}
-          maxLength={80}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => {
-            if (name !== null && name !== settings.profileName) void updateSettings({ profileName: name.trim() })
-            setName(null)
-          }}
-        />
-      </Row>
-      <Row title={p.emoji}>
-        <div className="ob-swatches" role="group" aria-label={p.emoji}>
-          {EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              className={`ob-emoji${settings.profileEmoji === emoji ? ' is-on' : ''}`}
-              aria-pressed={settings.profileEmoji === emoji}
-              onClick={() => void updateSettings({ profileEmoji: emoji })}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      </Row>
-      <Row title={p.color}>
-        <div className="ob-swatches" role="group" aria-label={p.color}>
-          {PROFILE_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              className={`ob-swatch${settings.profileColor === color ? ' is-on' : ''}`}
-              style={{ background: color }}
-              aria-label={color}
-              aria-pressed={settings.profileColor === color}
-              onClick={() => void updateSettings({ profileColor: color })}
-            />
-          ))}
-        </div>
-      </Row>
-      <div className="ob-profile-preview">
-        <span className="ob-profile-avatar" style={{ background: settings.profileColor }} aria-hidden="true">
-          {settings.profileEmoji}
-        </span>
-        <span>{settings.profileName || p.preview}</span>
-      </div>
+      <p className="ob-hint">{b.backendHint}</p>
     </Card>
+
+    </div>
   )
 }
 
 function Notifications({ settings }: { settings: Settings }): ReactNode {
   const copy = useSettingsCopy()
   const n = copy.notifications
+  const zh = resolveSettingsLang(settings.language, navigator.language) === 'zh-CN'
   return (
     <Card title={copy.nav.notifications}>
       <Row title={n.desktop} hint={n.desktopHint}>
@@ -481,9 +326,11 @@ function Notifications({ settings }: { settings: Settings }): ReactNode {
         <Switch
           on={settings.notifyOnTurn === true}
           label={n.turn}
+          disabled={settings.notifications === false}
           onChange={(notifyOnTurn) => void updateSettings({ notifyOnTurn })}
         />
       </Row>
+      <NotificationDelivery zh={zh} />
     </Card>
   )
 }
@@ -578,16 +425,60 @@ export function SettingsPanel(): ReactNode {
   const copy = useSettingsCopy()
   const { settings, settingsError, backends, backendsLoading, backendsError } = useAppState()
   const [section, setSection] = useState<SettingsSection>(() => takeSettingsTab())
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
-  const visible = useMemo(() => {
+  const visible = useMemo<SettingsSection[]>(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return [...SETTINGS_SECTIONS]
-    return SETTINGS_SECTIONS.filter((id) => {
-      const blob = JSON.stringify({ name: copy.nav[id], body: copy[id] }).toLowerCase()
+    const settingsSections: SettingsSection[] = SETTINGS_SECTIONS.filter((id) => id !== 'apps' && id !== 'tools')
+    if (!q) return settingsSections
+    return settingsSections.filter((id) => {
+      const blob = JSON.stringify({ name: copy.nav[id], body: id === 'vault' ? 'password card address 密码 银行卡 地址' : copy[id] }).toLowerCase()
       return blob.includes(q)
     })
   }, [copy, query])
-  const current = visible.includes(section) ? section : visible[0] ?? 'general'
+  const current = visible.includes(section) ? section : visible[0]
+  useLayoutEffect(() => {
+    if (!current) return
+    rememberSettingsSection(current)
+    const main = scrollRef.current, body = main?.closest<HTMLElement>('.ob-modal-body')
+    if (main) main.scrollTop = settingsScroll(current)
+    if (body) body.scrollTop = settingsScroll(current, 'body')
+    const rememberBody = (): void => { if (body) saveSettingsScroll(current, body.scrollTop, 'body') }
+    body?.addEventListener('scroll', rememberBody)
+    return () => body?.removeEventListener('scroll', rememberBody)
+  }, [current])
+  useEffect(() => {
+    const deepLink = (): void => setSection(takeSettingsTab())
+    window.addEventListener('openbot:settings-tab', deepLink)
+    return () => window.removeEventListener('openbot:settings-tab', deepLink)
+  }, [])
+
+  const lang = resolveSettingsLang(settings?.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language)
+  const groups: Array<{ label: string; sections: SettingsSection[] }> = [
+    { label: lang === 'zh-CN' ? '偏好设置' : 'Preferences', sections: ['general', 'bots', 'profile', 'notifications', 'permissions'] },
+    { label: lang === 'zh-CN' ? '连接' : 'Connections', sections: ['backends', 'vault'] },
+    { label: lang === 'zh-CN' ? '关于应用' : 'Application', sections: ['updates', 'about'] }
+  ]
+
+  // Apps and tools are workspaces opened from the account menu, not settings
+  // categories. Existing deep links (including the legacy MCP link) continue
+  // to land here, without adding duplicate entries to the settings sidebar.
+  if (section === 'apps' || section === 'tools') {
+    return (
+      <Modal title={copy.nav[section]} size="lg" onClose={() => store.setModal(null)}>
+        {settings ? (
+          <div className="ob-set-workspace" data-settings-section={section}>
+            {section === 'apps' ? <SettingsApps /> : <SettingsTools settings={settings} />}
+          </div>
+        ) : (
+          <div className="ob-empty">
+            <p>{settingsError ?? '…'}</p>
+            {settingsError ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => void loadSettings()}>OK</button> : null}
+          </div>
+        )}
+      </Modal>
+    )
+  }
 
   return (
     <Modal title={copy.title} subtitle={copy.subtitle} size="lg" onClose={() => store.setModal(null)}>
@@ -605,6 +496,7 @@ export function SettingsPanel(): ReactNode {
           <aside className="ob-set-nav" aria-label={copy.title}>
             <label className="ob-set-search">
               <span className="ob-sr-only">{copy.search}</span>
+              <IconSearch size={15} />
               <input
                 type="search"
                 value={query}
@@ -612,36 +504,49 @@ export function SettingsPanel(): ReactNode {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <div role="tablist">
-              {visible.map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  id={`ob-set-tab-${id}`}
-                  aria-selected={current === id}
-                  className={`ob-set-nav-btn${current === id ? ' is-on' : ''}`}
-                  onClick={() => setSection(id)}
-                >
-                  {copy.nav[id]}
-                </button>
-              ))}
-            </div>
+            <nav aria-label={copy.title} className="ob-set-nav-groups">
+              {groups.map((group) => {
+                const items = group.sections.filter((id) => visible.includes(id))
+                return items.length ? (
+                  <div className="ob-set-nav-group" key={group.label}>
+                    <div className="ob-set-nav-group-label">{group.label}</div>
+                    {items.map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        id={`ob-set-tab-${id}`}
+                        aria-current={current === id ? 'page' : undefined}
+                        className={`ob-set-nav-btn${current === id ? ' is-on' : ''}`}
+                        onClick={() => setSection(id)}
+                      >
+                        {copy.nav[id]}
+                      </button>
+                    ))}
+                  </div>
+                ) : null
+              })}
+            </nav>
           </aside>
-          <div className="ob-set-main" role="tabpanel" id={`ob-set-panel-${current}`} aria-labelledby={`ob-set-tab-${current}`} data-settings-section={current}>
+          {current ? <div ref={scrollRef} onScroll={e => saveSettingsScroll(current, e.currentTarget.scrollTop)} className="ob-set-main" id={`ob-set-panel-${current}`} aria-labelledby={`ob-set-tab-${current}`} data-settings-section={current}>
+            <header className="ob-set-page-head"><h2>{copy.nav[current]}</h2></header>
             {current === 'general' ? <General settings={settings} /> : null}
             {current === 'bots' ? <Bots settings={settings} /> : null}
-            {current === 'profile' ? <Profile settings={settings} /> : null}
+            {current === 'profile' ? <UserProfileSettings settings={settings} /> : null}
             {current === 'notifications' ? <Notifications settings={settings} /> : null}
             {current === 'permissions' ? <SettingsPermissions settings={settings} /> : null}
             {current === 'backends' ? (
               <SettingsBackends settings={settings} backends={backends} loading={backendsLoading} error={backendsError} />
             ) : null}
-            {current === 'apps' ? <SettingsApps /> : null}
-            {current === 'tools' ? <SettingsTools settings={settings} /> : null}
+            {current === 'vault' ? <SettingsVault zh={lang === 'zh-CN'} /> : null}
             {current === 'updates' ? <Updates settings={settings} /> : null}
             {current === 'about' ? <About /> : null}
-          </div>
+          </div> : (
+            <div className="ob-set-empty" role="status">
+              <IconSearch size={20} />
+              <strong>{lang === 'zh-CN' ? '没有找到相关设置' : 'No matching settings'}</strong>
+              <span>{lang === 'zh-CN' ? '试试其他关键词。' : 'Try a different search.'}</span>
+            </div>
+          )}
         </div>
       )}
     </Modal>

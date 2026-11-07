@@ -1,7 +1,6 @@
 /*
  * One conversation in a pane. The focused pane is the live one, so it is the
- * only one that carries the accent edge — the ring is the answer to "which pane
- * am I typing into?".
+ * only one that carries a subtle neutral edge to show where input goes.
  * The `.ob-pane-msg-*` rules below dress the read-only snapshot rendered by
  * PaneChatSnapshot, which shares this pane's surface.
  */
@@ -17,8 +16,8 @@
   overflow: hidden;
 }
 .ob-pane.is-focused {
-  border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ob-accent) 20%, transparent);
+  border-color: var(--ob-border-strong);
+  box-shadow: none;
 }
 
 .ob-pane-head {
@@ -155,11 +154,33 @@
   padding: var(--ob-space-2) var(--ob-space-3);
   background: var(--ob-bg-card);
   border-radius: var(--ob-card-radius);
-  font-size: var(--ob-font-size-sm);
-  line-height: var(--ob-line-height-prose);
+  font-size: calc(var(--ob-font-size-base) + 2px);
+  line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.ob-pane-answer {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--ob-space-2) var(--ob-space-3);
+  color: var(--ob-text-primary);
+  background: var(--ob-bg-raised);
+  border: 1px solid var(--ob-border-subtle);
+  border-radius: var(--ob-radius-2xl) var(--ob-radius-2xl) var(--ob-radius-2xl) var(--ob-radius-sm);
+}
+.ob-pane-answer .ob-md {
+  font-size: calc(var(--ob-font-size-base) + 2px);
+  line-height: 1.55;
+  font-weight: var(--ob-weight-normal);
+}
+.ob-pane-answer .ob-md h1,
+.ob-pane-answer .ob-md h2 { font-size: 1.125em; line-height: 1.4; }
+.ob-pane-answer .ob-md h3,
+.ob-pane-answer .ob-md h4 { font-size: 1em; line-height: 1.4; }
+.ob-pane-answer .ob-md :not(pre) > code,
+.ob-pane-answer .ob-code-body { font-size: .9em; }
 
 .ob-pane-tools {
   display: flex;

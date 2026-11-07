@@ -178,6 +178,8 @@ export async function deleteJson(file: string): Promise<void> {
   await enqueue(file, async () => {
     try {
       await fs.rm(file, { force: true })
+      await syncParentDir(file)
+      failures.delete(file)
     } catch (err) {
       recordFailure(file, err)
     }

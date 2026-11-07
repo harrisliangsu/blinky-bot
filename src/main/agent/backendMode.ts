@@ -1,7 +1,7 @@
 /**
  * Which loop runs a turn.
  *
- * `orchestrated` — direct model APIs (local servers, cloud APIs). We own the loop:
+ * `orchestrated` — model APIs and pi in model-only mode. We own the loop:
  *                  stream → execute tool calls → append results → iterate, under the
  *                  iteration cap.
  *
@@ -14,6 +14,7 @@
  */
 
 import type { BackendInfo, ComputerTarget } from '../../shared/types'
+import { usesApplicationToolLoop } from '../../shared/executionAgentCapabilities'
 
 export type TurnMode = 'orchestrated' | 'supervised'
 
@@ -32,6 +33,7 @@ export function modeFor(
   info: BackendInfo | null | undefined,
   target?: ComputerTarget
 ): TurnMode {
+  if (info && usesApplicationToolLoop(info.id)) return 'orchestrated'
   if (
     info?.kind === 'agent-cli' &&
     !(target?.kind === 'vm' && info.supportsVmOrchestration === true)

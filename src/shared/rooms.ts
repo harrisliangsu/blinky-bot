@@ -13,10 +13,12 @@ export interface CollaborationRoom {
   inviteUrl: string
   /** True while the user is sharing this room. The server answers for no other. */
   enabled: boolean
+  /** View-only or scoped conversation controls; never remote approval/IPC. */
+  permission: 'view' | 'control'
   createdAt: number
   /**
-   * When sharing last started. Guests are served messages from this moment on,
-   * so turning a room on never hands over the conversation that came before it.
+   * When sharing last started. Limits live question controls; an active invite
+   * also authorizes paged, public history from this room's designated session.
    */
   sharedFrom: number
 }

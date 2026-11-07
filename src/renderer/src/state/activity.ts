@@ -1,10 +1,11 @@
 import type { AgentTask } from '../../../shared/types'
+import { summariseTask } from '../../../shared/activity'
 import { bridge, errText } from './bridge'
 import { store } from './core'
 
 export async function loadActivity(): Promise<void> {
   try {
-    const [activity, tasks] = await Promise.all([bridge().activity.list(), bridge().tasks.list()])
+    const [activity, tasks] = await Promise.all([bridge().activity.list(), bridge().tasks.summaries()])
     store.patch({ activity, tasks })
   } catch (error) { store.toast(errText(error), 'error') }
 }
@@ -32,7 +33,7 @@ export async function clearActivity(): Promise<void> {
 export async function createBackgroundTask(botId: string, prompt: string, title?: string): Promise<AgentTask | null> {
   try {
     const task = await bridge().tasks.create(botId, prompt, title)
-    if (task) store.patch({ tasks: [task, ...store.getState().tasks.filter((item) => item.id !== task.id)] })
+    if (task) store.patch({ tasks: [summariseTask(task), ...store.getState().tasks.filter((item) => item.id !== task.id)] })
     return task
   } catch (error) {
     store.toast(errText(error), 'error')
@@ -43,6 +44,6 @@ export async function createBackgroundTask(botId: string, prompt: string, title?
 export async function cancelBackgroundTask(id: string): Promise<void> {
   try {
     const task = await bridge().tasks.cancel(id)
-    if (task) store.patch({ tasks: store.getState().tasks.map((item) => item.id === task.id ? task : item) })
+    if (task) store.patch({ tasks: store.getState().tasks.map((item) => item.id === task.id ? summariseTask(task) : item) })
   } catch (error) { store.toast(errText(error), 'error') }
 }

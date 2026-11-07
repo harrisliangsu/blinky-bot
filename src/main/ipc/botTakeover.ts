@@ -16,9 +16,11 @@ import type {
   VmAdminResult
 } from '../../shared/types'
 import { getBot } from '../store/bots'
+import { getSession } from '../store/sessions'
 import { dataRoot } from '../store/paths'
 import { vmToken } from '../store/vmSecrets'
 import { getComputerProvider, releaseComputerProvidersForBot } from '../tools/computer'
+import { peekBrowserScopeMode } from '../tools/computer/browserScope'
 import { restartAppleVm, runAppleVmAdminCommand } from '../vm/appleVmSupervisor'
 import { probeTarget } from './botComputerTarget'
 import { CHANNELS } from './channels'
@@ -92,7 +94,7 @@ function asHumanAction(value: unknown): HumanComputerAction {
   }
 }
 
-async function takeoverProvider(botId: string) {
+async function takeoverProvider(botId: string, sessionId?: string) {
   const bot = getBot(botId)
   if (!bot) throw new TypeError(`Unknown bot: ${botId}`)
   if (bot.computerTarget.kind === 'local') {
@@ -105,15 +107,23 @@ async function takeoverProvider(botId: string) {
       readyTakeovers.add(botId)
     }
   }
-  return getComputerProvider(bot.computerTarget, { botId, dataDir: dataRoot() })
+  if (bot.computerTarget.kind === 'browser') {
+    if (!sessionId && peekBrowserScopeMode(botId, dataRoot()) !== 'legacy') throw new Error('Choose the Bot conversation before opening its browser.')
+    if (sessionId) {
+      const session = getSession(sessionId)
+      if (!session || !session.botIds.includes(botId)) throw new Error('The conversation does not belong to this Bot.')
+    }
+  }
+  return getComputerProvider(bot.computerTarget, { botId, sessionId, dataDir: dataRoot() })
 }
 
 async function withTakeoverProvider<T>(
   botId: string,
+  sessionId: string | undefined,
   work: (provider: ReturnType<typeof getComputerProvider>) => Promise<T>
 ): Promise<T> {
   try {
-    return await work(await takeoverProvider(botId))
+    return await work(await takeoverProvider(botId, sessionId))
   } catch (error) {
     readyTakeovers.delete(botId)
     throw error
@@ -130,17 +140,19 @@ export function registerTakeoverIpc(): void {
     error: error instanceof Error ? error.message : 'The private screen could not be controlled.'
   })
 
-  handle<ScreenControlResult>(CHANNELS.botsCaptureScreen, async ([id]) => {
+  handle<ScreenControlResult>(CHANNELS.botsCaptureScreen, async ([id, rawSessionId]) => {
     const botId = asId(id)
-    return withTakeoverProvider(botId, async (provider) => ({
+    const sessionId = rawSessionId === undefined ? undefined : asId(rawSessionId)
+    return withTakeoverProvider(botId, sessionId, async (provider) => ({
       ok: true,
       frame: await provider.screenshot()
     }))
   }, screenFallback)
 
-  handle<ScreenControlResult>(CHANNELS.botsControlScreen, async ([id, raw]) => {
+  handle<ScreenControlResult>(CHANNELS.botsControlScreen, async ([id, raw, rawSessionId]) => {
     const botId = asId(id)
-    return withTakeoverProvider(botId, async (provider) => {
+    const sessionId = rawSessionId === undefined ? undefined : asId(rawSessionId)
+    return withTakeoverProvider(botId, sessionId, async (provider) => {
       const action = asHumanAction(raw)
       switch (action.type) {
         case 'click':

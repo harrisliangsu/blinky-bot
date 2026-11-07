@@ -1,0 +1,39 @@
+.ob-agent-main-underlay { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
+/* AppHeader's existing absolute chat header used to be a direct main child. */
+.ob-main.is-chat > .ob-agent-main-underlay > .ob-header { position: absolute; z-index: 15; inset: 0 0 auto; }
+.ob-agent-session-view { position: absolute; inset: 0; z-index: 5; display: flex; min-width: 0; min-height: 0; flex-direction: column; background: var(--ob-bg-editor); }
+.ob-agent-session-head { display: flex; flex: none; align-items: center; gap: var(--ob-space-4); min-height: var(--ob-titlebar-height); padding: var(--ob-space-3) var(--ob-space-5); -webkit-app-region: drag; }
+.ob-main:has(> .ob-agent-main-underlay > .ob-header.is-sidebar-hidden) .ob-agent-session-head { padding-left: var(--ob-space-20); }
+.ob-agent-session-head > div { min-width: 0; }
+.ob-agent-session-head h2 { margin: 0 0 var(--ob-space-1); font-size: var(--ob-font-size-base); font-weight: var(--ob-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-agent-return { display: inline-flex; gap: var(--ob-space-2); align-items: center; flex: none; }
+.ob-agent-session-meta { flex: none; max-height: 30%; overflow-y: auto; padding: 0 var(--ob-space-6) var(--ob-space-2); }
+.ob-agent-task-summary { font-size: var(--ob-font-size-sm); color: var(--ob-text-secondary); }
+.ob-agent-task-summary > summary { cursor: pointer; padding: var(--ob-space-2) 0; }
+.ob-agent-task-summary > div { padding: var(--ob-space-3); border-radius: var(--ob-radius-lg); background: var(--ob-bg-raised); overflow-wrap: anywhere; }
+.ob-agent-task-summary h3 { font-size: var(--ob-font-size-sm); margin: var(--ob-space-3) 0 var(--ob-space-2); }
+.ob-agent-task-summary h3:first-child { margin-top: 0; }
+.ob-agent-session-view .ob-agent-transcript-content,
+.ob-main.is-chat .ob-agent-session-view .ob-agent-transcript-content { padding-top: var(--ob-space-4); }
+.ob-agent-transcript .ob-msg-shell { width: 100%; }
+.ob-agent-transcript .ob-msg-user .ob-msg-shell { width: fit-content; }
+.ob-agent-transcript .ob-msg-tools { margin: 0 0 var(--ob-space-3); }
+.ob-agent-transcript .ob-msg-author { margin-top: var(--ob-space-2); }
+.ob-agent-thinking { margin: 0 0 var(--ob-space-3); color: var(--ob-text-secondary); }
+.ob-agent-thinking-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ob-space-2); max-width: 100%; padding: var(--ob-space-1) 0; border: 0; background: transparent; color: inherit; font: inherit; font-size: var(--ob-font-size-xs); text-align: left; cursor: pointer; }
+.ob-agent-thinking-toggle:hover { color: var(--ob-text-primary); }
+.ob-agent-thinking-toggle:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: 3px; border-radius: var(--ob-radius-sm); }
+.ob-agent-thinking-caret { display: inline-flex; flex: none; }
+.ob-agent-thinking-live { color: var(--ob-text-primary); }
+.ob-agent-thinking-counts { color: var(--ob-text-tertiary); overflow-wrap: anywhere; }
+.ob-agent-thinking-progress { margin: var(--ob-space-1) 0 0 var(--ob-space-5); font-size: var(--ob-font-size-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.ob-agent-thinking-body { margin: var(--ob-space-2) 0 0 var(--ob-space-1); padding-left: var(--ob-space-4); border-left: 1px solid var(--ob-border); }
+.ob-agent-thinking-body h4 { margin: var(--ob-space-3) 0 var(--ob-space-2); color: var(--ob-text-tertiary); font-size: var(--ob-font-size-xs); font-weight: var(--ob-weight-medium); }
+.ob-agent-thinking-record pre { margin: 0; max-height: 300px; overflow: auto; font-family: inherit; font-size: var(--ob-font-size-sm); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ob-agent-thinking-tools > ol { display: flex; flex-direction: column; gap: var(--ob-space-2); margin: 0; padding: 0; list-style: none; }
+.ob-agent-transcript .ob-hint { font-size: var(--ob-font-size-xs); line-height: 1.5; }
+.ob-agent-tool-unknown > summary { cursor: pointer; list-style: none; }
+.ob-agent-tool-unknown > summary::before { content: '›'; color: var(--ob-text-tertiary); }
+.ob-agent-tool-unknown[open] > summary::before { content: '⌄'; }
+.ob-agent-empty { margin: var(--ob-space-8); color: var(--ob-text-secondary); text-align: center; }
+@media (max-width: 760px) { .ob-agent-session-head { align-items: flex-start; flex-direction: column; gap: var(--ob-space-2); } }

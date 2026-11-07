@@ -9,6 +9,7 @@ interface StringListEditorProps {
   items: string[]
   placeholder: string
   tone?: 'neutral' | 'danger'
+  language?: 'zh-CN' | 'en'
   /**
    * One entry at a time, never the whole list. These lists are also written by
    * the agent — "always approve" appends a rule — and the copy on screen can be
@@ -19,8 +20,9 @@ interface StringListEditorProps {
 }
 
 /** Chip-list editor used for the command allowlist and denylist. */
-export function StringListEditor({ label, hint, items, placeholder, tone = 'neutral', onEdit }: StringListEditorProps): ReactNode {
+export function StringListEditor({ label, hint, items, placeholder, tone = 'neutral', language = 'en', onEdit }: StringListEditorProps): ReactNode {
   const [draft, setDraft] = useState('')
+  const addLabel = language === 'zh-CN' ? `添加到${label}` : `Add to ${label}`
 
   const add = (): void => {
     const value = draft.trim()
@@ -42,7 +44,7 @@ export function StringListEditor({ label, hint, items, placeholder, tone = 'neut
           className="ob-input"
           value={draft}
           placeholder={placeholder}
-          aria-label={`Add to ${label}`}
+          aria-label={addLabel}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -51,13 +53,13 @@ export function StringListEditor({ label, hint, items, placeholder, tone = 'neut
             }
           }}
         />
-        <button type="button" className="ob-icon-btn" onClick={add} aria-label={`Add to ${label}`} disabled={!draft.trim()}>
+        <button type="button" className="ob-icon-btn" onClick={add} aria-label={addLabel} disabled={!draft.trim()}>
           <IconPlus size={12} />
         </button>
       </div>
 
       {items.length === 0 ? (
-        <p className="ob-hint">Empty.</p>
+        <p className="ob-hint">{language === 'zh-CN' ? '暂无条目。' : 'No entries yet.'}</p>
       ) : (
         <ul className="ob-list-chips">
           {items.map((item) => (
@@ -66,7 +68,7 @@ export function StringListEditor({ label, hint, items, placeholder, tone = 'neut
               <button
                 type="button"
                 className="ob-icon-btn"
-                aria-label={`Remove ${item} from ${label}`}
+                aria-label={language === 'zh-CN' ? `从${label}移除 ${item}` : `Remove ${item} from ${label}`}
                 onClick={() => onEdit({ kind: 'remove', value: item })}
               >
                 <IconClose size={10} />

@@ -1,11 +1,13 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useShortcuts } from './lib/useShortcuts'
 import { useTheme } from './lib/useTheme'
-import { boot, respondToApproval, useAppState } from './state'
+import { boot, selectSession, useAppState } from './state'
 import { AppHeader } from './components/AppHeader'
-import { ApprovalDialog } from './components/ApprovalDialog'
 import { ActivityPanel } from './components/ActivityPanel'
 import { BotManager } from './components/BotManager'
+import { CreateBotDialog } from './components/CreateBotDialog'
+import { BotDetailsPanel } from './components/BotDetailsPanel'
+import { AgentMainSurface, AgentSessionWorkspace } from './components/AgentSessionWorkspace'
 import { CommandPalette } from './components/CommandPalette'
 import { Composer } from './components/Composer'
 import { KanbanBoard } from './components/KanbanBoard'
@@ -25,27 +27,58 @@ import './App.css'
 
 /** Application shell: navigation, conversation, side panel and overlays. */
 export default function App(): ReactNode {
-  const { ready, bootError, settings, modal, railOpen, approvals, projectHome, workspace } =
+  const [botDetailsOpen, setBotDetailsOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { ready, bootError, settings, modal, botDraftId, railOpen, approvals, projectHome, workspace, currentSessionId } =
     useAppState()
+
+  useEffect(() => {
+    if (!ready) return
+    return window.openbot.notifications.onOpen(({ sessionId }) => { void selectSession(sessionId) })
+  }, [ready])
 
   useEffect(() => {
     void boot()
   }, [])
 
+  useEffect(() => {
+    const toggleSidebar = (): void => {
+      const focusWasInSidebar = Boolean(document.activeElement?.closest('.ob-sidebar'))
+      setSidebarOpen((open) => !open)
+      if (focusWasInSidebar) window.requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('#ob-prompt')?.focus())
+    }
+    const focusSearch = (): void => {
+      setSidebarOpen(true)
+      window.requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('openbot:expand-sidebar-for-search'))
+        window.requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.ob-side-search-input')?.focus())
+      })
+    }
+    window.addEventListener('openbot:focus-bot-search', focusSearch)
+    window.addEventListener('openbot:toggle-sidebar', toggleSidebar)
+    return () => {
+      window.removeEventListener('openbot:focus-bot-search', focusSearch)
+      window.removeEventListener('openbot:toggle-sidebar', toggleSidebar)
+    }
+  }, [])
+
   useTheme(settings ?? undefined)
-  useShortcuts()
+  useShortcuts(botDetailsOpen, () => setBotDetailsOpen(false))
 
   if (!ready || bootError) return <StartupScreen error={bootError} />
 
-  const pending = approvals[0]
+  const elsewhere = approvals.find((request) => request.sessionId !== currentSessionId || projectHome)
 
   return (
     <ErrorBoundary>
+    <AgentSessionWorkspace>
     <div className="ob-app">
-      <Sidebar />
+      {sidebarOpen ? <Sidebar /> : null}
 
-      <main className="ob-main">
-        <AppHeader />
+      <main className={`ob-main${!projectHome && !workspace.open && !elsewhere ? ' is-chat' : ''}`}>
+        <AgentMainSurface>
+        <AppHeader sidebarOpen={sidebarOpen} onToggleSidebar={() => window.dispatchEvent(new Event('openbot:toggle-sidebar'))} botDetailsOpen={botDetailsOpen} onToggleBotDetails={() => setBotDetailsOpen((open) => !open)} />
+        {elsewhere ? <button type="button" className="ob-btn ob-btn-sm ob-approval-elsewhere" onClick={() => void selectSession(elsewhere.sessionId)}>{settings?.language === 'en' ? 'Another conversation needs confirmation' : '有对话需要确认，点击查看'}</button> : null}
         {/* Selecting a project shows its home here instead of a transcript. */}
         {projectHome ? (
           <ProjectView />
@@ -54,20 +87,22 @@ export default function App(): ReactNode {
              whichever pane has focus, which is the app's current session. */
           <>
             <Workspace />
-            <Composer />
+            <Composer key={currentSessionId ?? 'none'} />
           </>
         ) : (
           <>
             <Transcript />
-            <Composer />
+            <Composer key={currentSessionId ?? 'none'} />
           </>
         )}
+        </AgentMainSurface>
       </main>
 
       {railOpen ? <RightRail /> : null}
+      {botDetailsOpen ? <BotDetailsPanel onClose={() => setBotDetailsOpen(false)} /> : null}
 
       {modal === 'settings' ? <SettingsPanel /> : null}
-      {modal === 'bots' ? <BotManager /> : null}
+      {modal === 'bots' ? (botDraftId === 'new' || botDraftId?.startsWith('new:') ? <CreateBotDialog key={botDraftId} templateId={botDraftId.startsWith('new:') ? botDraftId.slice(4) : undefined} /> : <BotManager />) : null}
       {modal === 'routines' ? <RoutinePanel /> : null}
       {modal === 'project' ? <ProjectEditor /> : null}
       {modal === 'board' ? <KanbanBoard /> : null}
@@ -75,17 +110,9 @@ export default function App(): ReactNode {
       {modal === 'rooms' ? <RoomsPanel /> : null}
       <CommandPalette />
 
-      {pending ? (
-        <ApprovalDialog
-          key={pending.id}
-          request={pending}
-          queued={approvals.length - 1}
-          onDecide={(decision) => void respondToApproval(pending.id, decision)}
-        />
-      ) : null}
-
       <Toast />
     </div>
+    </AgentSessionWorkspace>
     </ErrorBoundary>
   )
 }

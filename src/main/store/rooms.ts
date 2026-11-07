@@ -21,7 +21,7 @@ function normalise(raw: unknown): StoredRoom | null {
   const value = raw as Record<string, unknown>
   if (typeof value['id'] !== 'string' || typeof value['sessionId'] !== 'string' || typeof value['token'] !== 'string') return null
   const createdAt = Number(value['createdAt']) || Date.now()
-  return { id: value['id'], sessionId: value['sessionId'], token: value['token'], name: typeof value['name'] === 'string' ? value['name'].slice(0, 200) : 'Shared room', enabled: false, createdAt, sharedFrom: Number(value['sharedFrom']) || createdAt }
+  return { id: value['id'], sessionId: value['sessionId'], token: value['token'], name: typeof value['name'] === 'string' ? value['name'].slice(0, 200) : 'Shared room', enabled: false, permission: value['permission'] === 'view' ? 'view' : 'control', createdAt, sharedFrom: Number(value['sharedFrom']) || createdAt }
 }
 
 export const loadRooms = (): Promise<void> => collection.load()
@@ -45,20 +45,19 @@ export const sharedRoomByToken = (token: string): StoredRoom | null => collectio
  * Start (or restart) sharing a session, and hand back the room to publish.
  *
  * A session keeps one room: pressing the share button again re-opens the room
- * it already has rather than minting a second token, so the URL the user handed
- * out last week is the URL that starts working again — and there is exactly one
+ * it already has rather than minting a second token, and a disabled room receives a fresh invitation when re-enabled — and there is exactly one
  * link per conversation to revoke.
  *
- * `sharedFrom` moves to now whenever a room goes from off to on. Everything said
- * while sharing was off is private conversation, and re-opening a room must not
- * hand it to whoever still holds the link.
+ * `sharedFrom` moves to now whenever a room goes from off to on, limiting live
+ * question controls. Public history belongs to the explicitly invited session;
+ * old tokens never regain access when a fresh invitation is issued.
  */
-export function shareRoom(sessionId: string, name: string): StoredRoom {
+export function shareRoom(sessionId: string, name: string, permission: 'view' | 'control' = 'control'): StoredRoom {
   const now = Date.now()
   const existing = collection.all().find((room) => room.sessionId === sessionId)
   const wanted = name.trim().slice(0, 200)
-  if (existing) return collection.put({ ...existing, name: wanted || existing.name, enabled: true, sharedFrom: existing.enabled ? existing.sharedFrom : now })
-  return collection.put({ id: randomUUID(), sessionId, name: wanted || 'Shared room', token: randomBytes(24).toString('base64url'), enabled: true, createdAt: now, sharedFrom: now })
+  if (existing) return collection.put({ ...existing, name: wanted || existing.name, permission, token: existing.enabled ? existing.token : randomBytes(24).toString('base64url'), enabled: true, sharedFrom: existing.enabled ? existing.sharedFrom : now })
+  return collection.put({ id: randomUUID(), sessionId, name: wanted || 'Shared room', permission, token: randomBytes(24).toString('base64url'), enabled: true, createdAt: now, sharedFrom: now })
 }
 
 export const removeRoom = (id: string): boolean => collection.delete(id)

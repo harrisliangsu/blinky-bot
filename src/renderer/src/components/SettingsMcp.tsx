@@ -1,7 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { FormDialog } from './FormDialog'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { McpServerConfig, Settings } from '../../../shared/types'
+import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { store, updateSettings } from '../state'
+import { saveMcpServer } from '../state/preferences'
 import { IconPencil, IconPlus, IconTrash } from './Icons'
 import './SettingsMcp.css'
 
@@ -24,10 +27,15 @@ const blank = (): McpServerConfig => ({
 
 /** MCP server list: enable, edit connection details, remove. No preset catalog. */
 export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
+  const focusScope = useId()
   const copy = useSettingsCopy().mcp
+  const zh = resolveSettingsLang(settings.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
   const [draft, setDraft] = useState<McpServerConfig | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const servers = settings.mcpServers ?? []
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const saving = useRef(false)
 
   const write = (next: McpServerConfig[]): void => {
     void updateSettings({ mcpServers: next })
@@ -37,8 +45,20 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
     write(servers.map((s) => (s.id === id ? { ...s, ...change } : s)))
 
   const closeDraft = (): void => {
+    if (saving.current) return
+    setError('')
     setDraft(null)
     setEditingId(null)
+  }
+
+  const saveDraft = async (): Promise<void> => {
+    if (!draft || saving.current) return
+    saving.current = true; setBusy(true); setError('')
+    try {
+      const result = await saveMcpServer({ server: draft, editingId: editingId ?? undefined })
+      if (!result.ok) { setError(result.error); return }
+      setDraft(null); setEditingId(null)
+    } finally { saving.current = false; setBusy(false) }
   }
 
   /*
@@ -49,17 +69,17 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
    * held the id, writing nothing and saying nothing. Close it and say why.
    */
   useEffect(() => {
-    if (editingId === null) return
+    if (editingId === null || saving.current) return
     if (servers.some((server) => server.id === editingId)) return
     closeDraft()
     store.toast(copy.removed, 'error')
   }, [editingId, servers])
 
   return (
-    <section className="ob-settings-section">
+    <section className="ob-settings-section" id={focusScope}>
       <header className="ob-settings-head">
         <h3 className="ob-label">{copy.title}</h3>
-        <button type="button" className="ob-btn ob-btn-sm" onClick={() => { setEditingId(null); setDraft(blank()) }} disabled={draft !== null}>
+        <button type="button" data-mcp-add className="ob-btn ob-btn-sm" onClick={() => { if (saving.current) return; setError(''); setEditingId(null); setDraft(blank()) }} disabled={busy || draft !== null}>
           <IconPlus size={12} />
           {copy.add}
         </button>
@@ -74,7 +94,7 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
           <li key={server.id} className="ob-mcp">
             <div className="ob-mcp-head">
               <label className="ob-check">
-                <input type="checkbox" checked={server.enabled} onChange={(e) => patch(server.id, { enabled: e.target.checked })} />
+                <input type="checkbox" disabled={busy} checked={server.enabled} onChange={(e) => patch(server.id, { enabled: e.target.checked })} />
                 <span className="ob-mcp-name">{server.name || server.id}</span>
               </label>
               <span className="ob-mcp-right">
@@ -82,9 +102,9 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
                 <button
                   type="button"
                   className="ob-icon-btn"
-                  aria-label={`Configure ${server.name || server.id}`}
-                  onClick={() => { setEditingId(server.id); setDraft({ ...server, bearerToken: '' }) }}
-                  disabled={draft !== null}
+                  aria-label={zh ? `配置 ${server.name || server.id}` : `Configure ${server.name || server.id}`}
+                  onClick={() => { if (saving.current) return; setError(''); setEditingId(server.id); setDraft({ ...server, bearerToken: '' }) }}
+                  disabled={busy || draft !== null}
                 >
                   <IconPencil size={11} />
                 </button>
@@ -95,9 +115,9 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
                 <button
                   type="button"
                   className="ob-icon-btn"
-                  aria-label={`Remove ${server.name || server.id}`}
-                  disabled={editingId === server.id}
-                  title={editingId === server.id ? 'Finish or cancel the open editor before removing this server.' : undefined}
+                  aria-label={zh ? `移除 ${server.name || server.id}` : `Remove ${server.name || server.id}`}
+                  disabled={busy || editingId === server.id}
+                  title={editingId === server.id ? (zh ? '请先保存或取消当前编辑，再移除此服务器。' : 'Finish or cancel the open editor before removing this server.') : undefined}
                   onClick={() => write(servers.filter((s) => s.id !== server.id))}
                 >
                   <IconTrash size={12} />
@@ -114,7 +134,9 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
       </ul>
 
       {draft ? (
-        <div className="ob-mcp-draft">
+        <FormDialog fallbackFocus={`#${CSS.escape(focusScope)} [data-mcp-add]`} title={editingId ? (zh ? '修改 MCP 连接' : 'Edit MCP connection') : (zh ? '添加 MCP 连接' : 'Add MCP connection')} onClose={closeDraft} size="md"><div className="ob-mcp-draft" aria-busy={busy}>
+          {error ? <p className="ob-notice ob-notice-error" role="alert">{error}</p> : null}
+          <fieldset disabled={busy} style={{ display: 'contents' }}>
           <div className="ob-field">
             <label htmlFor="ob-mcp-name">{copy.name}</label>
             <input id="ob-mcp-name" className="ob-input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
@@ -191,22 +213,20 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
           </div>
 
           <div className="ob-mcp-draft-actions">
-            <button type="button" className="ob-btn ob-btn-sm" onClick={closeDraft}>
+            <button type="button" className="ob-btn ob-btn-sm" disabled={busy} onClick={closeDraft}>
               {copy.cancel}
             </button>
             <button
               type="button"
               className="ob-btn ob-btn-sm ob-btn-primary"
-              disabled={!draft.name.trim() || (draft.transport === 'http' ? !draft.url?.trim() : !draft.command?.trim())}
-              onClick={() => {
-                write(editingId ? servers.map((server) => server.id === editingId ? draft : server) : [...servers, draft])
-                closeDraft()
-              }}
+              disabled={busy || !draft.name.trim() || (draft.transport === 'http' ? !draft.url?.trim() : !draft.command?.trim())}
+              onClick={() => void saveDraft()}
             >
-              {copy.save}
+              {busy ? (zh ? '保存中…' : 'Saving…') : copy.save}
             </button>
           </div>
-        </div>
+          </fieldset>
+        </div></FormDialog>
       ) : null}
     </section>
   )

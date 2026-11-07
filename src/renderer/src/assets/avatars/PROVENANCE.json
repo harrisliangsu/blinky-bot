@@ -1,0 +1,112 @@
+{
+  "source": "User-owned 13 PNG files; originals preserved byte-for-byte under source/",
+  "method": "Built-in image_gen precise-object-edit for eye removal; native SVG geometry for silhouette, face masks and independent original-pixel eye layers",
+  "generationPrompt": "Remove only both dark oval eyes and highlights; seamlessly inpaint those regions from the surrounding face. Preserve original contour, nose, mouth, cheeks, ears, ornament, shading, material, proportions and framing. Transparent background. Remove external stray pixels.",
+  "runtime": "Only generated eye patches are composited into the original. Connected-alpha vector clip removes original specks/glow. A face-local luminance matrix tints material; color-keyed feature protection preserves blush/nose/mouth.",
+  "layers": {
+    "round": {
+      "originalSha256": "d51e1521c91581abd88984ac8f107fa55ef6e2a9a82223fe0e25c13f37af07db",
+      "eyeRemovalPlateSha256": "498c2ab8723519b8dae3e50125c9ed2574db063f32a8ff1c986e65f598e8a9ad",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    },
+    "square": {
+      "originalSha256": "bd2ce358964e6d0583f3ecf65c46052d1ffe97c145e45618dd13301e6eb7b688",
+      "eyeRemovalPlateSha256": "333997174e55ddeb0110714e5ec77a38c3d32489d07e00275be1012ebac09775",
+      "sourceCanvas": [
+        1536,
+        1024
+      ]
+    },
+    "heart": {
+      "originalSha256": "a6ed8f4c36681f1fd6949d19870a3227f7e523b7c0f2edd0dc63b4f96cdabfae",
+      "eyeRemovalPlateSha256": "d4ba68a3e4b50f5b60f9159112366afe0d99b58e8fe2059e89a42d4d59086730",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    },
+    "wide-oval": {
+      "originalSha256": "c43561d78449413ace2124c5271c21430e7c71cf147a94159bbdc79362be0033",
+      "eyeRemovalPlateSha256": "b508b785b8208bf83a9ed58d201e3063e5218433ba7dc3a23900154329dee189",
+      "sourceCanvas": [
+        1536,
+        1024
+      ]
+    },
+    "drop": {
+      "originalSha256": "63335780acd3fb1ba79f5c54924ae96e92fa67f8a32e223ba606b10106693c14",
+      "eyeRemovalPlateSha256": "7d358ef9a875d66190134a3bccb7f23f30015c5da778833e02653e5fa702f39b",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    },
+    "triangle": {
+      "originalSha256": "fece5c359b2356b541622bf9937969d624cb99422154403dfc00b869a761fb56",
+      "eyeRemovalPlateSha256": "e3aecca7fba8c7206ec3f4a55886562a5e3b918e3eb6c16bafc8635ac14b60c6",
+      "sourceCanvas": [
+        1414,
+        1112
+      ]
+    },
+    "hexagon": {
+      "originalSha256": "ca3dfeb44e6044def8644d9fd2223c74d5d7f1384efe80acc9648ebe49ad6047",
+      "eyeRemovalPlateSha256": "4d0a430374e3979628d84a503abfacc7a95af30d8880733d0f73ab381ae5eac8",
+      "sourceCanvas": [
+        1358,
+        1159
+      ]
+    },
+    "diamond": {
+      "originalSha256": "7a3cd7afa232f30db5d69d3777d19b4be090e9f8aaa6723f7c9332b11e72be05",
+      "eyeRemovalPlateSha256": "a22b5356bc6a6c82e2f4ea607a4cdf93021a4a43241286cb6d349d3c4c541366",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    },
+    "cloud": {
+      "originalSha256": "74f047043d43aedc1ffbcf917e12270e5a9452a0b12ca504b6d670df9b729a87",
+      "eyeRemovalPlateSha256": "fb9d695647eb065f96c6517ebaa0d0253eedf695448672f477a5718607037177",
+      "sourceCanvas": [
+        1312,
+        1199
+      ]
+    },
+    "flower": {
+      "originalSha256": "24375c6647b5a649c5a88fa58fce123993bd0f74690edba4cea5107bbcfb3999",
+      "eyeRemovalPlateSha256": "05baa1c80b8da02909c99afb7a8022ef4a0f3f8f150fb0744e62fbdc6adbfa14",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    },
+    "star": {
+      "originalSha256": "9c46c23026568ae8356378a0ef9170dd1958e0a7a8964c6811ef750bb7d9c7da",
+      "eyeRemovalPlateSha256": "8ed396b714aec1f9eca7281bec0eeb250193ef3676a65d70b7c8f07018771ad9",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    },
+    "bean": {
+      "originalSha256": "d2e22dec41d6d769e12c3ddc63539a03596a0aaa1656ef8fd970421dbb44303e",
+      "eyeRemovalPlateSha256": "1713a82c4b42f8f7141495dddafbeb54335b153394a2e85ef144a87328561fd9",
+      "sourceCanvas": [
+        1402,
+        1122
+      ]
+    },
+    "pentagon": {
+      "originalSha256": "d013200460b74f5e5a9e89a465b2682fa4cb9b3d2d07e94e9a22a30733ba53d5",
+      "eyeRemovalPlateSha256": "f0c94460f1a4828e73ad3450d796620bbd15da5c14443f2d27ffb43352c30ba6",
+      "sourceCanvas": [
+        1254,
+        1254
+      ]
+    }
+  }
+}

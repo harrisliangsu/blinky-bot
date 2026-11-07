@@ -35,6 +35,7 @@ export function defaultUserDataDir(appName = 'BlinkyBot'): string {
 
 export function profileLayout(botId: string, userDataDir?: string): ProfileLayout {
   const safeId = botId.replace(/[^a-zA-Z0-9._-]/g, '_') || 'default'
+  if (safeId === '.' || safeId === '..') throw new Error('Invalid browser owner.')
   const root = join(userDataDir ?? defaultUserDataDir(), 'computers', safeId)
   return { root, profileDir: join(root, 'profile'), appsFile: join(root, 'apps.json') }
 }

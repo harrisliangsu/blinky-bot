@@ -1,6 +1,6 @@
 /** The main window: creation, first paint, and how it loads the renderer. */
 
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { getSettings, onSettingsChanged } from '../settings'
 import { devServerUrl, preloadScript, rendererHtml } from './bundlePaths'
 import { hardenWebContents } from './security'
@@ -31,7 +31,7 @@ export function createWindow(): BrowserWindow {
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     show: false,
-    title: 'BlinkyBot',
+    title: app.getName(),
     transparent: true,
     backgroundColor: vibrant ? '#00000000' : BACKGROUND,
     vibrancy: vibrant && process.platform === 'darwin' ? 'under-window' : undefined,

@@ -1,0 +1,30 @@
+/* Scoped overrides: main-chat ToolCallView and task navigation are unchanged. */
+.ob-agent-transcript .ob-agent-thinking { margin-block: var(--ob-space-2) var(--ob-space-4); }
+.ob-agent-transcript .ob-agent-thinking-toggle { min-height: var(--ob-height-base); line-height: 1.6; }
+.ob-agent-transcript .ob-agent-thinking-counts { font-variant-numeric: tabular-nums; }
+.ob-agent-transcript .ob-agent-thinking-body { border-color: var(--ob-border); padding-block: var(--ob-space-1) var(--ob-space-2); }
+.ob-agent-transcript .ob-agent-thinking-body > .ob-hint { margin: 0 0 var(--ob-space-3); }
+.ob-agent-transcript .ob-agent-thinking-record pre { color: var(--ob-text-secondary); scrollbar-gutter: stable; }
+.ob-agent-transcript .ob-agent-thinking-tools > ol { gap: var(--ob-space-3); }
+.ob-agent-transcript .ob-agent-activity { min-width: 0; }
+.ob-agent-transcript .ob-agent-activity-state { display: block; margin: 0 0 var(--ob-space-1); color: var(--ob-text-secondary); font-size: var(--ob-font-size-xs); }
+.ob-agent-transcript .ob-agent-activity-failed > .ob-agent-activity-state { color: var(--ob-danger); }
+.ob-agent-transcript .ob-agent-activity .ob-tool { border: 1px solid var(--ob-border); border-radius: var(--ob-radius-lg); }
+.ob-agent-transcript .ob-tool-row { min-width: 0; flex-wrap: wrap; }
+.ob-agent-transcript .ob-tool-name { flex-shrink: 1; min-width: 0; overflow-wrap: anywhere; }
+.ob-agent-transcript .ob-tool-summary { flex-basis: 12ch; }
+.ob-agent-transcript .ob-tool-args > div { grid-template-columns: minmax(0, 5rem) minmax(0, 1fr); }
+.ob-agent-transcript .ob-tool-output { border-radius: var(--ob-radius-base); }
+.ob-agent-transcript .ob-tool-row:focus-visible,
+.ob-agent-transcript .ob-agent-thinking-record pre:focus-visible,
+.ob-agent-transcript .ob-tool-output:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: -2px; }
+.ob-agent-transcript .ob-agent-tools-earlier,
+.ob-agent-transcript .ob-agent-text-more { margin-block: var(--ob-space-2); }
+.ob-agent-transcript .ob-agent-thinking + .ob-msg-answer { padding-top: var(--ob-space-2); }
+@media (forced-colors: active) {
+  .ob-agent-transcript .ob-agent-thinking-body { border-color: CanvasText; }
+  .ob-agent-transcript .ob-agent-activity .ob-tool { border-color: ButtonText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-agent-transcript .ob-tool-status svg { animation: none; }
+}

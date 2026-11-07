@@ -1,8 +1,7 @@
 .ob-composer {
   width: 100%;
-  max-width: var(--ob-content-max);
-  margin: 0 auto;
-  padding: var(--ob-space-3) var(--ob-space-6) var(--ob-space-6);
+  max-width: none;
+  padding: var(--ob-space-3) var(--ob-space-6) var(--ob-space-5);
 }
 .ob-composer.is-drop .ob-composer-box {
   outline: 2px solid var(--ob-border-strong);
@@ -26,6 +25,7 @@
   padding: 0 var(--ob-space-1) 0 var(--ob-space-4);
   font-size: var(--ob-font-size-xs);
   background: var(--ob-bg-card);
+  border: 1px solid var(--ob-border-subtle);
   border-radius: var(--ob-radius-full);
 }
 .ob-composer-attachments li.is-image {
@@ -49,18 +49,32 @@
   /* Anchors the @ picker above the input. */
   position: relative;
   background: var(--ob-bg-card);
-  border-radius: var(--ob-card-radius);
-  transition: background var(--ob-transition-fast);
+  border: 1px solid var(--ob-border-strong);
+  border-radius: var(--ob-radius-2xl);
+  box-shadow: var(--ob-shadow-row);
+  transition: border-color var(--ob-transition-fast), box-shadow var(--ob-transition-fast);
 }
+.ob-composer-quote {
+  display: flex;
+  align-items: center;
+  gap: var(--ob-space-2);
+  margin: var(--ob-space-3) var(--ob-space-4) 0;
+  padding: var(--ob-space-2) var(--ob-space-3);
+  color: var(--ob-text-secondary);
+  background: var(--ob-bg-raised);
+  border-radius: var(--ob-radius-lg);
+}
+.ob-composer-quote > div { flex: 1; min-width: 0; }
+.ob-composer-quote strong, .ob-composer-quote span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ob-font-size-sm); }
 .ob-composer-box:focus-within {
-  background: var(--ob-bg-raised-2);
+  border-color: var(--ob-border-strong);
 }
 
 .ob-composer-input {
   display: block;
   width: 100%;
   max-height: 320px;
-  padding: var(--ob-space-5) var(--ob-space-5) var(--ob-space-2);
+  padding: var(--ob-space-4) var(--ob-space-5) var(--ob-space-2);
   font-size: var(--ob-font-size-base);
   line-height: var(--ob-line-height-prose);
   color: var(--ob-text-primary);
@@ -74,6 +88,7 @@
 }
 .ob-composer-input::placeholder {
   color: var(--ob-text-tertiary);
+  opacity: 1;
 }
 
 .ob-composer-bar {
@@ -81,7 +96,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--ob-space-3);
-  padding: var(--ob-space-2) var(--ob-space-3) var(--ob-space-3) var(--ob-space-4);
+  padding: var(--ob-space-1) var(--ob-space-3) var(--ob-space-3) var(--ob-space-4);
   /*
    * The hint hides based on how wide the COMPOSER is, not the viewport: the
    * composer sits between a sidebar and an activity rail, so a wide window can
@@ -125,8 +140,18 @@
 
 .ob-composer-hint {
   font-size: var(--ob-font-size-xs);
-  color: var(--ob-text-disabled);
+  color: var(--ob-text-tertiary);
   white-space: nowrap;
+}
+.ob-composer-bar .ob-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ob-radius-lg);
+}
+.ob-composer-bar .ob-icon-btn:focus-visible,
+.ob-composer-bar .ob-btn:focus-visible {
+  outline: 2px solid var(--ob-border-strong);
+  outline-offset: 2px;
 }
 
 /* Least important element in the row, so it is the first to go. */
@@ -176,3 +201,21 @@
   height: 12px;
   background: var(--ob-border-subtle);
 }
+
+/* Grok-style single-row resting state. Text grows within the same row. */
+.ob-composer { max-width: 1100px; margin-inline: auto; padding: 10px clamp(10px, 3vw, 24px) 18px; }
+.ob-composer-box { border-radius: 25px; box-shadow: none; }
+.ob-composer-bar { gap: 8px; padding: 6px; container-type: normal; align-items: flex-end; }
+.ob-composer-input { flex: 1 1 auto; min-width: 0; width: 0; min-height: 34px; padding: 6px 0; font-size: var(--ob-font-size-base); line-height: 22px; }
+.ob-composer-right { gap: 6px; }
+.ob-composer-bar .ob-icon-btn { width: 34px; height: 34px; flex: none; border-radius: 50%; }
+.ob-composer-plus { background: var(--ob-bg-hover); }
+.ob-composer-send:not(:disabled) { background: var(--ob-text-primary); color: var(--ob-bg-card); }
+.ob-composer-send:disabled { opacity: .4; }
+.ob-composer-add { position: relative; flex: none; }
+.ob-composer-add-menu { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 12px); min-width: 180px; max-width: calc(100vw - 40px); padding: 6px; background: var(--ob-bg-card); border: 1px solid var(--ob-border-subtle); border-radius: var(--ob-radius-xl); box-shadow: var(--ob-shadow-popover); }
+.ob-composer-add-menu button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; color: var(--ob-text-primary); font: inherit; padding: 9px 10px; border-radius: var(--ob-radius-lg); text-align: left; cursor: pointer; }
+.ob-composer-add-menu button:hover, .ob-composer-add-menu button:focus-visible { background: var(--ob-bg-hover); }
+.ob-composer-voice { display: flex; align-items: center; gap: 8px; padding: 0 14px 10px; color: var(--ob-text-secondary); font-size: var(--ob-font-size-sm); overflow-wrap: anywhere; }
+.ob-composer-voice span { min-width: 0; flex: 1; max-height: 88px; overflow: auto; }
+.ob-composer-voice [role=alert] { color: var(--ob-text-error, var(--ob-text-primary)); }

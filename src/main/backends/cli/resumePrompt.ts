@@ -18,9 +18,7 @@
 import { createHash } from 'node:crypto'
 import { textOf } from '../messageContent'
 import type { ProviderMessage } from '../types'
-
-/** Conversation key -> the fingerprints already handed to that CLI. */
-const delivered = new Map<string, string[]>()
+import { clearDeliveredFingerprints, deliveredFingerprints, setDeliveredFingerprints } from '../../store/providerBindings'
 
 /**
  * One fingerprint per message. Role and text only: tool metadata and images
@@ -36,7 +34,7 @@ export function fingerprints(messages: ProviderMessage[]): string[] {
 
 /** Index of the first message this conversation has not been given yet. */
 export function firstUnsent(sessionKey: string | undefined, current: string[]): number {
-  const previous = (sessionKey && delivered.get(sessionKey)) || []
+  const previous = deliveredFingerprints(sessionKey)
   let i = 0
   while (i < previous.length && i < current.length && previous[i] === current[i]) i++
   return i
@@ -44,7 +42,7 @@ export function firstUnsent(sessionKey: string | undefined, current: string[]): 
 
 /** Record what this turn handed over, once it actually went out. */
 export function rememberSent(sessionKey: string | undefined, current: string[]): void {
-  if (sessionKey) delivered.set(sessionKey, current)
+  setDeliveredFingerprints(sessionKey, current)
 }
 
 /**
@@ -54,5 +52,5 @@ export function rememberSent(sessionKey: string | undefined, current: string[]):
  * has none of the history the watermark claims it has.
  */
 export function forgetSent(sessionKey: string | undefined): void {
-  if (sessionKey) delivered.delete(sessionKey)
+  clearDeliveredFingerprints(sessionKey)
 }

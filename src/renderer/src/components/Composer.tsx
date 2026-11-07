@@ -1,13 +1,17 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { Attachment } from '../../../shared/types'
+import type { MessageQueue } from '../../../shared/messageQueue'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { sendTurn, store, useAppState } from '../state'
+import { sendTurn, stopTurn, store, useAppState } from '../state'
 import { ComposerAttachments, chooseAttachments } from './ComposerAttachments'
 import { attachmentsFromImageFiles, filesFromTransfer } from './imageAttachments'
 import { ComposerBar } from './ComposerBar'
 import { ComposerMention, type MentionState } from './ComposerMention'
 import { matchBots, mentionQuery } from './MentionPopup'
 import { useVoiceInput } from './useVoiceInput'
+import { useComposerDraft } from './useComposerDraft'
+import { IconClose } from './Icons'
+import { useBotChinese } from './BotUiLanguage'
 import './Composer.css'
 
 const MAX_HEIGHT = 320
@@ -15,16 +19,42 @@ const MAX_HEIGHT = 320
 /** Prompt input and run controls. The Bot’s CLI and model come from Settings. */
 export function Composer(): ReactNode {
   const chat = useSettingsCopy().chat
+  const zh = useBotChinese()
   const { session, bots, settings, streaming, bootError } = useAppState()
-  const [text, setText] = useState('')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [queue, setQueue] = useState<MessageQueue | null>(null)
+  const { text, setText, attachments, setAttachments, quote, setQuote } = useComposerDraft(session?.id)
   const [dragging, setDragging] = useState(false)
-  const voice = useVoiceInput((spoken) =>
-    setText((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${spoken.trim()} `)
-  )
   // `@` picker: which mention the caret is inside, if any.
   const [mention, setMention] = useState<MentionState | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const submitting = useRef(false)
+  const voice = useVoiceInput(session?.id, settings?.voiceLanguage ?? 'system', zh, (spoken) => {
+    const el = textareaRef.current
+    setText((current) => {
+      const at = el && el.value === current ? (el.selectionStart ?? current.length) : current.length
+      const end = el && el.value === current ? (el.selectionEnd ?? at) : at
+      const before = current.slice(0, at), after = current.slice(end)
+      return `${before}${before && !/\s$/.test(before) ? ' ' : ''}${spoken}${after && !/^\s/.test(after) ? ' ' : ''}${after}`
+    })
+    textareaRef.current?.focus({ preventScroll: true })
+  })
+
+
+  useEffect(() => {
+    const id = session?.id
+    setQueue(null)
+    if (!id) return
+    let active = true
+    let updated = false
+    void window.openbot.agent.queue(id).then((value) => { if (active && !updated) setQueue(value) })
+    const unsubscribe = window.openbot.on((event) => {
+      if (event.type === 'message-queue-updated' && event.queue.sessionId === id) {
+        updated = true
+        setQueue(event.queue)
+      }
+    })
+    return () => { active = false; unsubscribe() }
+  }, [session?.id])
 
   useLayoutEffect(() => {
     const el = textareaRef.current
@@ -33,7 +63,20 @@ export function Composer(): ReactNode {
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
   }, [text])
 
-  const canSend = (text.trim().length > 0 || attachments.length > 0) && !streaming && bootError === null
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    let width = 0
+    const observer = new ResizeObserver(() => {
+      if (width === el.clientWidth) return
+      width = el.clientWidth; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const readOnly = window.openbot.environment?.kind === 'browser' && window.openbot.environment.permission === 'view'
+  const canSend = !readOnly && (text.trim().length > 0 || attachments.length > 0) && bootError === null
   // Only bots in this session can be addressed — mentioning an absent bot does nothing.
   const mentionable = bots.filter((b) => session?.botIds.includes(b.id))
   // The picker is "open" only when it has something to offer. `@` followed by
@@ -41,11 +84,14 @@ export function Composer(): ReactNode {
   const picking = mention !== null && matchBots(mentionable, mention.query).length > 0
 
   const submit = useCallback(() => {
-    if (!canSend) return
+    if (!canSend || submitting.current) return
+    submitting.current = true
+    voice.cancel()
     const sent = text
-    const files = attachments
+    const files = quote ? [quote, ...attachments] : attachments
     setText('')
     setAttachments([])
+    setQuote(null)
     setMention(null)
     /*
      * A send that never reached the agent hands its text back. The local echo
@@ -53,12 +99,34 @@ export function Composer(): ReactNode {
      * message would vanish from the transcript AND from the box the user typed
      * it in. Only refill an empty composer: whatever was typed since is newer.
      */
-    void sendTurn(sent, files.length ? files : undefined).then((ok) => {
+    const current = store.getState()
+    const working = current.currentSessionId === session?.id && current.streaming
+    let action: Promise<boolean>
+    const backgroundWorking = current.tasks.some((task) => task.sourceSessionId === session?.id && (task.status === 'queued' || task.status === 'running'))
+    const stopRequest = /^(?:停|停止|停下|停止当前任务|停止当前工作|stop|stop now)[。.!！\s]*$/i.test(sent.trim())
+    if (session && !files.length && stopRequest && (working || backgroundWorking)) {
+      action = stopTurn(sent.trim())
+    } else if (session && (working || (queue?.items.length ?? 0) > 0)) {
+      const localId = store.nextId('local')
+      store.optimistic.add(localId)
+      store.appendMessage({ id: localId, role: 'user', content: sent.trim(), attachments: files, createdAt: Date.now() })
+      action = window.openbot.agent.enqueue(session.id, sent, files).then((result) => {
+        if (!result) store.toast(chat.queueFailed, 'error')
+        return Boolean(result)
+      }).finally(() => {
+        if (store.optimistic.delete(localId)) store.dropMessage(localId)
+      })
+    } else action = sendTurn(sent, files.length ? files : undefined)
+    // The message was captured synchronously. Do not hold the input lock while
+    // the main process acknowledges the turn; later messages can be queued.
+    submitting.current = false
+    void action.catch(() => false).then((ok) => {
       if (ok) return
-      setText((current) => (current === '' ? sent : current))
-      setAttachments((current) => (current.length === 0 ? files : current))
+      setText((current) => current ? `${sent}\n${current}` : sent)
+      setAttachments((current) => [...attachments, ...current])
+      if (quote) setQuote((current) => current ?? quote)
     })
-  }, [canSend, text, attachments])
+  }, [canSend, text, attachments, quote, session, queue, chat.queueFailed, setQuote])
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     // While the @ picker is open it owns Enter/Tab/arrows for choosing a bot.
@@ -66,7 +134,7 @@ export function Composer(): ReactNode {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       const modified = e.metaKey || e.ctrlKey
       const shortcut = settings?.sendShortcut ?? 'enter'
-      if (shortcut === 'mod-enter' ? !modified : modified) return
+      if (shortcut === 'mod-enter' && !modified) return
       e.preventDefault()
       submit()
     }
@@ -135,6 +203,7 @@ export function Composer(): ReactNode {
       />
 
       <div className="ob-composer-box">
+        {quote ? <div className="ob-composer-quote"><div><strong>{zh ? `引用 ${quote.name}` : `Quoting ${quote.name}`}</strong><span>{quote.data}</span></div><button type="button" className="ob-icon-btn" aria-label={zh ? '取消引用' : 'Remove quote'} title={zh ? '取消引用' : 'Remove quote'} onClick={() => setQuote(null)}><IconClose size={12} /></button></div> : null}
         {mention ? (
           /* Renders nothing when no bot matches — `picking` tracks that, so the
              keys it claims are released the moment the list empties. */
@@ -153,13 +222,16 @@ export function Composer(): ReactNode {
         <label className="ob-sr-only" htmlFor="ob-prompt">
           Message
         </label>
+        <ComposerBar onAttach={() => void attach()} listening={voice.listening} voiceBusy={voice.busy}
+          onToggleVoice={voice.toggle} blocked={readOnly || bootError !== null || !session} canSend={canSend} onSend={submit}>
         <textarea
           id="ob-prompt"
           ref={textareaRef}
           className="ob-composer-input"
           rows={1}
           value={text}
-          placeholder={streaming ? chat.running : voice.interim ? voice.interim : chat.placeholder}
+          placeholder={readOnly ? (zh ? '此设备仅可查看' : 'This device has view-only access') : chat.placeholder}
+          readOnly={readOnly}
           onChange={(e) => {
             const next = e.target.value
             setText(next)
@@ -177,15 +249,12 @@ export function Composer(): ReactNode {
           spellCheck
         />
 
-        <ComposerBar
-          onAttach={() => void attach()}
-          listening={voice.listening}
-          onToggleVoice={voice.toggle}
-          streaming={streaming}
-          blocked={bootError !== null}
-          canSend={canSend}
-          onSend={submit}
-        />
+        </ComposerBar>
+        {voice.busy || voice.error ? <div className="ob-composer-voice">
+          <span role={voice.error ? 'alert' : 'status'}>{voice.error || (voice.state === 'starting' ? (zh ? '正在准备本地语音输入…' : 'Preparing on-device dictation…') : voice.state === 'stopping' ? (zh ? '正在完成识别…' : 'Finishing recognition…') : (zh ? '正在聆听，点击麦克风结束' : 'Listening. Click the microphone to finish.'))}{voice.interim ? ` · ${voice.interim}` : ''}</span>
+          {voice.busy ? <button type="button" className="ob-icon-btn" onClick={voice.cancel} aria-label={zh ? '取消语音输入' : 'Cancel voice input'}><IconClose size={13} /></button> : null}
+        </div> : null}
+
       </div>
     </div>
   )

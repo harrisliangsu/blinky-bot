@@ -76,8 +76,7 @@ export function modeRefusal(mode: AgentMode, name: string): string {
 const AGENT_RULES = [
   'MODE: AGENT — full tool use.',
   'Use tools to gather your own context instead of asking the user for things you can look up.',
-  'Actions that modify files, run commands or drive the computer go through the approval ' +
-    'gate. If one is rejected or denied by policy, do not retry it verbatim: adapt, or ask ' +
+  'Follow the user-configured approval rules. If an action is rejected or denied by policy, do not retry it verbatim: adapt, or ask ' +
     'the user what they want instead.',
   'Prefer small verified steps over one large speculative change, and state what you did.'
 ].join('\n')

@@ -97,11 +97,14 @@ export const sessions = {
       return false
     }
     if (stored !== session) adopt(session, stored)
-    change(session)
+    // Do not mutate the cache before the database transaction commits. A
+    // failed write must never look durable to queue delivery or the model.
+    const draft = structuredClone(session)
+    change(draft)
     try {
-      saveSession(session)
+      const saved = saveSession(draft)
+      adopt(session, saved)
     } catch (err) {
-      // Losing persistence must not end a turn that is already under way.
       console.warn(`[agent] session save failed: ${errorMessage(err)}`)
       return false
     }

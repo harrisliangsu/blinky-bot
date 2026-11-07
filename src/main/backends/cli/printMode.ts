@@ -18,4 +18,10 @@ export function refuseUngovernedSideCall(displayName: string, req: ChatRequest):
         'Use pi, or a direct API backend, for a VM bot.'
     )
   }
+  if (req.restrictNativeWrites === true) {
+    throw new Error(
+      `${displayName} cannot enforce read-only mode for its local tools. ` +
+      'Choose a backend with read-only enforcement for Ask or Plan.'
+    )
+  }
 }

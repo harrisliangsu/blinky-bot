@@ -1,9 +1,10 @@
-import { useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useState, type DragEvent, type ReactNode } from 'react'
 import type { BoardColumn, Bot } from '../../../shared/types'
 import { isColumnDone, rehomeColumn } from '../../../shared/projects'
 import type { DragState, DropTarget } from '../lib/board'
 import { IconCheck, IconClose, IconPencil, IconPlus, IconTrash } from './Icons'
 import { KanbanCard } from './KanbanCard'
+import { FormDialog } from './FormDialog'
 import './KanbanColumn.css'
 
 interface KanbanColumnProps {
@@ -23,8 +24,8 @@ interface KanbanColumnProps {
   onOpenCard: (cardId: string) => void
   onChatCard: (cardId: string) => void
   onMoveCard: (cardId: string, toColumnId: string, visualIndex: number) => void
-  onAddCard: (title: string) => void
-  onRename: (name: string) => void
+  onAddCard: (title: string) => Promise<boolean>
+  onRename: (name: string) => Promise<boolean>
   onRemove: () => void
   /** Absent when the build cannot persist the flag — the toggle is then left out. */
   onToggleDone?: (done: boolean) => void
@@ -48,8 +49,7 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
-  /** Set by Escape so the blur that follows abandons the rename instead of saving it. */
-  const cancelled = useRef(false)
+  const [saving, setSaving] = useState(false)
 
   const dropIndex = drop && drop.columnId === column.id ? drop.index : null
   const count = column.cards.length
@@ -63,11 +63,12 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
    */
   const home = rehomeColumn(columns, column.id)
 
-  const commitRename = (): void => {
-    setRenaming(false)
+  const commitRename = async (): Promise<void> => {
     const clean = name.trim()
-    if (cancelled.current || !clean || clean === column.name) return
-    props.onRename(clean)
+    if (!clean || saving) return
+    setSaving(true)
+    if (clean === column.name || await props.onRename(clean)) setRenaming(false)
+    setSaving(false)
   }
 
   const track = (e: DragEvent<HTMLDivElement>): void => {
@@ -77,11 +78,12 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
     props.onDragOver({ columnId: column.id, index: slotAt(e.currentTarget, e.clientY) })
   }
 
-  const commitAdd = (): void => {
+  const commitAdd = async (): Promise<void> => {
     const clean = title.trim()
-    if (!clean) return
-    props.onAddCard(clean)
-    setTitle('')
+    if (!clean || saving) return
+    setSaving(true)
+    if (await props.onAddCard(clean)) { setTitle(''); setAdding(false) }
+    setSaving(false)
   }
 
   return (
@@ -90,25 +92,7 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
       aria-label={`${column.name}, ${column.cards.length} card${count === 1 ? '' : 's'}${done ? ', work finishes here' : ''}`}
     >
       <header className="ob-kb-col-head">
-        {renaming ? (
-          <input
-            className="ob-input ob-kb-col-rename"
-            value={name}
-            autoFocus
-            aria-label={`Rename ${column.name}`}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur()
-              if (e.key === 'Escape') {
-                e.stopPropagation()
-                cancelled.current = true
-                setName(column.name)
-                setRenaming(false)
-              }
-            }}
-          />
-        ) : (
+
           <>
             <h3 className="ob-kb-col-name">{column.name}</h3>
             <span className="ob-kb-col-count">{column.cards.length}</span>
@@ -121,7 +105,6 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
                 className="ob-icon-btn"
                 aria-label={`Rename ${column.name}`}
                 onClick={() => {
-                  cancelled.current = false
                   setName(column.name)
                   setRenaming(true)
                 }}
@@ -177,7 +160,16 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
               ) : null}
             </span>
           </>
-        )}
+
+        {renaming ? (
+          <FormDialog title={`Rename ${column.name}`} size="sm" onClose={() => { if (!saving) setRenaming(false) }}>
+            <form onSubmit={event => { event.preventDefault(); void commitRename() }}>
+              <div className="ob-field"><label htmlFor={`column-name-${column.id}`}>Name</label><input id={`column-name-${column.id}`} className="ob-input" value={name} aria-label={`Rename ${column.name}`} onChange={event => setName(event.target.value)} maxLength={40} required disabled={saving} /></div>
+              <button type="button" className="ob-btn ob-btn-sm" disabled={saving} onClick={() => setRenaming(false)}>Cancel</button>
+              <button type="submit" className="ob-btn ob-btn-sm ob-btn-primary" disabled={saving || !name.trim()}>Save</button>
+            </form>
+          </FormDialog>
+        ) : null}
       </header>
 
       <div
@@ -217,30 +209,25 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
       </div>
 
       {adding ? (
+        <FormDialog title={`Add a card to ${column.name}`} size="sm" onClose={() => { if (!saving) setAdding(false) }}>
         <form
-          className="ob-kb-col-add"
+          className="ob-field"
           onSubmit={(e) => {
             e.preventDefault()
-            commitAdd()
+            void commitAdd()
           }}
         >
           <input
             className="ob-input"
+            disabled={saving}
             value={title}
-            autoFocus
             placeholder="What needs doing?"
             aria-label={`New card in ${column.name}`}
             onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation()
-                setTitle('')
-                setAdding(false)
-              }
-            }}
+
           />
           <div className="ob-kb-col-add-foot">
-            <button type="submit" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!title.trim()}>
+            <button type="submit" className="ob-btn ob-btn-sm ob-btn-primary" disabled={saving || !title.trim()}>
               Add card
             </button>
             <button
@@ -255,12 +242,12 @@ export function KanbanColumn(props: KanbanColumnProps): ReactNode {
             </button>
           </div>
         </form>
-      ) : (
+        </FormDialog>
+      ) : null}
         <button type="button" className="ob-kb-col-addbtn" onClick={() => setAdding(true)}>
           <IconPlus size={11} />
           Add a card
         </button>
-      )}
     </section>
   )
 }

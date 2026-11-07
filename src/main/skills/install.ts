@@ -2,8 +2,7 @@
  * Installing and removing skills.
  *
  * An install copies a folder the user picked into `~/.agents/skills/<name>` —
- * the shared directory every CLI reads — so the user installs once instead of
- * once per CLI. The copy lands in a hidden staging folder first and is renamed
+ * the shared directory. The copy lands in a hidden staging folder first and is renamed
  * into place, so a failed copy never leaves half a skill behind. Replacing an
  * installed skill renames the old one aside first and only deletes it once the
  * new one has landed, so a crash mid-install always leaves one of the two

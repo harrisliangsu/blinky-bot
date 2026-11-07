@@ -1,0 +1,10 @@
+body { min-width: 360px; }
+.ob-remote-connect { max-width: 620px; margin: 8vh auto; padding: 24px; line-height: 1.6; }
+.ob-remote-connect h1 { font-size: 24px; }
+.ob-remote-connect label { display: grid; gap: 6px; }
+.ob-remote-connect input { width: 100%; padding: 8px; color: inherit; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; }
+.ob-remote-key code { overflow-wrap: anywhere; user-select: all; }
+.ob-remote-status { min-height: 28px; padding: 5px 12px; font-size: 11px; border-bottom: 1px solid var(--border); }
+.ob-remote-status span { margin-left: 18px; opacity: .7; }
+.ob-app { height: calc(100dvh - 32px); }
+@media (max-width: 760px) { .ob-remote-status span { display: none; } .ob-sidebar { max-width: 42vw; } }

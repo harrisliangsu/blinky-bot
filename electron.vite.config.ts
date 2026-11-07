@@ -63,6 +63,6 @@ export default defineConfig({
     root: resolve('src/renderer'),
     resolve: { alias: { '@': resolve('src/renderer/src') } },
     plugins: [react(), stripDevCsp()],
-    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html') } } }
+    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html'), remote: resolve('src/renderer/remote.html') } } }
   }
 })

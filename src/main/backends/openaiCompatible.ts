@@ -10,7 +10,7 @@ import { type ProviderCatalogEntry } from '../../shared/providerCatalog'
 import { detectCloud } from './cloudDetect'
 import { LIST_TIMEOUT_MS, withTimeout } from './httpClient'
 import { errorMessage } from './httpErrors'
-import { type HostBoundKey, bindKeyToHost } from './keyHost'
+import { type HostBoundKey, bindKeyToHost, bindCustomKey } from './keyHost'
 import { isReasoningOnlyModel } from './modelMeta'
 import { type OaEndpoint, listOpenAiModels, streamOpenAiChat, toModelInfo } from './openaiCompat'
 import type { Backend, BackendConfig, ChatChunk, ChatRequest, DetectResult, ModelInfo } from './types'
@@ -21,6 +21,7 @@ function baseOf(spec: ProviderCatalogEntry, cfg: BackendConfig): string {
 }
 
 function bound(spec: ProviderCatalogEntry, cfg: BackendConfig): HostBoundKey {
+  if (spec.id.startsWith('custom-')) return bindCustomKey(baseOf(spec, cfg), cfg.apiKey, cfg.credentialOrigin)
   return bindKeyToHost(spec.id, spec.label, baseOf(spec, cfg), cfg.apiKey)
 }
 

@@ -10,18 +10,22 @@
  * install/uninstall report failure as a result rather than an exception.
  */
 
-import { isAbsolute, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
+import { readdir } from 'node:fs/promises'
 import {
   parseSkillId,
   type Skill,
   type SkillInstallOptions,
   type SkillInstallResult,
+  type SkillBulkSyncResult,
   type SkillUninstallResult
 } from '../../shared/skills'
-import { discoverSkills, viewFor } from './discover'
+import { discoverSkills, scanRoot, viewFor } from './discover'
 import { installSkill as writeSkill, uninstallSkill as deleteSkill } from './install'
 import { skillsPromptSection } from './prompt'
 import { sharedSkillsDir } from './roots'
+import { localAgentSkillTargets, removeSkillLinks, syncSkillLinks } from './sync'
+import { verifySkillBatch, verifySkillRuntime, type SkillVerificationReport } from './runtime'
 
 export interface SkillsQuery {
   /** Session working folder, to include its project-local skills. */
@@ -130,21 +134,67 @@ export async function skillsSectionFor(ids: string[], query: SkillsQuery = {}): 
   return skillsPromptSection(await resolveSkills(ids, query))
 }
 
-/** Install a picked folder into the shared directory every CLI reads. */
+/** Install a picked folder and report links into local Agent directories. */
 export async function installSkill(
   sourcePath: string,
   opts: SkillInstallOptions = {}
-): Promise<SkillInstallResult> {
-  const result = await writeSkill(sourcePath, opts)
-  if (result.ok) invalidateSkills()
+): Promise<SkillInstallResult & Partial<SkillVerificationReport>> {
+  const result: SkillInstallResult & Partial<SkillVerificationReport> = await writeSkill(sourcePath, opts)
+  if (result.ok && result.skill) {
+    try {
+      const targets = await localAgentSkillTargets()
+      result.sync = await syncSkillLinks(sharedSkillsDir(), result.skill.name, targets)
+      result.verification = await verifySkillRuntime(result.skill.name, result.skill.path, targets, 'present')
+    }
+    catch (error) { result.sync = [{ agent: 'Local agents', path: sharedSkillsDir(), status: 'error', detail: error instanceof Error ? error.message : 'Skill synchronization failed.' }] }
+    invalidateSkills()
+  }
   return result
 }
 
 /** Remove a skill OpenBOT installed. Never touches a CLI's own directory. */
-export async function uninstallSkill(id: string): Promise<SkillUninstallResult> {
-  const result = await deleteSkill(id)
-  if (result.ok) invalidateSkills()
+export async function uninstallSkill(id: string): Promise<SkillUninstallResult & Partial<SkillVerificationReport>> {
+  const parsed = parseSkillId(id)
+  const targets = parsed?.origin === 'agents' ? await localAgentSkillTargets() : []
+  if (parsed?.origin === 'agents') {
+    try { await removeSkillLinks(sharedSkillsDir(), parsed.name, targets) }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'Could not remove the skill links safely.' } }
+  }
+  const result: SkillUninstallResult & Partial<SkillVerificationReport> = await deleteSkill(id)
+  if (result.ok) {
+    invalidateSkills()
+    if (parsed) result.verification = await verifySkillRuntime(parsed.name, join(sharedSkillsDir(), parsed.name), targets, 'removed')
+  }
   return result
+}
+
+/** Explicitly synchronize skills that were already in the shared directory. */
+export async function syncExistingSkills(): Promise<SkillBulkSyncResult & Partial<SkillVerificationReport>> {
+  const shared = sharedSkillsDir()
+  try { await readdir(shared) } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true, skills: 0, linked: 0, unavailable: 0, issues: [] }
+    return { ok: false, skills: 0, linked: 0, unavailable: 0, issues: [], error: 'Cannot read the shared skills directory.' }
+  }
+  const skills = await scanRoot({ origin: 'agents', dir: shared, shared: true })
+  const targets = await localAgentSkillTargets()
+  const report: SkillBulkSyncResult & Partial<SkillVerificationReport> = { ok: true, skills: skills.length, linked: 0, unavailable: 0, issues: [] }
+  for (const skill of skills) {
+    if (resolve(skill.path) !== join(shared, skill.name)) {
+      report.issues.push({ skill: skill.name, agent: 'Shared directory', detail: 'Folder name differs from skill name.' })
+      continue
+    }
+    try {
+      const results = await syncSkillLinks(shared, skill.name, targets)
+      for (const result of results) {
+        if (result.status === 'linked' || result.status === 'existing') report.linked++
+        else if (result.status === 'unavailable') report.unavailable++
+        else report.issues.push({ skill: skill.name, agent: result.agent, detail: result.detail ?? result.status })
+      }
+    } catch (error) { report.issues.push({ skill: skill.name, agent: 'Local agents', detail: error instanceof Error ? error.message : 'Sync failed.' }) }
+  }
+  invalidateSkills()
+  report.verification = await verifySkillBatch(skills.map((skill) => ({ name: skill.name, dir: skill.path })), targets)
+  return report
 }
 
 /** Drop every cached scan; the next read hits disk. */

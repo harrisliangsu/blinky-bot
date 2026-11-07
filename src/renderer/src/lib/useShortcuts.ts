@@ -1,22 +1,13 @@
 import { useEffect, useRef } from 'react'
-import { isEditableTarget, newSession, respondToApproval, store, stopTurn, useAppState } from '../state'
+import { isEditableTarget, store, stopTurn, useAppState } from '../state'
 import { onMenuCommand } from './menu'
 import { shortcutFor } from './shortcutRules'
 
 /**
- * The two text fields that hand Escape on to the app.
- *
- * Every other one swallows it, so a draft survives the keypress (see
- * `shortcutRules`). These two carry no draft and would each lose something real:
- *
- *  - the composer promises "Running — Esc to stop" in its own placeholder, and
- *    has no Escape handler of its own — its `onKeyDown` claims Enter and defers
- *    to the @ picker, nothing more.
- *  - the command palette autofocuses this input on open and traps Tab inside
- *    itself, and has no close button. Swallowing Escape there would leave a
- *    keyboard user with no way out of it at all.
+ * The palette hands Escape to the app to close itself. The composer does not:
+ * clearing a suggestion must never stop the user's active task.
  */
-const PASSES_ESCAPE = '.ob-composer-input, .ob-palette-input'
+const PASSES_ESCAPE = '.ob-palette-input'
 
 function passesEscape(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
@@ -24,46 +15,57 @@ function passesEscape(target: EventTarget | null): boolean {
   return el.closest(PASSES_ESCAPE) !== null
 }
 
-/**
- * Global keys: Cmd/Ctrl+N new chat, Cmd+K switcher, Cmd+, settings,
- * Esc rejects a pending approval, else closes a modal, else stops the run.
- * Native menu commands land on the same handlers.
- *
- * The decision lives in `shortcutRules` so a pending approval provably wins over
- * everything else; this hook only carries it out.
- */
-export function useShortcuts(): void {
+/** Global keyboard and native menu commands. */
+export function useShortcuts(botDetailsOpen = false, closeBotDetails?: () => void): void {
   const state = useAppState()
   const latest = useRef(state)
   latest.current = state
+  const details = useRef({ botDetailsOpen, closeBotDetails })
+  details.current = { botDetailsOpen, closeBotDetails }
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.defaultPrevented) return
       const { approvals, modal, streaming } = latest.current
+      if (e.key === 'Escape' && !e.repeat && !e.isComposing && !modal && details.current.botDetailsOpen) {
+        e.preventDefault()
+        details.current.closeBotDetails?.()
+        return
+      }
+      if ((e.metaKey || (e.ctrlKey && !isEditableTarget(e.target))) && !e.altKey && !e.shiftKey && !e.repeat && !e.isComposing && !modal) {
+        const key = e.key.toLowerCase()
+        if (key === 'l' || key === 'f') {
+          e.preventDefault()
+          if (key === 'l') document.querySelector<HTMLTextAreaElement>('#ob-prompt')?.focus()
+          else window.dispatchEvent(new Event('openbot:focus-bot-search'))
+          return
+        }
+      }
       // Read once and pass it on: the rules need the same answer for Escape as
       // for Ctrl, and asking the DOM twice invites the two to drift apart.
       const editable = isEditableTarget(e.target)
       const action = shortcutFor(
         {
           key: e.key,
-          // Ctrl+N/Ctrl+K are macOS caret movement inside a text field. Claiming
-          // them there would open a new chat instead of moving the cursor, so
+          // Ctrl+K is macOS caret movement inside a text field. Claiming
+          // it there would open the palette instead of moving the cursor, so
           // while the user is typing only the Command key counts.
           mod: e.metaKey || (e.ctrlKey && !editable),
           alt: e.altKey,
+          shift: e.shiftKey,
+          composing: e.isComposing,
           repeat: e.repeat,
           editable,
           passesEscape: editable && passesEscape(e.target)
         },
-        { approvals: approvals.length, modalOpen: modal !== null, streaming }
+        { approvals: approvals.length, modalOpen: modal !== null, paletteOpen: modal === 'palette', streaming }
       )
       if (action === null) return
       e.preventDefault()
 
-      if (action === 'new-chat') void newSession()
-      else if (action === 'toggle-palette') store.setModal(modal === 'palette' ? null : 'palette')
+      if (action === 'toggle-palette') store.setModal(modal === 'palette' ? null : 'palette')
       else if (action === 'settings') store.setModal('settings')
-      else if (action === 'reject-approval') void respondToApproval(approvals[0].id, 'reject')
+      else if (action === 'toggle-sidebar') window.dispatchEvent(new Event('openbot:toggle-sidebar'))
       else if (action === 'close-modal') store.setModal(null)
       else if (action === 'stop-turn') void stopTurn()
     }
@@ -75,16 +77,10 @@ export function useShortcuts(): void {
   useEffect(
     () =>
       onMenuCommand((command) => {
-        /*
-         * The same gate as the keyboard, and not a duplicate of it: Cmd+N and
-         * Cmd+, are registered as native accelerators, so in a packaged app they
-         * are consumed by the menu and never reach the keydown handler above.
-         * Guarding only that handler would have left both shortcuts working
-         * straight through a pending approval.
-         */
-        if (latest.current.approvals.length > 0) return
-        if (command === 'new-chat') void newSession()
-        if (command === 'settings') store.setModal('settings')
+        if (command === 'settings' && !latest.current.modal) store.setModal('settings')
+        if (!latest.current.modal && command === 'toggle-sidebar') window.dispatchEvent(new Event('openbot:toggle-sidebar'))
+        if (!latest.current.modal && command === 'focus-composer') document.querySelector<HTMLTextAreaElement>('#ob-prompt')?.focus()
+        if (!latest.current.modal && command === 'find-bot') window.dispatchEvent(new Event('openbot:focus-bot-search'))
       }),
     []
   )

@@ -22,10 +22,12 @@ export interface AnthropicStreamOptions {
   signal: AbortSignal
 }
 
+interface ContentBlock { type?: string; id?: string; name?: string; input?: unknown; text?: string; thinking?: string }
+
 interface StreamEvent {
   type?: string
   index?: number
-  content_block?: { type?: string; id?: string; name?: string; input?: unknown; text?: string }
+  content_block?: ContentBlock
   delta?: {
     type?: string
     text?: string
@@ -55,6 +57,26 @@ export async function* streamAnthropic(opts: AnthropicStreamOptions): AsyncGener
     opts.signal
   )
 
+  // Compatible providers can ignore stream:true. Their typed content blocks
+  // retain the same public-text / thinking / tool boundary as SSE events.
+  if (!(res.headers.get('content-type') ?? '').includes('event-stream')) {
+    const message = safeJsonParse<{ type?: string; role?: string; content?: ContentBlock[]; error?: { message?: string } }>(await res.text())
+    if (!message) throw new Error('Unreadable Anthropic response.')
+    if (message.error || message.type === 'error') throw new Error(message.error?.message ?? 'Anthropic request failed')
+    if (!message.role || message.role === 'assistant') {
+      for (const block of Array.isArray(message.content) ? message.content : []) {
+        if (block.type === 'text' && typeof block.text === 'string' && block.text) yield { type: 'text', delta: block.text, visible: true }
+        else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking) yield { type: 'reasoning', delta: block.thinking }
+        else if (block.type === 'tool_use' && typeof block.name === 'string' && block.name) {
+          const args = block.input && typeof block.input === 'object' && !Array.isArray(block.input) ? block.input as Record<string, unknown> : {}
+          yield { type: 'tool_call', call: { id: block.id ?? '', name: block.name, args } }
+        }
+      }
+    }
+    yield { type: 'done' }
+    return
+  }
+
   const blocks = new Map<number, OpenBlock>()
 
   for await (const event of readSse(res)) {
@@ -73,7 +95,7 @@ export async function* streamAnthropic(opts: AnthropicStreamOptions): AsyncGener
         name: block?.name ?? '',
         json: ''
       })
-      if (block?.type === 'text' && block.text) yield { type: 'text', delta: block.text }
+      if (block?.type === 'text' && block.text) yield { type: 'text', delta: block.text, visible: true }
       continue
     }
 
@@ -81,7 +103,7 @@ export async function* streamAnthropic(opts: AnthropicStreamOptions): AsyncGener
       const delta = data.delta
       if (!delta) continue
       if (delta.type === 'text_delta' && delta.text) {
-        yield { type: 'text', delta: delta.text }
+        yield { type: 'text', delta: delta.text, visible: true }
       } else if (delta.type === 'thinking_delta' && delta.thinking) {
         yield { type: 'reasoning', delta: delta.thinking }
       } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {

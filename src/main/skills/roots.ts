@@ -12,11 +12,10 @@
  *   ~/.kimi-code/skills         Kimi Code
  *   ~/.grok/skills              Grok
  *   ~/.pi/agent/skills          pi
- *   ~/.agents/skills            shared — every CLI reads this one
+ *   ~/.agents/skills            shared skill directory
  *
  * Project-level roots are the same dot-directories inside the session's working
- * folder; they all report origin `project`, because that is how the CLIs treat
- * them: nearest wins, whichever CLI wrote them.
+ * folder; they all report origin `project`.
  */
 
 import { homedir } from 'node:os'
@@ -49,8 +48,10 @@ export function userSkillRoots(): SkillRoot[] {
     { origin: 'opencode', dir: join(configHome(), 'opencode', 'skills'), shared: false },
     { origin: 'codex', dir: join(home, '.codex', 'skills'), shared: false },
     { origin: 'kimi', dir: join(home, '.kimi-code', 'skills'), shared: false },
+    { origin: 'kimi', dir: join(home, '.kimi', 'skills'), shared: false },
     { origin: 'grok', dir: join(home, '.grok', 'skills'), shared: false },
-    { origin: 'pi', dir: join(home, '.pi', 'agent', 'skills'), shared: false }
+    { origin: 'pi', dir: join(home, '.pi', 'agent', 'skills'), shared: false },
+    { origin: 'droid', dir: join(home, '.factory', 'skills'), shared: false }
   ]
 }
 

@@ -36,6 +36,7 @@ export async function removeRoutine(id: string): Promise<void> {
 export async function updateRoutine(id: string, patch: Partial<Routine>): Promise<void> {
   try {
     const updated = await bridge().routines.update(id, patch)
+    if (!updated) { store.toast('Could not save the routine.', 'error'); return }
     store.patch({ routines: store.getState().routines.map((routine) => routine.id === id ? updated : routine) })
   } catch (e) {
     store.toast(errText(e), 'error')

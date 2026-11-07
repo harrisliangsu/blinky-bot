@@ -226,3 +226,90 @@
   gap: var(--ob-space-2);
   flex-basis: 100%;
 }
+
+/* Connection editing is a discrete transaction: changes apply on Save. */
+.ob-backend-dialog .ob-modal-scrim {
+  z-index: 45;
+  background: color-mix(in srgb, var(--ob-bg-overlay) 88%, transparent);
+}
+
+.ob-backend-section-caption {
+  margin: 5px 0 0;
+  color: var(--ob-text-tertiary);
+  font-size: var(--ob-font-size-xs);
+}
+
+.ob-backend-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ob-space-4);
+}
+
+.ob-backend-editor .ob-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ob-space-2);
+}
+
+.ob-backend-editor .ob-input,
+.ob-backend-editor .ob-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.ob-backend-key .ob-input { flex: 1; }
+
+.ob-backend-editor-note {
+  margin: 0;
+  color: var(--ob-text-tertiary);
+  font-size: var(--ob-font-size-xs);
+  line-height: 1.5;
+}
+
+.ob-backend-danger {
+  padding: var(--ob-space-3);
+  border: 1px solid var(--ob-border-subtle);
+  border-radius: var(--ob-radius-lg);
+}
+
+.ob-backend-danger p {
+  margin: 0 0 var(--ob-space-2);
+  color: var(--ob-text-secondary);
+  font-size: var(--ob-font-size-sm);
+  line-height: 1.5;
+}
+
+.ob-backend-danger-actions,
+.ob-backend-editor-footer {
+  display: flex;
+  gap: var(--ob-space-2);
+}
+
+.ob-backend-editor .ob-btn {
+  height: var(--ob-height-base);
+  min-width: 6em;
+  padding: 0 var(--ob-space-5);
+  font-size: var(--ob-font-size-sm);
+}
+
+.ob-backend-editor-footer {
+  justify-content: flex-end;
+  padding-top: var(--ob-space-3);
+  border-top: 1px solid var(--ob-border-subtle);
+}
+
+.ob-catalog-list { max-height: min(50vh, 400px); }
+.ob-catalog-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--ob-space-3);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.ob-catalog-choice:hover { background: var(--ob-bg-card); }
+.ob-catalog-arrow { margin-left: auto; font-size: 20px; color: var(--ob-text-tertiary); }
+
+@media (max-width: 600px) {
+  .ob-backend-card-head { align-items: flex-start; flex-direction: column; gap: var(--ob-space-3); }
+  .ob-backend-titleline { flex-wrap: wrap; }
+  .ob-backend-summary { gap: var(--ob-space-1); }
+}

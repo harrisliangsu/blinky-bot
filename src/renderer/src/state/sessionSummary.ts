@@ -8,16 +8,8 @@
 
 import type { Session, SessionSummary } from '../../../shared/types'
 import { store } from './core'
+import { summariseSession } from '../../../shared/sessionSummary'
 
-const summaryOf = (s: Session): SessionSummary => ({
-  id: s.id,
-  title: s.title,
-  botIds: s.botIds,
-  archived: s.archived,
-  updatedAt: s.updatedAt,
-  messageCount: s.messages.length,
-  ...(s.projectId ? { projectId: s.projectId } : {})
-})
 
 /**
  * Replace the summary outright rather than merging over it.
@@ -33,11 +25,14 @@ const summaryOf = (s: Session): SessionSummary => ({
  * the old one worth keeping.
  */
 function mergeSummary(session: Session): void {
+  mergeSessionSummary(summariseSession(session))
+}
+
+export function mergeSessionSummary(next: SessionSummary): void {
   const { sessions } = store.getState()
-  const next = summaryOf(session)
   store.patch({
-    sessions: sessions.some((x) => x.id === session.id)
-      ? sessions.map((x) => (x.id === session.id ? next : x))
+    sessions: sessions.some((x) => x.id === next.id)
+      ? sessions.map((x) => (x.id === next.id ? next : x))
       : [next, ...sessions]
   })
 }

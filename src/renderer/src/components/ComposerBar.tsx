@@ -1,75 +1,47 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { stopTurn, useAppState } from '../state'
-import { ContextMeter } from './ContextMeter'
-import { IconMic, IconPaperclip, IconSend, IconStop } from './Icons'
+import { useAppState } from '../state'
+import { useBotChinese } from './BotUiLanguage'
+import { IconMic, IconPaperclip, IconSend, IconPlus } from './Icons'
 
 interface BarProps {
   onAttach: () => void
   listening: boolean
+  voiceBusy: boolean
   onToggleVoice: () => void
-  streaming: boolean
-  /** The app failed to boot — nothing here can usefully be pressed. */
   blocked: boolean
   canSend: boolean
   onSend: () => void
+  children: ReactNode
 }
-
-/** Everything under the message box: what to send with, how, and to stop. */
-export function ComposerBar({
-  onAttach,
-  listening,
-  onToggleVoice,
-  streaming,
-  blocked,
-  canSend,
-  onSend
-}: BarProps): ReactNode {
-  const sendHint = useSettingsCopy().general
+export function ComposerBar({ onAttach, listening, voiceBusy, onToggleVoice, blocked, canSend, onSend, children }: BarProps): ReactNode {
+  const copy = useSettingsCopy()
+  const zh = useBotChinese()
   const shortcut = useAppState().settings?.sendShortcut ?? 'enter'
-  // Stop is one request per run: a second click while the first is in flight
-  // issued a second `agent.stop` for a session that is already being torn down.
-  const [stopping, setStopping] = useState(false)
-
-  return (
-    <div className="ob-composer-bar">
-      <div className="ob-composer-left">
-        <button type="button" className="ob-icon-btn" onClick={onAttach} aria-label="Attach files" disabled={blocked}>
-          <IconPaperclip size={13} />
-        </button>
-        <button type="button" className={`ob-icon-btn${listening ? ' is-active' : ''}`} onClick={onToggleVoice} aria-pressed={listening} aria-label={listening ? 'Stop voice input' : 'Start voice input'} disabled={streaming || blocked}>
-          <IconMic size={13} />
-        </button>
-      </div>
-
-      <div className="ob-composer-right">
-        <ContextMeter />
-        <span className="ob-composer-hint">
-          {shortcut === 'mod-enter' ? sendHint.sendMod : sendHint.sendEnter}
-        </span>
-        {streaming ? (
-          <button
-            type="button"
-            className="ob-btn ob-btn-sm ob-btn-danger"
-            /* Released whatever the answer: a stop the main process refused
-               leaves the run going, and that button has to be clickable. */
-            onClick={() => {
-              setStopping(true)
-              void stopTurn().finally(() => setStopping(false))
-            }}
-            disabled={stopping}
-            aria-label="Stop the run"
-          >
-            <IconStop size={11} />
-            Stop
-          </button>
-        ) : (
-          <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={onSend} disabled={!canSend} aria-label="Send message">
-            <IconSend size={12} />
-            Send
-          </button>
-        )}
-      </div>
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    root.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus()
+    const close = (e: MouseEvent): void => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+  return <div className="ob-composer-bar">
+    <div className="ob-composer-add" ref={root} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false) }} onKeyDown={(e) => {
+      if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); trigger.current?.focus() }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!open) setOpen(true); else root.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus() }
+    }}>
+      <button ref={trigger} type="button" className="ob-icon-btn ob-composer-plus" onClick={() => setOpen(!open)} aria-label={zh ? '添加附件' : 'Add attachments'} aria-haspopup="menu" aria-expanded={open} aria-controls="ob-composer-add-menu" disabled={blocked}><IconPlus size={19} /></button>
+      {open ? <div role="menu" id="ob-composer-add-menu" className="ob-composer-add-menu">
+        <button type="button" role="menuitem" onClick={() => { setOpen(false); trigger.current?.focus(); onAttach() }}><IconPaperclip size={15} />{zh ? '添加文件' : 'Attach files'}</button>
+      </div> : null}
     </div>
-  )
+    {children}
+    <div className="ob-composer-right">
+      <button type="button" className={`ob-icon-btn${listening ? ' is-active' : ''}`} onClick={onToggleVoice} aria-pressed={voiceBusy} aria-label={voiceBusy ? (zh ? '结束语音输入' : 'Finish voice input') : (zh ? '开始语音输入' : 'Start voice input')} title={zh ? '在本机识别语音' : 'On-device voice input'} disabled={blocked}><IconMic size={18} /></button>
+      <button type="button" className="ob-icon-btn ob-composer-send" onClick={onSend} disabled={!canSend} aria-label={copy.chat.send} title={`${copy.chat.send} · ${shortcut === 'mod-enter' ? copy.general.sendMod : copy.general.sendEnter}`}><IconSend size={17} /></button>
+    </div>
+  </div>
 }

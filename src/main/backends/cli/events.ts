@@ -1,13 +1,14 @@
 /**
  * Translators from a CLI's stdout JSON into `ChatChunk`s.
  *
- * These CLIs run their own tool loop, so tool activity is surfaced as reasoning
- * (visible to the user, not re-executed by us). Mappers are created per run
+ * These CLIs run their own tool loop, so tool activity stays separate from
+ * public speech and is never re-executed by us. Mappers are created per run
  * because some CLIs stream deltas *and* repeat the finished message.
  */
 
 import { isPlainObject } from '../lenientJson'
 import type { ChatChunk } from '../types'
+import { agentTraceEntry, safeToolSummary } from './agentTrace'
 
 export type EventMapper = (value: unknown) => ChatChunk[]
 
@@ -30,10 +31,7 @@ function errorTextOf(value: Record<string, unknown>): string {
 
 export function toolLine(name: string, input: unknown): string {
   const summary = isPlainObject(input)
-    ? Object.entries(input)
-        .slice(0, 3)
-        .map(([k, v]) => `${k}=${(JSON.stringify(v) ?? '').slice(0, 60)}`)
-        .join(', ')
+    ? safeToolSummary(input)
     : ''
   return `⏺ ${name}${summary ? `(${summary})` : ''}\n`
 }
@@ -43,6 +41,28 @@ export function toolLine(name: string, input: unknown): string {
  * assistant messages with text / thinking / tool_use blocks.
  */
 export function anthropicStyleMapper(): EventMapper {
+  let currentId = ''
+  let sequence = 0
+  let assistantStream = true
+  const streamed = new Map<string, Map<number, string>>()
+  const blockTexts = (id: string): Map<number, string> => {
+    let blocks = streamed.get(id)
+    if (!blocks) {
+      blocks = new Map(); streamed.set(id, blocks)
+      if (streamed.size > 128) streamed.delete(streamed.keys().next().value!)
+    }
+    return blocks
+  }
+  const publicText = (id: string, index: number, text: string, snapshot: boolean): ChatChunk[] => {
+    if (!text) return []
+    const blocks = blockTexts(id)
+    const seen = blocks.get(index) ?? ''
+    // Completed assistant records repeat partial text. They may add a suffix,
+    // but must never repaint the whole streamed message a second time.
+    const delta = snapshot ? (!seen ? text : text.startsWith(seen) ? text.slice(seen.length) : '') : text
+    blocks.set(index, snapshot ? (text.startsWith(seen) ? text : seen) : seen + text)
+    return delta ? [{ type: 'text', delta, visible: true }] : []
+  }
   return (value) => {
     if (!isPlainObject(value)) return []
     const type = str(value.type)
@@ -62,22 +82,57 @@ export function anthropicStyleMapper(): EventMapper {
       throw new Error(str(value.result) || errorTextOf(value) || 'agent CLI reported an error')
     }
 
+    // --include-partial-messages wraps the actual Messages API events.
+    // Only typed text blocks are public; partial tool JSON and thinking are
+    // deliberately kept off the text channel.
+    if (type === 'stream_event') {
+      const event = isPlainObject(value.event) ? value.event : {}
+      if (event.type === 'error') {
+        const error = isPlainObject(event.error) ? event.error : {}
+        throw new Error(str(error.message) || 'agent CLI reported a stream error')
+      }
+      if (event.type === 'message_start') {
+        const message = isPlainObject(event.message) ? event.message : {}
+        currentId = str(message.id) || `stream-${++sequence}`
+        assistantStream = !message.role || message.role === 'assistant'
+        return []
+      }
+      if (!assistantStream) return []
+      const id = currentId || (currentId = `stream-${++sequence}`)
+      const index = typeof event.index === 'number' ? event.index : 0
+      if (event.type === 'content_block_start') {
+        const block = isPlainObject(event.content_block) ? event.content_block : {}
+        if (block.type === 'text') return publicText(id, index, str(block.text), false)
+        if (block.type === 'tool_use') return [{ type: 'reasoning', delta: toolLine(str(block.name), block.input), toolActivity: true }]
+      }
+      if (event.type === 'content_block_delta') {
+        const delta = isPlainObject(event.delta) ? event.delta : {}
+        if (delta.type === 'text_delta') return publicText(id, index, str(delta.text), false)
+        if (delta.type === 'thinking_delta' && str(delta.thinking)) return [{ type: 'reasoning', delta: str(delta.thinking) }]
+      }
+      return []
+    }
+
     if (type !== 'assistant' && type !== 'message') return []
 
     const message = isPlainObject(value.message) ? value.message : value
+    if (message.role && message.role !== 'assistant') return []
+    if (type === 'message' && message.role !== 'assistant') return []
+    const id = str(message.id) || currentId || `message-${++sequence}`
+    currentId = ''
     const content = message.content
-    if (typeof content === 'string') return content ? [{ type: 'text', delta: content }] : []
+    if (typeof content === 'string') return publicText(id, 0, content, true)
     if (!Array.isArray(content)) return []
 
     const out: ChatChunk[] = []
-    for (const block of content) {
+    for (const [index, block] of content.entries()) {
       if (!isPlainObject(block)) continue
       const kind = str(block.type)
-      if (kind === 'text' && str(block.text)) out.push({ type: 'text', delta: str(block.text) })
+      if (kind === 'text') out.push(...publicText(id, index, str(block.text), true))
       else if (kind === 'thinking' && str(block.thinking)) {
         out.push({ type: 'reasoning', delta: str(block.thinking) })
       } else if (kind === 'tool_use') {
-        out.push({ type: 'reasoning', delta: toolLine(str(block.name), block.input) })
+        out.push({ type: 'reasoning', delta: toolLine(str(block.name), block.input), toolActivity: true })
       }
     }
     return out
@@ -132,7 +187,7 @@ export function codexMapper(): EventMapper {
       return [{ type: 'reasoning', delta: text }]
     }
     if (type.startsWith('agent_message') || type === 'assistant_message') {
-      return [{ type: 'text', delta: text }]
+      return [{ type: 'text', delta: text, visible: true }]
     }
     return []
   }
@@ -202,13 +257,13 @@ export function piMapper(): EventMapper {
     const kind = str(event.type)
     const delta = str(event.delta)
 
-    if (kind === 'text_delta' && delta) return [{ type: 'text', delta }]
+    if (kind === 'text_delta' && delta) return [{ type: 'text', delta, visible: true }]
     if ((kind === 'thinking_delta' || kind === 'reasoning_delta') && delta) {
       return [{ type: 'reasoning', delta }]
     }
     if (kind === 'tool_start' || kind === 'toolCall_start') {
       const name = str(event.name) || str(event.toolName) || 'tool'
-      return [{ type: 'reasoning', delta: toolLine(name, event.input ?? event.args) }]
+      return [{ type: 'reasoning', delta: toolLine(name, event.input ?? event.args), toolActivity: true }]
     }
     return []
   }
@@ -219,7 +274,8 @@ function textContent(value: unknown): string {
   if (!Array.isArray(value)) return ''
   return value
     .filter(isPlainObject)
-    .map((block) => str(block.text) || str(block.content))
+    .filter((block) => block.type === 'text' || block.type === 'output_text')
+    .map((block) => str(block.text))
     .filter(Boolean)
     .join('')
 }
@@ -268,7 +324,11 @@ function diffSnapshot(previous: string, next: string): { full: string; delta: st
 }
 
 function fieldText(value: unknown): string {
-  return typeof value === 'string' ? value : textContent(value)
+  if (typeof value === 'string') return value
+  if (!Array.isArray(value)) return ''
+  // This helper is used only for private reasoning fields. Preserve their
+  // original block shapes without granting them public-text provenance.
+  return value.filter(isPlainObject).map((block) => str(block.text) || str(block.content)).join('')
 }
 
 /**
@@ -279,10 +339,14 @@ function kimiStreamDelta(value: Record<string, unknown>): ChatChunk[] | null {
   const delta = isPlainObject(value.delta) ? value.delta : null
   if (!delta) return null
   const kind = str(delta.type)
-  const text = str(delta.text) || str(delta.thinking) || str(delta.reasoning_content)
-  if (!text) return null
-  if (kind === 'thinking_delta' || kind === 'reasoning_delta') return [{ type: 'reasoning', delta: text }]
-  if (kind === 'text_delta' || kind === 'content_delta') return [{ type: 'text', delta: text }]
+  if (kind === 'thinking_delta' || kind === 'reasoning_delta') {
+    const text = str(delta.thinking) || str(delta.reasoning_content) || str(delta.text)
+    return text ? [{ type: 'reasoning', delta: text }] : []
+  }
+  if (kind === 'text_delta' || kind === 'content_delta') {
+    const text = str(delta.text)
+    return text ? [{ type: 'text', delta: text, visible: true }] : []
+  }
   return null
 }
 
@@ -294,9 +358,10 @@ function kimiStreamDelta(value: Record<string, unknown>): ChatChunk[] | null {
  * Tool calls use the OpenAI `tool_calls` shape. The closing `meta` line carries
  * the session id (`kimi --session`) for the next turn.
  */
-export function kimiMapper(onSession?: (id: string) => void): EventMapper {
+export function kimiMapper(onSession?: (id: string) => void, captureAgentTrace = false): EventMapper {
   let assistant = ''
   let thought = ''
+  const tracedCalls = new Set<string>()
   return (value) => {
     if (!isPlainObject(value)) return []
     const type = str(value.type)
@@ -329,14 +394,13 @@ export function kimiMapper(onSession?: (id: string) => void): EventMapper {
     if (role === 'tool') {
       assistant = ''
       thought = ''
-      return []
+      return captureAgentTrace ? [{ type: 'agent_trace', entry: agentTraceEntry(str(value.tool_call_id) || str(value.id), 'kimi_tool', 'completed', value) }] : []
     }
 
     if (role !== 'assistant' && type !== 'assistant') return []
 
     const out: ChatChunk[] = []
     const calls = Array.isArray(value.tool_calls) ? value.tool_calls : []
-    for (const call of calls) out.push({ type: 'reasoning', delta: kimiToolLine(call) })
 
     const reasoning = fieldText(value.reasoning_content) || fieldText(value.reasoning) || fieldText(value.thinking)
     if (reasoning) {
@@ -346,10 +410,19 @@ export function kimiMapper(onSession?: (id: string) => void): EventMapper {
     }
 
     const content = textContent(value.content)
-    if (!content) return out
-    const next = diffSnapshot(assistant, content)
-    assistant = next.full
-    if (next.delta) out.push({ type: 'text', delta: next.delta })
+    if (content) {
+      const next = diffSnapshot(assistant, content)
+      assistant = next.full
+      if (next.delta) out.push({ type: 'text', delta: next.delta, visible: true })
+    }
+    for (const call of calls) {
+      out.push({ type: 'reasoning', delta: kimiToolLine(call), toolActivity: true })
+      const id = isPlainObject(call) ? str(call.id) : ''
+      if (captureAgentTrace && (!id || !tracedCalls.has(id))) {
+        if (id) tracedCalls.add(id)
+        out.push({ type: 'agent_trace', entry: agentTraceEntry(id, 'kimi_tool', 'started', call) })
+      }
+    }
     return out
   }
 }
@@ -359,7 +432,7 @@ export function kimiMapper(onSession?: (id: string) => void): EventMapper {
  * events (`text`, `thought`, `tool_call`, `usage`, `end`, `error`). `end`
  * carries the session id for `--resume`.
  */
-export function grokMapper(onSession?: (id: string) => void): EventMapper {
+export function grokMapper(onSession?: (id: string) => void, captureAgentTrace = false): EventMapper {
   return (value) => {
     if (!isPlainObject(value)) return []
     const type = str(value.type)
@@ -378,7 +451,7 @@ export function grokMapper(onSession?: (id: string) => void): EventMapper {
 
     if (type === 'text') {
       const data = str(value.data) || str(value.text)
-      return data ? [{ type: 'text', delta: data }] : []
+      return data ? [{ type: 'text', delta: data, visible: true }] : []
     }
 
     if (type === 'thought') {
@@ -388,8 +461,12 @@ export function grokMapper(onSession?: (id: string) => void): EventMapper {
 
     if (type === 'tool_call') {
       const name = str(value.toolName) || str(value.title) || 'tool'
-      return [{ type: 'reasoning', delta: toolLine(name, value.rawInput) }]
+      const out: ChatChunk[] = [{ type: 'reasoning', delta: toolLine(name, value.rawInput), toolActivity: true }]
+      if (captureAgentTrace) out.push({ type: 'agent_trace', entry: agentTraceEntry(str(value.toolCallId) || str(value.id), name, 'started', value) })
+      return out
     }
+
+    if (type === 'tool_result' && captureAgentTrace) return [{ type: 'agent_trace', entry: agentTraceEntry(str(value.toolCallId) || str(value.id), str(value.toolName) || 'grok_tool', 'completed', value) }]
 
     return []
   }

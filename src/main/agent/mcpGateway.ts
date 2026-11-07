@@ -120,7 +120,9 @@ export async function noteGatewayMessage(
  * covers reading the reply and sending the next one. Stop and quit still
  * detach immediately.
  */
-const DETACH_AFTER_MS = 120_000
+// Match the Codex warm-session window; otherwise its scoped token is revoked
+// before the process and every follow-up after two minutes starts cold.
+const DETACH_AFTER_MS = 300_000
 
 const detachTimers = new Map<string, ReturnType<typeof setTimeout>>()
 

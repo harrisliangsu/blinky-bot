@@ -6,6 +6,7 @@
  */
 
 import { isInside } from './containment'
+import { settingsOf } from './settings'
 import type { ToolContext } from './types'
 
 /**
@@ -53,5 +54,8 @@ export function forgetSession(sessionId: string): void {
  * not standing permission to write there for the rest of the session.
  */
 export function noteApprovedTarget(ctx: ToolContext, outside: string, mode: AccessMode): void {
+  // Auto-run permission is policy-scoped, not a user-approved session grant.
+  // Switching back to a prompting policy must take effect on the next call.
+  if (settingsOf(ctx).approvalPolicy === 'auto-run') return
   rememberRoot(ctx.sessionId, outside, mode)
 }

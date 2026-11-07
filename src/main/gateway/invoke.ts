@@ -31,6 +31,7 @@ import { allowedInMode, modeRefusal } from '../agent/modes'
 import { settingsStore } from '../agent/settingsGateway'
 import { SELF_APPROVING } from '../agent/toolContext'
 import { getComputerProvider } from '../tools/computer'
+import { dataRoot } from '../store/paths'
 import { captureFrame } from '../tools/computer/gate'
 import { runTool } from '../tools/registry'
 import type { ToolContext } from '../tools/types'
@@ -38,6 +39,13 @@ import { type McpToolCallResult, refusal, toCallResult } from './content'
 import { describeTools, exposedSchema, sessionMode } from './descriptors'
 import { gatewayHost } from './host'
 import type { Grant } from './tokens'
+import { getBot } from '../store/bots'
+import { getSession } from '../store/sessions'
+import { bindExecutionAgent, isCodexCoordinator } from '../agent/executionAgent'
+import { isLocalResourceTool } from '../../shared/localExecution'
+import { getSettings } from '../settings'
+
+const WORKER_TOOLS = new Set(['shell', 'fetch', 'web_search', 'screenshot', 'click', 'double_click', 'type_text', 'key_press', 'scroll', 'drag', 'open_app', 'navigate'])
 
 export async function invokeTool(
   grant: Grant,
@@ -52,6 +60,15 @@ export async function invokeTool(
     return refusal(
       `"${name}" is not available to this bot. Enabled tools: ${available.join(', ') || 'none'}.`
     )
+  }
+
+  const session = getSession(grant.sessionId)
+  const bot = getBot(grant.botId)
+  if (!session || !bot || bot.archived || !session.botIds.includes(grant.botId)) return refusal('The Bot or execution conversation is no longer available.')
+  const currentBot = bindExecutionAgent(grant.sessionId, bot)
+  if (!exposedSchema(currentBot.tools, name, currentBot.computerTarget)) return refusal('This tool permission was withdrawn. Start a new turn after the user updates app access.')
+  if (session && bot && isCodexCoordinator(session, bot) && (schema.computerUse || WORKER_TOOLS.has(schema.name))) {
+    return refusal(`Use delegate_task for ${schema.name}; the independent execution agent can perform this work with the configured permissions.`)
   }
 
   /*
@@ -95,9 +112,11 @@ export async function invokeTool(
   if (!SELF_APPROVING.has(call.name) && (schema.mutating || schema.computerUse)) {
     const outcome = await requestApproval({
       sessionId: grant.sessionId,
+      botId: grant.botId,
       toolName: call.name,
       call,
       target,
+      localExecution: grant.computerTarget?.kind !== 'vm' && isLocalResourceTool(call.name),
       kind: kindForTool(call.name, schema),
       summary: summarise(call.name, call, target),
       detail: detailFor(call),
@@ -116,6 +135,8 @@ export async function invokeTool(
     granted.add(rememberKey(call.name, target))
   }
 
+  const refreshed = getBot(grant.botId)
+  if (signal.aborted || grant.abort.signal.aborted || !refreshed || !exposedSchema(bindExecutionAgent(grant.sessionId, refreshed).tools, name, refreshed.computerTarget)) return refusal('Tool access was withdrawn before execution.')
   const result = await runTool(call, await buildContext(grant, call, signal, granted))
   publish(grant, { type: 'tool-result', result })
   if (result.screenshot) {
@@ -131,14 +152,18 @@ async function buildContext(
   granted: Set<string>
 ): Promise<ToolContext> {
   return {
+    backendId: (() => { const bot = getBot(grant.botId); return bot ? bindExecutionAgent(grant.sessionId, bot).backendId : undefined })(),
     sessionId: grant.sessionId,
     botId: grant.botId,
     cwd: grant.cwd,
+    dataDir: dataRoot(),
     signal,
+    clarificationScope: grant.abort.signal,
     computerTarget: grant.computerTarget,
     callId: call.id,
     messageId: grant.messageId,
     settings: await settingsStore.get(),
+    getSettings,
     host: gatewayHost,
     emit: (event) => broadcast(event),
     requestApproval: async (req) => {
@@ -149,9 +174,11 @@ async function buildContext(
       if (!req.force && granted.has(rememberKey(req.toolName, target))) return true
       const outcome = await requestApproval({
         sessionId: grant.sessionId,
+        botId: grant.botId,
         toolName: req.toolName,
         call,
         target,
+        localExecution: grant.computerTarget?.kind !== 'vm' && isLocalResourceTool(call.name),
         kind: req.kind,
         summary: req.summary,
         detail: req.detail,
@@ -170,7 +197,7 @@ async function buildContext(
 async function previewFrame(grant: Grant, signal: AbortSignal): Promise<string | undefined> {
   try {
     const frame = await captureFrame(
-      getComputerProvider(grant.computerTarget, { botId: grant.botId }),
+      getComputerProvider(grant.computerTarget, { botId: grant.botId, sessionId: grant.sessionId, dataDir: dataRoot() }),
       signal
     )
     return frame.image

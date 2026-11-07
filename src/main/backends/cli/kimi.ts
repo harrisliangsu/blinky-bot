@@ -23,6 +23,7 @@ import { cliSessionToken, forgetCliSession, rememberCliSession, rememberedCliSes
 import { detectAgentCli } from './detect'
 import { kimiMapper } from './events'
 import { refuseUngovernedSideCall } from './printMode'
+import { flushProviderBindings } from '../../store/providerBindings'
 import { fingerprints, firstUnsent, forgetSent, rememberSent } from './resumePrompt'
 import {
   type AgentCliSpec,
@@ -32,7 +33,10 @@ import {
   resolveBinary,
   runContext
 } from './spec'
-import { runStdioJson } from './stdioJson'
+import { captureCli, runStdioJson } from './stdioJson'
+import { parseKimiModels } from './kimiModels'
+import { runKimiAcp } from './kimiAcp'
+import { imagePartsOf } from '../messageContent'
 import { flattenTranscript, latestUserTurn, systemPromptOf } from './transcript'
 
 export const KIMI_SPEC: AgentCliSpec = {
@@ -74,7 +78,11 @@ function turnPrompt(req: ChatRequest, system: string, resumed: boolean): string 
   const marks = fingerprints(req.messages)
   if (resumed) {
     const fresh = req.messages.slice(firstUnsent(req.sessionKey, marks))
-    return fresh.length ? flattenTranscript(fresh, { includeSystem: false }) : latestUserTurn(req.messages)
+    const body = fresh.length ? flattenTranscript(fresh, { includeSystem: false }) : latestUserTurn(req.messages)
+    // Kimi's resumed CLI session does not accept a separate system message.
+    // Refresh the current instructions on every turn so memory and user rules
+    // changed by another bot are not stranded in the original CLI session.
+    return system.trim() ? `${system.trim()}\n\n${body}` : body
   }
   const body = flattenTranscript(req.messages, { includeSystem: false })
   return system.trim() ? `${system.trim()}\n\n${body}` : body
@@ -88,6 +96,32 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   const system = systemPromptOf(req.messages)
   const marks = fingerprints(req.messages)
   let resumeId = rememberedCliSession(KIMI_SPEC.id, req.sessionKey)
+  const latestUser = [...req.messages].reverse().find((m) => m.role === 'user')
+  const images = latestUser && req.supportsVision !== false ? imagePartsOf(latestUser.content) : []
+
+  // ACP carries both the per-turn MCP gateway and explicit permission
+  // requests. A missing gateway must never silently downgrade a governed
+  // chat to print mode, which automatically approves native tools.
+  if (req.approve || req.mcpServers?.length || images.length) {
+    const body = turnPrompt(req, system, Boolean(resumeId)).trim()
+    const prompt = body || (images.length ? '[Image attached]' : '')
+    if (!prompt) throw new Error('Kimi Code was given an empty prompt.')
+    for await (const chunk of runKimiAcp({
+      binaryPath, ctx, req, prompt, resumeId, images,
+      ...(kimiThinkingEnv(req.thinking) ? { extraEnv: kimiThinkingEnv(req.thinking) } : {}),
+      onSession: async (id) => {
+        rememberCliSession(KIMI_SPEC.id, req.sessionKey, id)
+        if (req.sessionKey) await flushProviderBindings()
+      }
+    })) {
+      if (chunk.type === 'done') {
+        rememberSent(req.sessionKey, marks)
+        if (req.sessionKey) await flushProviderBindings()
+      }
+      yield chunk
+    }
+    return
+  }
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const resumed = Boolean(resumeId)
@@ -110,15 +144,17 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
         promptInput: 'none',
         mapper: kimiMapper((id) => {
           captured = id
-        }),
+        }, req.captureAgentTrace === true),
         signal: req.signal,
         ...(thinkingEnv ? { extraEnv: thinkingEnv } : {})
       })) {
         if ((chunk.type === 'text' || chunk.type === 'reasoning') && chunk.delta) answered = true
-        yield chunk
+        if (chunk.type !== 'done') yield chunk
       }
       if (captured) rememberCliSession(KIMI_SPEC.id, req.sessionKey, captured)
       rememberSent(req.sessionKey, marks)
+      if (req.sessionKey) await flushProviderBindings()
+      yield { type: 'done' }
       return
     } catch (err) {
       if (answered || req.signal.aborted || !resumed) throw err
@@ -137,8 +173,16 @@ export const kimiBackend: Backend = {
 
   detect: (cfg: BackendConfig): Promise<DetectResult> => detectAgentCli(KIMI_SPEC, cfg),
 
-  async listModels(): Promise<ModelInfo[]> {
-    return [CLI_DEFAULT_MODEL]
+  async listModels(cfg: BackendConfig): Promise<ModelInfo[]> {
+    try {
+      const binaryPath = await resolveBinary(KIMI_SPEC, cfg)
+      const opts = readCliOptions(cfg)
+      const result = await captureCli(binaryPath, ['provider', 'list', '--json'], opts.cwd, 5000)
+      return result.code === 0 ? [CLI_DEFAULT_MODEL, ...parseKimiModels(result.stdout)] : [CLI_DEFAULT_MODEL]
+    } catch {
+      // Older CLIs may not support this command. The CLI default still works.
+      return [CLI_DEFAULT_MODEL]
+    }
   },
 
   chat: (req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> => runTurn(req, cfg)

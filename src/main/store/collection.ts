@@ -100,8 +100,14 @@ export class JsonCollection<T extends { id: string }> {
 
   /** Upsert; schedules a debounced write. Returns the stored item. */
   put(item: T): T {
-    this.cache.set(item.id, item)
+    this.adopt(item)
     writeJsonDebounced(this.fileFor(item.id), item)
+    return item
+  }
+
+  /** Adopt an item already covered by a separate durable transaction/journal. */
+  adopt(item: T): T {
+    this.cache.set(item.id, item)
     return item
   }
 

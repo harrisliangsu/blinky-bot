@@ -9,6 +9,8 @@ import type { ApprovalPolicy, ApprovalRequest, Settings, ToolCall, ToolSchema } 
 import { hasShellMetacharacters, matchesAny, matchesAnyDeny, shellTokens } from './patterns'
 import { asString, stringifySafe } from './json'
 import { truncate } from './text'
+import { isLocalResourceTool, localExecutionPolicy } from '../../shared/localExecution'
+import { hasSemanticPermissionRules } from '../../shared/permissionRules'
 
 export type ApprovalKind = ApprovalRequest['kind']
 
@@ -100,6 +102,10 @@ export function deniedRuleForCall(settings: Settings, call: ToolCall): string | 
   return matchesAnyDeny(settings.denylist ?? [], values)
 }
 
+export function askedRuleForCall(settings: Pick<Settings, 'asklist'>, call: ToolCall): string | null {
+  return matchesAny(settings.asklist ?? [], [...matchableValues(call.name, targetForCall(call)), ...argStrings(call)])
+}
+
 /** What a refused call is told, wherever it was refused from. */
 export function denyRefusal(toolName: string, rule: string): string {
   return (
@@ -124,19 +130,19 @@ export interface PolicyVerdict {
  *
  * The denylist is checked first and beats every policy, including `auto-run`.
  *
- * `force` is second, and beats everything below it for the same reason: the tool
- * raising the request has declared the action destructive or irreversible, and
- * `tools/approval.ts` documents those as always confirmed. Every computer-use action
- * is raised that way. Until this was consulted the flag was accepted and dropped —
- * under `auto-run` a high-risk shell command, a `fetch` POST and every screen action
- * ran with no prompt at all.
+ * A forced request always requires confirmation, including in auto-run. This
+ * covers computer actions, external POSTs and explicitly gated native tools;
+ * their own app and target restrictions are checked separately.
  */
 export function evaluate(
   settings: Settings,
   toolName: string,
   target: string,
   remembered: ReadonlySet<string>,
-  force = false
+  force = false,
+  _nativeExplicit = false,
+  localExecution = isLocalResourceTool(toolName),
+  call?: ToolCall
 ): PolicyVerdict {
   const values = matchableValues(toolName, target)
 
@@ -145,19 +151,30 @@ export function evaluate(
     return { outcome: 'deny', reason: `blocked by denylist rule "${denied}"` }
   }
 
+  const policy: ApprovalPolicy = settings.approvalPolicy ?? 'auto-run'
+
+  const local = localExecutionPolicy(settings)
+  if (localExecution && local === 'never-allow') return { outcome: 'deny', reason: 'local execution is set to never allow' }
+
   if (force) {
     return { outcome: 'ask', reason: 'this action is always confirmed' }
   }
 
-  const policy: ApprovalPolicy = settings.approvalPolicy ?? 'ask-every-time'
+  const asked = call ? askedRuleForCall(settings, call) : matchesAny(settings.asklist ?? [], values)
+  if (asked) return { outcome: 'ask', reason: `always ask rule "${asked}"` }
+  if (settings.automaticReview === false) return { outcome: 'ask', reason: 'automatic review is off' }
+  // Every controlled local action requires this user's fresh decision. Saved
+  // allows remain stored, but cannot weaken the selected local mode.
+  if (localExecution && local === 'ask-every-time') return { outcome: 'ask', reason: 'local execution requires approval every time' }
+  if (hasSemanticPermissionRules(settings)) return { outcome: 'ask', reason: 'semantic review required' }
+  const allowed = matchesAny(settings.allowlist ?? [], values)
+  if (allowed) return { outcome: 'allow', reason: `allowlist rule "${allowed}"` }
+  if (localExecution) {
+    return { outcome: 'allow', reason: 'local execution is always allowed' }
+  }
 
   if (policy === 'auto-run') {
     return { outcome: 'allow', reason: 'auto-run policy' }
-  }
-
-  const allowed = matchesAny(settings.allowlist ?? [], values)
-  if (allowed) {
-    return { outcome: 'allow', reason: `allowlist rule "${allowed}"` }
   }
 
   /*

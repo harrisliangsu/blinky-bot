@@ -1,18 +1,20 @@
 .ob-toast {
-  position: fixed;
-  z-index: 70;
-  left: 50%;
-  bottom: var(--ob-space-8);
-  transform: translateX(-50%);
+  /* The main surface/dialog is a flex column. Reserve a status row so neither
+     the message nor its dismiss button can cover any input or action. */
+  flex: 0 0 auto;
+  align-self: center;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--ob-space-2);
-  max-width: min(560px, 80vw);
+  width: max-content;
+  max-width: min(560px, calc(100% - 32px));
+  max-height: min(180px, 30vh);
+  margin: 0 var(--ob-space-4) var(--ob-space-3);
   padding: var(--ob-space-2) var(--ob-space-2) var(--ob-space-2) var(--ob-space-5);
   font-size: var(--ob-font-size-sm);
   color: var(--ob-text-primary);
   background: var(--ob-bg-raised-2);
-  border-radius: var(--ob-radius-full);
+  border-radius: var(--ob-radius-lg);
   box-shadow: var(--ob-shadow-popover);
 }
 
@@ -21,7 +23,25 @@
 }
 
 .ob-toast-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  max-height: calc(min(180px, 30vh) - 16px);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  align-self: center;
+}
+.ob-toast-copy { min-width: 0; }
+.ob-toast-detail { margin-top: var(--ob-space-1); }
+.ob-toast-detail > summary { cursor: pointer; color: var(--ob-text-secondary); }
+.ob-toast-detail[open] > div { margin-top: var(--ob-space-2); }
+
+.ob-toast > svg,
+.ob-toast > button {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.ob-toast-text:focus-visible {
+  outline: 2px solid var(--ob-border-strong);
+  outline-offset: 2px;
 }

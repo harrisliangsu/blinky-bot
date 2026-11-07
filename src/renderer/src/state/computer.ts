@@ -17,7 +17,8 @@ export function noteFrame(screenshot: string): void {
     computerFrame: {
       screenshot,
       at: Date.now(),
-      botId: store.getState().session?.activeBotId ?? null
+      botId: store.getState().session?.activeBotId ?? null,
+      sessionId: store.getState().currentSessionId
     },
     computerActive: true
   })

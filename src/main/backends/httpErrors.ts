@@ -3,7 +3,7 @@
  * so telling "nothing is listening" apart from "server said no" matters.
  */
 
-import { redactSecrets } from './secretRedaction'
+import { redactSecrets } from './vaultRedaction'
 
 export class HttpError extends Error {
   readonly status: number
@@ -16,11 +16,12 @@ export class HttpError extends Error {
     // an `Authorization` header, an `api_key` field — and this message becomes
     // a renderer-visible `statusDetail` and a console line without ever passing
     // through a redactor of its own.
-    super(`HTTP ${status} from ${url}${body ? ` — ${redactSecrets(body).slice(0, 400)}` : ''}`)
+    const safeUrl = redactSecrets(url)
+    super(`HTTP ${status} from ${safeUrl}${body ? ` — ${redactSecrets(body).slice(0, 400)}` : ''}`)
     this.name = 'HttpError'
     this.status = status
     this.body = redactSecrets(body)
-    this.url = url
+    this.url = safeUrl
   }
 }
 

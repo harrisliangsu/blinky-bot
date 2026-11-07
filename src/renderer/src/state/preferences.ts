@@ -1,10 +1,37 @@
 import type { Settings } from '../../../shared/types'
+import type { UserProfilePatch, UserProfileSaveResult } from '../../../shared/settings'
 import { bridge, errText } from './bridge'
 import { store } from './core'
 
 let settingsWrite: Promise<Settings | undefined> = Promise.resolve(undefined)
 let settingsRevision = 0
 const pendingSettings = new Map<number, Partial<Settings>>()
+
+/** Share the settings write queue, but keep profile drafts local until saved. */
+export async function saveUserProfile(patch: UserProfilePatch): Promise<UserProfileSaveResult> {
+  const request = settingsWrite.then(() => bridge().settings.saveProfile(patch))
+  settingsWrite = request.then(() => undefined, () => undefined)
+  try {
+    const result = await request
+    if (result.ok) store.patch({ settings: withPendingSettings(result.settings), settingsError: null })
+    return result
+  } catch {
+    return { ok: false, error: '个人资料未能保存，请重试。 / Your profile could not be saved. Try again.' }
+  }
+}
+
+/** MCP form drafts are published only after an explicit successful save. */
+export async function saveMcpServer(edit: import('../../../shared/settings').McpServerEdit): Promise<import('../../../shared/settings').McpServerSaveResult> {
+  const request = settingsWrite.then(() => bridge().settings.saveMcpServer(edit))
+  settingsWrite = request.then(() => undefined, () => undefined)
+  try {
+    const result = await request
+    if (result.ok) store.patch({ settings: withPendingSettings(result.settings), settingsError: null })
+    return result
+  } catch {
+    return { ok: false, error: 'MCP 连接未能保存，草稿已保留，请重试。 / The MCP connection could not be saved. Your draft is kept; try again.' }
+  }
+}
 
 /** Keep main-process broadcasts from erasing newer optimistic renderer edits. */
 export function withPendingSettings(settings: Settings): Settings {

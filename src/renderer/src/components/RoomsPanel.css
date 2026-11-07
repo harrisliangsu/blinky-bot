@@ -1,10 +1,11 @@
-.ob-rooms-create { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-.ob-rooms-list { display: grid; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
-.ob-rooms-list li { display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid var(--ob-border); border-radius: 10px; }
-.ob-rooms-main { display: grid; gap: 3px; min-width: 0; flex: 1; border: 0; background: transparent; color: var(--ob-text-primary); text-align: left; cursor: pointer; }
-/* `--ob-text-muted` was never defined in tokens.css, so `var()` fell through to
-   the inherited body colour and these secondary lines rendered at full weight
-   against the room name they are meant to sit under. `--ob-text-tertiary` is the
-   token that actually exists — the same correction already made in RichCard.css. */
-.ob-rooms-main span { overflow: hidden; color: var(--ob-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.ob-rooms-main small { color: var(--ob-text-tertiary); font-size: 10px; }
+.ob-rooms-toolbar { display: flex; justify-content: flex-start; margin-bottom: var(--ob-space-3); }
+.ob-rooms-list { display: grid; gap: var(--ob-space-3); margin: var(--ob-space-4) 0 0; padding: 0; list-style: none; }
+.ob-rooms-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ob-space-3); padding: var(--ob-space-3); border: 1px solid var(--ob-border); border-radius: var(--ob-radius-lg); }
+.ob-rooms-main { display: grid; gap: var(--ob-space-1); min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere; }
+.ob-rooms-main span { color: var(--ob-text-tertiary); font-size: var(--ob-text-sm); }
+.ob-rooms-actions, .ob-rooms-form-actions { display: flex; flex-wrap: wrap; gap: var(--ob-space-2); }
+.ob-rooms-form { display: grid; gap: var(--ob-space-4); }
+.ob-rooms-form-actions { justify-content: flex-end; }
+.ob-rooms-invite { display: grid; gap: var(--ob-space-3); justify-items: stretch; }
+.ob-rooms-qr { justify-self: center; width: min(240px, 100%); height: auto; background: white; image-rendering: pixelated; border-radius: var(--ob-radius-sm); }
+.ob-rooms-invite .ob-input { width: 100%; min-width: 0; font-family: var(--ob-font-mono); font-size: 11px; }

@@ -6,12 +6,7 @@
  * is rejected by both of these CLIs.
  */
 
-const remembered = new Map<string, string>()
-
-function slot(backendId: string, sessionKey: string | undefined): string | undefined {
-  if (!sessionKey) return undefined
-  return `${backendId}\0${sessionKey}`
-}
+import { forgetProviderBinding, getProviderBinding, putProviderBinding } from '../../store/providerBindings'
 
 /** An id safe to place after `--session` / `--resume`. Anything else is dropped. */
 export function cliSessionToken(id: string | undefined): string | undefined {
@@ -22,17 +17,15 @@ export function cliSessionToken(id: string | undefined): string | undefined {
 }
 
 export function rememberedCliSession(backendId: string, sessionKey: string | undefined): string | undefined {
-  const key = slot(backendId, sessionKey)
-  return key ? remembered.get(key) : undefined
+  return cliSessionToken(getProviderBinding(backendId, sessionKey)?.nativeThreadId)
 }
 
 export function rememberCliSession(backendId: string, sessionKey: string | undefined, cliSessionId: string): void {
-  const key = slot(backendId, sessionKey)
   const token = cliSessionToken(cliSessionId)
-  if (key && token) remembered.set(key, token)
+  if (!sessionKey || !token) return
+  putProviderBinding(backendId, sessionKey, { nativeThreadId: token })
 }
 
 export function forgetCliSession(backendId: string, sessionKey: string | undefined): void {
-  const key = slot(backendId, sessionKey)
-  if (key) remembered.delete(key)
+  forgetProviderBinding(backendId, sessionKey)
 }
