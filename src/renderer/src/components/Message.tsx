@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState, useSyncExternalStore, type MouseEven
 import type { Attachment, Bot, Message } from '../../../shared/types'
 import { isMessageQuote, MESSAGE_QUOTE_MIME } from '../../../shared/messageQuote'
 import { clockTime } from '../lib/format'
+import { copyText } from '../lib/clipboard'
 import { reactToMessage, store, useMessage } from '../state'
 import { BackendSetupLink } from './BackendSetupLink'
 import { imagePreviewSrc } from './imageAttachments'
@@ -34,7 +35,7 @@ function onMarkdownClick(e: MouseEvent<HTMLDivElement>): void {
   if (!button) return
   const code = button.closest('.ob-code')?.querySelector('code')?.textContent ?? ''
   // A denied or unfocused clipboard must not be reported as a copy.
-  navigator.clipboard.writeText(code).then(
+  copyText(code).then(
     () => {
       button.textContent = 'Copied'
       window.setTimeout(() => {
@@ -98,7 +99,7 @@ function CopyButton({ text }: { text: string }): ReactNode {
       aria-label={done ? 'Message copied' : 'Copy message'}
       title={done ? 'Message copied' : 'Copy message'}
       onClick={() => {
-        navigator.clipboard.writeText(text).then(
+        copyText(text).then(
           () => {
             setDone(true)
             window.setTimeout(() => setDone(false), 1200)
@@ -163,6 +164,7 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
   const message = useMessage(id)
   const [showAttachments, setShowAttachments] = useState(false)
   const [showReactions, setShowReactions] = useState(false)
+  const [showActions, setShowActions] = useState(false)
 
   if (!message) return null
   if (message.internal) return null
@@ -266,6 +268,8 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
         ) : null}
       </div>
 
+      <div className={`ob-msg-action-group${showActions ? ' is-open' : ''}`} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowActions(false) } }}>
+      <button type="button" className="ob-icon-btn ob-msg-more" aria-label={zh ? '更多消息操作' : 'More message actions'} aria-expanded={showActions} onClick={() => setShowActions(open => !open)}>···</button>
       <div className={`ob-msg-actions${activeReactions.length ? ' has-reactions' : ''}`} aria-label="Message actions" title={clockTime(message.createdAt)}>
         <CopyButton text={visibleText} />
         {!isUser && assistantBody ? <button type="button" className="ob-icon-btn" aria-label={zh ? '引用回复' : 'Quote reply'} title={zh ? '引用回复' : 'Quote reply'} onClick={() => {
@@ -284,6 +288,7 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
           </div> : null}
         </div> : null}
         {activeReactions.length ? <span className="ob-msg-reaction-summary">{activeReactions.map(([emoji, people]) => <span key={emoji} title={people.join(', ')}>{emoji}{people.length > 1 ? ` ${people.length}` : ''}</span>)}</span> : null}
+      </div>
       </div>
       </div>
     </article>

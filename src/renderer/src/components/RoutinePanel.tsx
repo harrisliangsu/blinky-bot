@@ -1,3 +1,4 @@
+import { copyText } from '../lib/clipboard'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Routine } from '../../../shared/types'
 import { relativeTime } from '../lib/format'
@@ -25,6 +26,8 @@ export function RoutinePanel(): ReactNode {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [cronDraft, setCronDraft] = useState('0 9 * * 1-5')
   const [editing, setEditing] = useState(false)
+  const [editingTrigger, setEditingTrigger] = useState<Routine['trigger'] | undefined>()
+  const editTrigger = (trigger?: Routine['trigger']): void => { setEditingTrigger(trigger); setEditing(true) }
   const [webhook, setWebhook] = useState<{ url: string; secret: string; state: 'inactive' | 'listening' | 'error' } | null>(null)
   const [webhookError, setWebhookError] = useState(false)
   const [manualRunning, setManualRunning] = useState(false)
@@ -130,8 +133,8 @@ export function RoutinePanel(): ReactNode {
                       >
                         <IconTrash size={12} />
                       </button>
-                      <button type="button" className={`ob-mode-btn${selected.trigger.kind === 'once' ? ' is-active' : ''}`} aria-pressed={selected.trigger.kind === 'once'} onClick={() => void updateRoutine(selected.id, { trigger: { kind: 'once', at: Math.ceil((Date.now() + 60_000) / 60_000) * 60_000 } })}>{zh ? '一次性' : 'Once'}</button>
-                      {selected.instruction ? <button type="button" className={`ob-mode-btn${selected.trigger.kind === 'folder_change' ? ' is-active' : ''}`} aria-pressed={selected.trigger.kind === 'folder_change'} onClick={() => void window.openbot.dialog.pickDirectory().then(path => { if (path) void updateRoutine(selected.id, { trigger: { kind: 'folder_change', path } }) })}>{zh ? '文件夹变化' : 'Folder changes'}</button> : null}
+                      <button type="button" className={`ob-mode-btn${selected.trigger.kind === 'once' ? ' is-active' : ''}`} aria-pressed={selected.trigger.kind === 'once'} onClick={() => editTrigger(selected.trigger.kind === 'once' ? selected.trigger : { kind: 'once', at: Math.ceil((Date.now() + 60_000) / 60_000) * 60_000 })}>{zh ? '一次性' : 'Once'}</button>
+                      {selected.instruction ? <button type="button" className={`ob-mode-btn${selected.trigger.kind === 'folder_change' ? ' is-active' : ''}`} aria-pressed={selected.trigger.kind === 'folder_change'} onClick={() => editTrigger(selected.trigger.kind === 'folder_change' ? selected.trigger : { kind: 'folder_change', path: '' })}>{zh ? '文件夹变化' : 'Folder changes'}</button> : null}
                     </div>
                   </header>
 
@@ -161,7 +164,7 @@ export function RoutinePanel(): ReactNode {
                         type="button"
                         className={`ob-mode-btn${selected.trigger.kind === 'manual' ? ' is-active' : ''}`}
                         aria-pressed={selected.trigger.kind === 'manual'}
-                        onClick={() => void updateRoutine(selected.id, { trigger: { kind: 'manual' } })}
+                        onClick={() => editTrigger({ kind: 'manual' })}
                       >
                         {zh ? '手动' : 'Manual'}
                       </button>
@@ -169,7 +172,7 @@ export function RoutinePanel(): ReactNode {
                         type="button"
                         className={`ob-mode-btn${selected.trigger.kind === 'schedule' ? ' is-active' : ''}`}
                         aria-pressed={selected.trigger.kind === 'schedule'}
-                        onClick={() => void updateRoutine(selected.id, { trigger: { kind: 'schedule', cron: cronDraft } })}
+                        onClick={() => editTrigger(selected.trigger.kind === 'schedule' ? selected.trigger : { kind: 'schedule', cron: cronDraft })}
                       >
                         {zh ? '定时' : 'Scheduled'}
                       </button>
@@ -184,18 +187,18 @@ export function RoutinePanel(): ReactNode {
                       {webhook ? <>
                         <p className="ob-hint">{webhook.url}</p>
                         <p className="ob-hint">{zh ? 'POST 请求须携带 Authorization: Bearer 凭证，以及每次事件唯一的 X-Blinky-Event-Id。重复事件不会再次入队。' : 'POST with Authorization: Bearer and a unique X-Blinky-Event-Id for each event. Duplicate events are not enqueued again.'}</p>
-                        <button type="button" className="ob-btn ob-btn-sm" onClick={() => void navigator.clipboard.writeText(webhook.secret)}>{zh ? '复制凭证' : 'Copy credential'}</button>
+                        <button type="button" className="ob-btn ob-btn-sm" onClick={() => void copyText(webhook.secret).catch(() => setWebhookError(true))}>{zh ? '复制凭证' : 'Copy credential'}</button>
                         <p className="ob-hint">{webhook.state === 'error' ? (zh ? '监听端口不可用，请检查端口占用。' : 'The listener is unavailable; check whether its port is in use.') : webhook.state === 'inactive' ? (zh ? '监听正在启动，可再次点击检查。' : 'The listener is starting; check again shortly.') : (zh ? '本机监听中。' : 'Listening locally.')}</p>
                       </> : null}
                     </div> : null}
-                    {['schedule', 'once', 'folder_change'].includes(selected.trigger.kind) ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => setEditing(true)}>{zh ? '编辑触发设置' : 'Edit trigger'}</button> : null}
+                    {['schedule', 'once', 'folder_change'].includes(selected.trigger.kind) ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => editTrigger()}>{zh ? '编辑触发设置' : 'Edit trigger'}</button> : null}
                     {selected.trigger.kind === 'folder_change' && selected.watchError ? <p className="ob-notice ob-notice-error" role="alert">{selected.watchError}</p> : null}
                   </div>
 
                   {selected.instruction ? <div className="ob-field">
                     <span className="ob-label">{zh ? '任务指令' : 'Instruction'}</span>
                     <p style={{ whiteSpace: 'pre-wrap' }}>{selected.instruction}</p>
-                    <button type="button" className="ob-btn ob-btn-sm" onClick={() => setEditing(true)}>{zh ? '编辑任务指令' : 'Edit instruction'}</button>
+                    <button type="button" className="ob-btn ob-btn-sm" onClick={() => editTrigger()}>{zh ? '编辑任务指令' : 'Edit instruction'}</button>
                     <p className="ob-hint">{zh ? '后台设置开启且注册成功后，关闭窗口仍可触发。电脑休眠、关机、未登录或错过允许时间窗口时不会声称已执行。' : 'With background execution enabled and registered, routines can run after the window closes. Sleep, shutdown, logout, or a missed window is never reported as execution.'}</p>
                   </div> : <div className="ob-field">
                     <span className="ob-label">{zh ? '步骤' : 'Steps'}</span>
@@ -208,7 +211,7 @@ export function RoutinePanel(): ReactNode {
             </div>
           </div>
         )}
-        {editing && selected ? <RoutineEditDialog key={selected.id} routine={selected} zh={zh} onClose={() => setEditing(false)} /> : null}
+        {editing && selected ? <RoutineEditDialog key={selected.id} routine={selected} initialTrigger={editingTrigger} zh={zh} onClose={() => setEditing(false)} /> : null}
       </div>
     </Modal>
   )

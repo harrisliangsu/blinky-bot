@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test, afterEach } from 'node:test'
+import { setVaultStorageForTests } from '../../store/vault.ts'
+const initialDataRoot = process.env.OPENBOT_DATA_DIR
+afterEach(() => { setVaultStorageForTests(undefined); if (initialDataRoot === undefined) delete process.env.OPENBOT_DATA_DIR; else process.env.OPENBOT_DATA_DIR = initialDataRoot })
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +26,7 @@ readline.createInterface({input:process.stdin}).on('line', line=>{
  else if(m.method==='session/set_config_option')send({id:m.id,result:{configOptions:[{id:m.params.configId,currentValue:enabled('bad-config')?'wrong':m.params.value}]}});
  else if(m.method==='session/prompt') { promptId=m.id; if(enabled('hang'))return;
    if(enabled('permission-diff')){send({method:'session/update',params:{update:{sessionUpdate:'tool_call',toolCallId:'edit-1',kind:'edit',title:'Edit',content:[{type:'content',content:{type:'text',text:JSON.stringify({path:'/tmp/fixture'})}}]}}});send({id:900,method:'session/request_permission',params:{toolCall:{toolCallId:'edit-1',title:'Edit',content:[{type:'diff',path:'/tmp/fixture',oldText:'before',newText:'after'}]},options:[{kind:'allow_once',optionId:'yes'},{kind:'reject_once',optionId:'no'}]}});return;}
+   if(enabled('permission-task')){waiting=true;send({id:900,method:'session/request_permission',params:{toolCall:{title:'mcp__openbot__manage_task',rawInput:{arguments:{action:'report',task_id:'12345678-1234-1234-1234-123456789abc',text:'PRIVATE_SYNTHETIC_REPORT'}}},options:[{kind:'allow_once',optionId:'yes'},{kind:'reject_once',optionId:'no'}]}});return;}
    if(enabled('permission')){waiting=true;send({id:900,method:'session/request_permission',params:{toolCall:{...(enabled('no-kind')?{}:{kind:'edit'}),title:'test edit',rawInput:{path:'/tmp/fixture'}},options:[{kind:'allow_once',optionId:'yes'},{kind:'reject_once',optionId:'no'}]}}); return;}
    if(enabled('tool-trace')){send({method:'session/update',params:{update:{sessionUpdate:'tool_call',toolCallId:'tool-1',kind:'execute',title:'Read fixture',rawInput:{password:'fixture-secret'}}}});send({method:'session/update',params:{update:{sessionUpdate:'tool_call_update',toolCallId:'tool-1',status:'completed',rawOutput:{token:'fixture-secret',result:'done'}}}})}
    send({method:'session/update',params:{update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:'ACP response'}}}});send({id:m.id,result:{stopReason:'end_turn'}});
@@ -32,7 +36,9 @@ readline.createInterface({input:process.stdin}).on('line', line=>{
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'blinky-kimi-acp-'))
-  const binary = join(root, 'fake-kimi')
+  process.env.OPENBOT_DATA_DIR = root
+  setVaultStorageForTests({ isEncryptionAvailable: () => true } as import('electron').SafeStorage)
+  const binary = join(root, 'fake-kimi.cjs')
   const trace = join(root, 'trace.jsonl')
   await writeFile(binary, FAKE); await chmod(binary, 0o700)
   return { root, binary, trace, bindingFile: join(root, 'bindings.json') }
@@ -193,4 +199,16 @@ test('ACP exposes redacted tool events to execution transcripts only', async () 
     for await (const chunk of kimiBackend.chat(req, config(f.binary))) hidden.push(chunk)
     assert.ok(!hidden.some((chunk) => chunk.type === 'agent_trace'))
   } finally { await rm(f.root, { recursive: true, force: true }) }
+})
+
+test('task MCP approval identifies action and task without exposing report text or weakening confirmation',async()=>{
+ const f=await fixture()
+ try{
+  await writeFile(join(f.root,'permission-task'),'')
+  let approvals=0
+  const req:ChatRequest={model:'default',cwd:f.root,signal:new AbortController().signal,mcpServers:[gateway],messages:[{role:'user',content:'synthetic'}],approve:async request=>{
+   approvals++;assert.equal(request.force,true);assert.match(request.detail,/Action: report/);assert.match(request.detail,/Task: 12345678-1234-1234-1234-123456789abc/);assert.equal(request.detail.includes('PRIVATE_SYNTHETIC_REPORT'),false);return 'approve'
+  }}
+  assert.deepEqual(await collect(req,f.binary),['permission allowed','done']);assert.equal(approvals,1)
+ }finally{await rm(f.root,{recursive:true,force:true})}
 })

@@ -1,3 +1,4 @@
+import { randomId } from '../lib/randomId'
 import { useRef, useState, type ReactNode } from 'react'
 import type { Settings } from '../../../shared/types'
 import type { PermissionEdit, PermissionRuleList } from '../../../shared/settings'
@@ -65,7 +66,7 @@ export function SettingsPermissions({ settings }: { settings: Settings }): React
     // Close/repeated clicks must not detach a draft from an in-flight durable edit.
     saving.current=true;setBusy(true);setError('')
     try {
-      if(editor.format==='semantic')await save({kind:'semantic-rule',rule:{id:editor.semantic?.id??crypto.randomUUID(),version:1,effect:editor.list==='asklist'?'ask':'allow',text:value},previous:editor.semantic,remove})
+      if(editor.format==='semantic')await save({kind:'semantic-rule',rule:{id:editor.semantic?.id??randomId(),version:1,effect:editor.list==='asklist'?'ask':'allow',text:value},previous:editor.semantic,remove})
       else await save({kind:'rule',list:editor.list,previous:editor.previous,value:remove?editor.previous!:value,remove})
       setEditor(null)
     }

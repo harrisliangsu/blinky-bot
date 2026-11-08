@@ -453,7 +453,7 @@ const en: SettingsCopy = {
   },
   notifications: {
     desktop: 'Desktop notifications',
-    desktopHint: 'Approvals, help requests, and failed runs notify when the window is in the background.',
+    desktopHint: 'Approvals, help requests, failed runs and returned Agent results notify when the app is in the background.',
     turn: 'Notify after AI replies',
     turnHint: 'Notify after a successful reply, in foreground and background. No conversation text is included.'
   },

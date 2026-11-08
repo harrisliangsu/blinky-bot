@@ -50,7 +50,8 @@ export function Sidebar(): ReactNode {
   const [preferredWidth, setPreferredWidth] = useState(readSidebarWidth)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const drag = useRef<{ pointerId: number; x: number; width: number; next: number } | null>(null)
-  const width = clampSidebarWidth(preferredWidth, viewportWidth)
+  const mobile = window.openbot.environment?.kind === 'browser' && viewportWidth < 760
+  const width = mobile ? Math.min(300, viewportWidth - 48) : clampSidebarWidth(preferredWidth, viewportWidth)
   const compact = width < SIDEBAR_COMPACT_WIDTH
   const maxWidth = sidebarMaxWidth(viewportWidth)
 
@@ -138,6 +139,7 @@ export function Sidebar(): ReactNode {
     accountRef.current?.querySelector<HTMLButtonElement>('.ob-side-profile')?.focus({ preventScroll: true })
     setAccountOpen(false)
     openSettings(tab)
+    window.dispatchEvent(new Event('openbot:close-sidebar'))
   }
 
   const activeBots = useMemo(() => bots.filter((b) => !b.archived), [bots])
@@ -238,7 +240,7 @@ export function Sidebar(): ReactNode {
           items[next]?.focus()
         }}>
           {accountOpen ? (
-            <div className="ob-side-popover" id="ob-side-account-menu" role="menu" aria-label={copy.account.menu}>
+            <div onPointerDown={event => { if ((event.target as Element).closest('[role=menuitem]')) event.preventDefault() }} className="ob-side-popover" id="ob-side-account-menu" role="menu" aria-label={copy.account.menu}>
               <button type="button" role="menuitem" className="ob-side-popover-item" onClick={() => openAccountTab('profile')}>
                 {zh ? '编辑个人资料' : 'Edit profile'}
               </button>
@@ -267,7 +269,7 @@ export function Sidebar(): ReactNode {
             <span>{settings?.profileName || copy.nav.profile}</span>
           </button>
         </div>
-        <button type="button" className="ob-icon-btn" onClick={() => openSettings('general')} aria-label="Settings (Command comma)">
+        <button type="button" className="ob-icon-btn" onClick={() => { openSettings(); window.dispatchEvent(new Event('openbot:close-sidebar')) }} aria-label="Settings (Command comma)">
           <IconSettings size={13} />
         </button>
       </footer>

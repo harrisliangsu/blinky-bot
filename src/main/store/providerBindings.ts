@@ -217,6 +217,13 @@ export function forgetBindingsForSession(sessionId: string): void {
   persist()
 }
 
+/** Internal one-use native threads must never be resumed or leave restart tombstones. */
+export function discardEphemeralBindingsForSession(sessionId:string):void {
+  for(const [key,binding] of memory)if(sessionKeyMatches(binding.sessionKey,sessionId))memory.delete(key)
+  for(const key of delivered.keys())if(sessionKeyMatches(key,sessionId))delivered.delete(key)
+  persist()
+}
+
 export function deliveredFingerprints(sessionKey: string | undefined): string[] {
   if (!sessionKey) return []
   return delivered.get(sessionKey) ?? []

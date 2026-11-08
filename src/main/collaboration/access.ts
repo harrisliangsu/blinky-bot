@@ -1,11 +1,16 @@
 /** Device key possession plus explicit host consent. Invitation possession is bootstrap only. */
-import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign, verify, type KeyObject } from 'node:crypto'
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign, verify, type KeyObject } from 'node:crypto'
 import type { RemoteAccessScope, RemoteChallenge, RemoteDevice } from '../../shared/remoteAuth'
 import { connectProof, requestProof, statusProof } from '../../shared/remoteAuth'
 
 export interface AccessRoom { id: string; sessionId: string; token: string; enabled: boolean; permission: 'view' | 'control' }
 interface ChallengeRecord { room: AccessRoom; scope: string; name: string; proof: RemoteChallenge }
 interface DeviceRecord { public: RemoteDevice; scope: string; key: string; grant: string; nonces: Map<string, number> }
+/** Protected by the OS credential store. Bearer grants/nonces are process-local. */
+export interface AccessSnapshot {
+  identities: { scope: string; secret: string }[]
+  devices: { public: RemoteDevice; scope: string; key: string }[]
+}
 const hex = (value: unknown, size: number): value is string => typeof value === 'string' && new RegExp(`^[a-f0-9]{${size}}$`).test(value)
 const bytes = (text: string): Buffer => Buffer.from(text, 'utf8')
 const digest = (text: string): string => createHash('sha512').update(text).digest('hex')
@@ -25,14 +30,42 @@ export class RoomAccess {
   private readonly devices = new Map<string, DeviceRecord>()
   private readonly identities = new Map<string, { secret: KeyObject; key: string }>()
   private readonly listeners = new Set<(roomId: string) => void>()
+  private persist: ((snapshot: AccessSnapshot) => void) | undefined
   constructor(private readonly clock: () => number = Date.now) {}
+  onPersist(save: (snapshot: AccessSnapshot) => void): void { this.persist = save }
+  snapshot(): AccessSnapshot {
+    return { identities: [...this.identities].map(([scope, identity]) => ({ scope, secret: identity.secret.export({ type: 'pkcs8', format: 'der' }).toString('base64') })), devices: [...this.devices.values()].map(record => ({ public: { ...record.public }, scope: record.scope, key: record.key })) }
+  }
+  /** Only matching active invitations restore authority. Never extend a lease. */
+  restore(saved: AccessSnapshot, rooms: AccessRoom[]): void {
+    const active = new Map(rooms.map(room => [scope(room), room]))
+    const identities = new Map<string, { secret: KeyObject; key: string }>(), devices = new Map<string, DeviceRecord>()
+    for (const entry of saved.identities) {
+      if (!active.has(entry.scope)) continue
+      const secret = createPrivateKey({ key: Buffer.from(entry.secret, 'base64'), format: 'der', type: 'pkcs8' })
+      if (secret.asymmetricKeyType !== 'ed25519') throw new Error('Invalid saved host identity')
+      const key = (createPublicKey(secret).export({ type: 'spki', format: 'der' }) as Buffer).subarray(-32).toString('hex')
+      identities.set(entry.scope, { secret, key })
+    }
+    for (const entry of saved.devices) {
+      const room = active.get(entry.scope), p = entry.public
+      if (!room || !identities.has(entry.scope)) continue
+      if (!p || p.roomId !== room.id || p.sessionId !== room.sessionId || !/^device-[A-Za-z0-9_-]{32}$/.test(p.id) || !hex(entry.key, 64) || !['pending', 'approved', 'denied', 'revoked', 'expired'].includes(p.state) || !['view', 'control'].includes(p.permission) || !['room', 'workspace'].includes(p.scope) || typeof p.name !== 'string' || p.name.length > 80 || !Number.isSafeInteger(p.requestedAt) || !Number.isSafeInteger(p.expiresAt) || p.expiresAt > this.clock() + 8 * 60 * 60_000) throw new Error('Invalid saved device approval')
+      devices.set(p.id, { public: { ...p, fingerprint: createHash('sha512').update(Buffer.from(entry.key, 'hex')).digest('hex').slice(0, 64) }, key: entry.key, scope: entry.scope, grant: p.state === 'approved' ? randomBytes(32).toString('base64url') : '', nonces: new Map() })
+    }
+    this.identities.clear(); this.devices.clear(); this.challenges.clear()
+    for (const [id, identity] of identities) this.identities.set(id, identity)
+    for (const [id, device] of devices) this.devices.set(id, device)
+  }
   onChange(listener: (roomId: string) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener) }
   private changed(roomId: string): void { for (const listener of this.listeners) { try { listener(roomId) } catch { /* an observer cannot approve or break authentication */ } } }
   hostKey(room: AccessRoom): string {
     const id = scope(room), previous = this.identities.get(id)
     if (previous) return previous.key
     const pair = generateKeyPairSync('ed25519'), key = (pair.publicKey.export({ type: 'spki', format: 'der' }) as Buffer).subarray(-32).toString('hex')
-    this.identities.set(id, { secret: pair.privateKey, key }); return key
+    this.identities.set(id, { secret: pair.privateKey, key })
+    try { this.persist?.(this.snapshot()) } catch (error) { this.identities.delete(id); throw error }
+    return key
   }
   challenge(room: AccessRoom, key: unknown, name: unknown): RemoteChallenge {
     if (!room.enabled || !hex(key, 64) || typeof name !== 'string' || !name.trim() || name.length > 80) throw new RoomAccessError(400, 'Enter a device name and valid device identity.')
@@ -58,7 +91,9 @@ export class RoomAccess {
     if (existing) this.devices.delete(existing.public.id)
     if ([...this.devices.values()].filter(item => item.scope === record.scope).length >= 64) throw new RoomAccessError(429, 'The host must remove old devices before accepting more.')
     const device: RemoteDevice = { id: p.id, roomId: room.id, sessionId: room.sessionId, name: record.name, fingerprint: createHash('sha512').update(Buffer.from(p.publicKey, 'hex')).digest('hex').slice(0, 64), state: 'pending', permission: 'view', scope: 'workspace', requestedAt: this.clock(), expiresAt: this.clock() + 5 * 60_000 }
-    this.devices.set(p.id, { public: device, scope: record.scope, key: p.publicKey, grant: '', nonces: new Map() }); this.changed(room.id)
+    this.devices.set(p.id, { public: device, scope: record.scope, key: p.publicKey, grant: '', nonces: new Map() })
+    try { this.persist?.(this.snapshot()) } catch (error) { this.devices.delete(p.id); if (existing) this.devices.set(existing.public.id, existing); throw error }
+    this.changed(room.id)
     return { id: p.id }
   }
   private state(record: DeviceRecord): RemoteDevice {
@@ -69,7 +104,8 @@ export class RoomAccess {
   decide(room: AccessRoom, id: string, action: 'approve' | 'deny' | 'revoke' | 'remove', permission: 'view' | 'control' = 'view', accessScope: RemoteAccessScope = 'room'): boolean {
     const record = this.devices.get(id)
     if (!record || record.scope !== scope(room) || !room.enabled) return false
-    if (action === 'remove') { this.devices.delete(id); this.changed(room.id); return true }
+    const previous = { ...record, public: { ...record.public }, nonces: new Map(record.nonces) }
+    if (action === 'remove') { this.devices.delete(id); try { this.persist?.(this.snapshot()) } catch (error) { this.devices.set(id, previous); throw error }; this.changed(room.id); return true }
     const state = this.state(record)
     if (action === 'approve') {
       if (state.state === 'expired') return false
@@ -77,6 +113,7 @@ export class RoomAccess {
       record.public.expiresAt = this.clock() + 8 * 60 * 60_000; record.grant = randomBytes(32).toString('base64url'); record.nonces.clear()
     } else if (action === 'deny') record.public.state = 'denied'
     else record.public.state = 'revoked'
+    try { this.persist?.(this.snapshot()) } catch (error) { this.devices.set(id, previous); throw error }
     this.changed(room.id); return true
   }
   private proof(record: DeviceRecord, nonce: unknown, time: unknown, signature: unknown, payload: (nonce: string, time: number) => string): void {
@@ -106,7 +143,9 @@ export class RoomAccess {
   }
   hasWorkspaceAccess(roomId: string): boolean { return [...this.devices.values()].some(entry => entry.public.roomId === roomId && entry.public.scope === 'workspace' && this.state(entry).state === 'approved') }
   revokeRoom(roomId: string): void {
+    const previous = new Map([...this.devices].filter(([, entry]) => entry.public.roomId === roomId).map(([id, entry]) => [id, { ...entry.public }]))
     for (const entry of this.devices.values()) if (entry.public.roomId === roomId) entry.public.state = 'revoked'
+    try { this.persist?.(this.snapshot()) } catch (error) { for (const [id, value] of previous) this.devices.get(id)!.public = value; throw error }
     for (const [id, entry] of this.challenges) if (entry.room.id === roomId) this.challenges.delete(id)
     this.changed(roomId)
   }

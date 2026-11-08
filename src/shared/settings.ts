@@ -78,6 +78,8 @@ export interface Settings {
   uiScale: UiScale
   /** Window translucency. On macOS this is also native vibrancy. */
   vibrant: boolean
+  /** Native AppKit glass on supported macOS; unsupported builds stay opaque. */
+  nativeGlass?: boolean
   language: UiLanguage
   accent: AccentColor
   sendShortcut: SendShortcut

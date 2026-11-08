@@ -294,6 +294,9 @@ const api: OpenBotApi = {
   },
 
   window: {
+    chromeStatus: () => invoke('openbot:window:chromeStatus'),
+    chromeLayout: width => invoke('openbot:window:chromeLayout', width),
+    onChromeChanged: listener => transport.subscribe('openbot:window:chromeChanged', listener),
     setFullScreen: (active) => invoke<boolean>('openbot:window:setFullScreen', active),
     isFullScreen: () => invoke<boolean>('openbot:window:isFullScreen')
   },

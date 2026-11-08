@@ -1,4 +1,6 @@
 import { taskProgressContext } from '../tasks/progressObservations'
+import { taskJudgmentScope, currentTaskJudgmentMessages } from './taskJudgmentScope'
+import { toProviderMessages } from './history'
 /**
  * One model round-trip: build the context, stream the reply, and — when we own the loop —
  * run whatever tools it asked for.
@@ -67,6 +69,7 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
   const existingTasks = new Set(listTasks().filter((task) => task.sourceSessionId === session.id).map((task) => task.id))
   const existingReviews = new Set(listTasks().filter((task) => task.sourceSessionId === session.id && task.review).map((task) => task.id))
   const message = assistantMessage(bot)
+  if(taskJudgmentScope(session.id))message.id='agent-judgment-draft-'+message.id
   const timing = (stage: string): void => traceChatTiming(session.id, stage, message.id)
   timing('turn-start')
   if (input.internalAssistant) message.internal = true
@@ -135,6 +138,8 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       supportsVision,
       extras: [...(input.extras ?? []), skills, taskProgressContext(session.id, bot.id)].filter((value): value is string => Boolean(value))
     })
+    const judgment=taskJudgmentScope(session.id)
+    if(judgment?.prompt)context.messages=[{role:'system',content:context.systemPrompt},{role:'user',content:judgment.prompt},...toProviderMessages(currentTaskJudgmentMessages(session.id,session.messages).filter(m=>m.id!==message.id),{supportsVision:false,selfBotId:bot.id})]
 
     /*
      * The moderator hands over the floor as a USER turn rather than a system

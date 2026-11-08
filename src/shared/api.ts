@@ -273,8 +273,14 @@ export interface OpenBotApi {
   dialog: {
     pickDirectory(): Promise<string | null>
     pickFiles(): Promise<string[]>
+    /** Browser-native picker and paste import keep image bytes with the message. */
+    pickAttachments?(): Promise<Attachment[]>
+    importAttachments?(files: readonly File[]): Promise<Attachment[]>
   }
   window: {
+    chromeStatus(): Promise<{ supported: boolean; applied: boolean; reduced: boolean }>
+    chromeLayout(width: number): Promise<void>
+    onChromeChanged(listener: (status: { supported: boolean; applied: boolean; reduced: boolean }) => void): () => void
     /** Enter or leave native OS full screen and report the resulting state. */
     setFullScreen(active: boolean): Promise<boolean>
     isFullScreen(): Promise<boolean>

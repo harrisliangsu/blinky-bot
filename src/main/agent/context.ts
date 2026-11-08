@@ -14,6 +14,7 @@ import { filterToolsForMode } from './modes'
 import { composeSystemPrompt } from './systemPrompt'
 import { estimateTokens } from './tokens'
 import { rankMemory } from './memoryRecall'
+import { withoutTaskJudgmentDrafts, taskJudgmentScope } from './taskJudgmentScope'
 
 export interface ContextInput {
   session: Session
@@ -44,7 +45,9 @@ export interface BuiltContext {
 
 export function buildContext(input: ContextInput): BuiltContext {
   const contextWindow = contextWindowOr(input.contextWindow)
-  const tools = availableTools(input.schemas, input.session, input.bot)
+  // Internal consideration already has a bounded observation envelope. Do not
+  // inject execution/review tool instructions that conflict with that purpose.
+  const tools = taskJudgmentScope(input.session.id) ? [] : availableTools(input.schemas, input.session, input.bot)
 
   const systemPrompt = composeSystemPrompt({
     bot: input.bot,
@@ -59,7 +62,9 @@ export function buildContext(input: ContextInput): BuiltContext {
     extras: input.extras
   })
 
-  const history = toProviderMessages(input.session.messages ?? [], {
+  // Private judgment drafts are not a user-visible conversation and must not
+  // contaminate later human turns or be mistaken for already-published updates.
+  const history = toProviderMessages(withoutTaskJudgmentDrafts(input.session.messages ?? []), {
     supportsVision: input.supportsVision,
     // Only a shared conversation needs speaker labels; a solo bot would just be
     // reading its own name back at itself.

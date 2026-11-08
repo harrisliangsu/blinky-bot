@@ -13,7 +13,8 @@ import { remoteContext, remoteRpc, clearRemoteContexts } from './workspaceRpc'
 import { remoteUpdates } from './updates'
 import { getSession } from '../store/sessions'
 import { getBot } from '../store/bots'
-import { roomById, sharedRoomByToken, type StoredRoom } from '../store/rooms'
+import { roomById, sharedRooms, sharedRoomByToken, type StoredRoom } from '../store/rooms'
+import { loadSharingRecovery, sharingEndpoint, setSharingEndpoint, sharingRecoveryFailure } from './recovery'
 import { defangSpeakerLabels } from '../agent/history'
 import { safeLine } from '../agent/untrusted'
 import { isRunning } from '../agent/cancel'
@@ -27,6 +28,10 @@ import { roomAccess, RoomAccessError } from './access'
 import { scrubVaultTextsNow } from '../store/vault'
 import { redactPrivateText } from '../backends/secretRedaction'
 
+const retired = new WeakMap<Server, 'host-exit' | 'revoked'>()
+const unavailable = (listener: Server): { status: number; body: { error: string; code?: string } } => retired.get(listener) === 'host-exit'
+  ? { status: 503, body: { error: 'Mac 正在退出或更新。草稿保留，主机恢复后自动重连。', code: 'host-restarting' } }
+  : { status: 401, body: { error: 'Sharing was stopped on the Mac.' } }
 let server: Server | null = null
 let origin = ''
 let starting: Promise<string> | null = null
@@ -34,32 +39,48 @@ let stopEvents: (() => void) | null = null
 let hosts = new Set<string>()
 const posts = new Map<string, { count: number; until: number }>()
 const receipts = new Map<string, { fingerprint: string; result: Promise<{ id: string; duplicate: boolean }> }>()
+let recoveryTimer: ReturnType<typeof setInterval> | undefined
+
+/** Only the foreground app restores explicit durable sharing, never list IPC or an Agent runtime. */
+export async function resumeCollaborationServer(): Promise<void> {
+  loadSharingRecovery()
+  const resume = async (): Promise<void> => {
+    if (!sharedRooms().length || origin || starting) return
+    try { await ensureCollaborationServer(true) } catch { /* truthful status is visible in the host sharing panel */ }
+  }
+  await resume()
+  recoveryTimer = setInterval(() => { void resume() }, 15_000); recoveryTimer.unref()
+}
 
 export function lanAddresses(): string[] {
   const entries = Object.entries(networkInterfaces()).filter(([name]) => !/^(lo|utun|tun|tap|bridge|vmnet|vbox|awdl|llw)/i.test(name))
   entries.sort(([a], [b]) => Number(!/^(en|eth|wlan)/.test(a)) - Number(!/^(en|eth|wlan)/.test(b)))
   return [...new Set(entries.flatMap(([, values]) => (values ?? []).filter(value => value.family === 'IPv4' && !value.internal && !value.address.startsWith('169.254.')).map(value => value.address)))]
 }
-export async function ensureCollaborationServer(): Promise<string> {
+export async function ensureCollaborationServer(resuming = false): Promise<string> {
+  loadSharingRecovery()
   if (origin) return origin
   if (starting) return starting
   const addresses = lanAddresses()
-  if (!addresses.length) throw new Error('No LAN address is available. Connect to Wi-Fi or Ethernet, then share again.')
+  const previous = sharingEndpoint()
+  if (!addresses.length || resuming && previous && !addresses.includes(previous.address)) { sharingRecoveryFailure('address-changed'); throw new Error('The previous LAN address is unavailable. Rejoin that network, or share a new address from the Mac.') }
+  const address = previous && addresses.includes(previous.address) ? previous.address : addresses[0]!
   starting = new Promise<string>((resolve, reject) => {
     const created = createServer((req, res) => {
       // A previous listener can still be delivering refusals when sharing is
       // started again. Bind its lifetime to this instance, not global state.
-      if (server !== created) return reply(res, 401, { error: 'Sharing was stopped on the Mac.' }, true)
-      void handle(req, res).catch(() => { if (!res.headersSent) reply(res, 503, { error: 'The action could not be confirmed. Please retry.' }); else res.end() })
+      if (server !== created) return replyUnavailable(req, res, created)
+      void handle(req, res, created).catch(() => { if (!res.headersSent) reply(res, 503, { error: 'The action could not be confirmed. Please retry.' }); else res.end() })
     })
     created.requestTimeout = 15_000; created.headersTimeout = 10_000
-    created.once('error', () => { reject(new Error('The local sharing listener could not start.')) })
-    created.listen(0, addresses[0], () => {
-      const address = created.address()
-      if (!address || typeof address === 'string') { created.close(); reject(new Error('No sharing port is available.')); return }
+    created.once('error', () => { sharingRecoveryFailure('port-unavailable'); reject(new Error('The saved sharing port is unavailable. Close the conflicting listener and retry on the Mac.')) })
+    created.listen(previous?.port ?? 0, address, () => {
+      const bound = created.address()
+      if (!bound || typeof bound === 'string') { created.close(); reject(new Error('No sharing port is available.')); return }
+      try { setSharingEndpoint({ address, port: bound.port }) } catch (error) { created.close(); reject(error); return }
       server = created
-      hosts = new Set([addresses[0]!].map(host => `${host}:${address.port}`))
-      origin = `http://${addresses[0]}:${address.port}`
+      hosts = new Set([`${address}:${bound.port}`])
+      origin = `http://${address}:${bound.port}`
       stopEvents = onDesktopEvent(event => {
         const sessionId = event.type === 'session-updated' ? event.session.id : 'sessionId' in event ? event.sessionId : undefined
         const role = sessionId && event.type === 'message-end' ? getSession(sessionId)?.messages.find(message => message.id === event.messageId)?.role : undefined
@@ -70,9 +91,10 @@ export async function ensureCollaborationServer(): Promise<string> {
   })
   try { return await starting } finally { starting = null }
 }
-export async function stopCollaborationServer(): Promise<void> {
+export async function stopCollaborationServer(reason: 'host-exit' | 'revoked' = 'revoked'): Promise<void> {
+  if (reason === 'host-exit') { clearInterval(recoveryTimer); recoveryTimer = undefined }
   await starting?.catch(() => {})
-  const active = server; server = null; origin = ''; hosts.clear(); posts.clear(); receipts.clear(); roomAccess.clear(); stopEvents?.(); stopEvents = null; roomRealtime.clear(); workspaceEvents.clear(); clearRemoteContexts()
+  const active = server; if (active) retired.set(active, reason); server = null; origin = ''; hosts.clear(); posts.clear(); receipts.clear(); roomAccess.clear(); stopEvents?.(); stopEvents = null; roomRealtime.clear(); workspaceEvents.clear(); clearRemoteContexts()
   if (active) await new Promise<void>(resolve => {
     // Briefly accept refusal-only requests as well as pending polls. Closing
     // immediately misses browsers between polls and looks like Wi-Fi loss.
@@ -84,8 +106,8 @@ export const collaborationOrigin = (): string => origin
 export const roomInviteUrl = (room: StoredRoom): string => room.enabled && origin ? `${origin}/room/#${room.token}.${roomAccess.hostKey(room)}` : ''
 
 const allowedQuestion = (question: { kind?: string; isSecret?: boolean }): boolean => question.isSecret !== true && ['fact', 'preference', 'implementation'].includes(question.kind ?? '')
-async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!server && !starting) return reply(res, 401, { error: 'Sharing was stopped on the Mac.' }, true)
+async function handle(req: IncomingMessage, res: ServerResponse, listener: Server): Promise<void> {
+  if (!server && !starting) return replyUnavailable(req, res, listener)
   const host = (req.headers.host ?? '').toLowerCase()
   if (!hosts.has(host)) return reply(res, 421, { error: 'Unrecognized sharing address.' })
   if (req.headers.origin && req.headers.origin !== `http://${host}`) return reply(res, 403, { error: 'Cross-origin requests are not allowed.' })
@@ -146,9 +168,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     res.once('close', close)
     try {
       const value = route[2] === 'rpc' ? await remoteRpc(access, context, body, () => stillApproved(permission === 'control')) : await remoteUpdates(access, context, body, () => stillApproved(), controller.signal)
-      if (!stillApproved()) return reply(res, 401, { error: 'This device is no longer approved.' })
+      if (!stillApproved()) { const reason = unavailable(listener); return reply(res, reason.status, reason.body) }
       return reply(res, 200, value)
     } catch (error) {
+      if (retired.get(listener) === 'host-exit') { const reason = unavailable(listener); return reply(res, reason.status, reason.body) }
       if (error instanceof RoomAccessError || error instanceof RoomHistoryError) return reply(res, error.status, { error: error.message })
       throw error
     } finally { res.removeListener('close', close) }
@@ -223,5 +246,19 @@ async function remoteStatic(res: ServerResponse, path: string): Promise<void> {
     const type = path.endsWith('.html') ? 'text/html' : path.endsWith('.js') ? 'text/javascript' : path.endsWith('.css') ? 'text/css' : path.endsWith('.svg') ? 'image/svg+xml' : path.endsWith('.png') ? 'image/png' : 'font/woff2'
     res.writeHead(200, headers(type + (/(html|javascript|css|svg)/.test(type) ? '; charset=utf-8' : ''), body.length)); res.end(body)
   } catch { reply(res, 404, { error: 'The browser client is unavailable. Rebuild the app.' }) }
+}
+function replyUnavailable(req: IncomingMessage, res: ServerResponse, listener: Server): void {
+  const reason = unavailable(listener)
+  const path = (req.url ?? '').split('?')[0] ?? ''
+  // Access-loss intentionally navigates away from the private React document.
+  // A closing listener must still render a useful, entirely public document;
+  // APIs retain their original refusal status/JSON and no workspace is served.
+  if (req.method !== 'GET' || !/^\/room(?:\/|\/[A-Za-z0-9_-]{20,})?$/.test(path) || !String(req.headers.accept ?? '').includes('text/html')) return reply(res, reason.status, reason.body, true)
+  if (res.destroyed || res.writableEnded) return
+  const restarting = retired.get(listener) === 'host-exit'
+  const title = restarting ? 'Mac 正在退出或更新' : '共享已停止'
+  const detail = restarting ? '请等待 Mac 重新打开 App，再刷新此页面。未发送内容不会自动重发。' : '访问已关闭。请在 Mac 重新开启共享，并使用新的邀请连接。'
+  const body = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BlinkyBot Remote</title><style>:root{color-scheme:light dark}body{margin:0;padding:24px;font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;color:CanvasText;background:Canvas}main{max-width:34rem;margin:8vh auto}h1{font-size:24px}h2{font-size:20px}</style><main><h1>BlinkyBot Remote</h1><h2 role="status">${title}</h2><p>${detail}</p></main></html>`
+  res.writeHead(reason.status, { ...headers('text/html; charset=utf-8', Buffer.byteLength(body)), connection: 'close' }); res.end(body)
 }
 function reply(res: ServerResponse, status: number, value: unknown, close = false): void { if (res.destroyed || res.writableEnded) return; const body = JSON.stringify(value); res.writeHead(status, { ...headers('application/json; charset=utf-8', Buffer.byteLength(body)), ...(close ? { connection: 'close' } : {}) }); res.end(body) }

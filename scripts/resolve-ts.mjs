@@ -8,7 +8,11 @@ export async function resolve(specifier, context, nextResolve) {
     (specifier.startsWith('./') || specifier.startsWith('../')) &&
     !/\.(?:[cm]?[jt]s|json|node|css)$/.test(specifier)
   ) {
-    return nextResolve(`${specifier}.ts`, context)
+    try { return await nextResolve(`${specifier}.ts`, context) }
+    catch (error) {
+      if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error
+      return nextResolve(`${specifier}/index.ts`, context)
+    }
   }
   return nextResolve(specifier, context)
 }

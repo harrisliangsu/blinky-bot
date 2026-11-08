@@ -24,6 +24,20 @@ freeze_proof = load('freeze_proof', 'freeze-local-build.py')
 installer = load('installer', 'local-update-install.py')
 
 
+class MessageFingerprint(unittest.TestCase):
+    def test_reordered_nested_object_keys_and_transient_spinner_are_equal(self):
+        first = {'id': 'm', 'role': 'assistant', 'content': '合成正文', 'segments': [{'text': 'one', 'phase': 'final_answer'}], 'attachments': [{'id': 'a', 'dataRef': 'digest', 'kind': 'image'}], 'streaming': False}
+        second = {'attachments': [{'kind': 'image', 'dataRef': 'digest', 'id': 'a'}], 'segments': [{'phase': 'final_answer', 'text': 'one'}], 'content': '合成正文', 'role': 'assistant', 'id': 'm'}
+        self.assertEqual(data_proof.message_payload_fingerprint(json.dumps(first)), data_proof.message_payload_fingerprint(json.dumps(second)))
+
+    def test_payload_content_arrays_types_and_attachment_changes_are_not_ignored(self):
+        original = {'id': 'm', 'content': 'body', 'displayContent': 'visible', 'value': 1, 'parts': ['a', 'b'], 'attachments': [{'dataRef': 'one'}], 'nested': {'streaming': False}}
+        digest = data_proof.message_payload_fingerprint(json.dumps(original))
+        for patch_value in [{'content': 'changed'}, {'displayContent': 'different'}, {'value': '1'}, {'value': True}, {'parts': ['b', 'a']}, {'attachments': [{'dataRef': 'two'}]}, {'nested': {}}]:
+            with self.subTest(patch=patch_value):
+                self.assertNotEqual(digest, data_proof.message_payload_fingerprint(json.dumps({**original, **patch_value})))
+
+
 class DataRetention(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='blinky-update-proof-')
@@ -46,6 +60,32 @@ class DataRetention(unittest.TestCase):
 
     def capture(self, full=False):
         return data_proof.checkpoint(self.data, self.checkpoint, full)
+
+    def test_real_installer_proof_ignores_object_order_but_detects_payload_changes(self):
+        self.capture()
+        baseline = {'id': 'm', 'content': 'retained', 'streaming': True}
+        with sqlite3.connect(self.data / 'sessions.sqlite') as db:
+            db.execute('UPDATE messages SET value=?', (json.dumps(dict(reversed(list(baseline.items())))),))
+        self.assertTrue(data_proof.verify(self.data, self.checkpoint)['ok'])
+        for changed in [{**baseline, 'content': 'changed'}, {**baseline, 'attachments': [{'dataRef': 'new'}]}, {**baseline, 'content': 1}, {**baseline, 'parts': ['b', 'a']}]:
+            with sqlite3.connect(self.data / 'sessions.sqlite') as db:
+                db.execute('UPDATE messages SET value=?', (json.dumps(changed),))
+            self.assertFalse(data_proof.verify(self.data, self.checkpoint)['ok'])
+
+    def test_legacy_proof_does_not_relabel_existing_installation_as_success(self):
+        self.capture()
+        path = self.checkpoint / 'checkpoint.json'
+        value = json.loads(path.read_text())
+        del value['database']['messageFingerprintAlgorithm']
+        path.write_text(json.dumps(value))
+        before = path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, 'contract is missing'):
+            data_proof.verify(self.data, self.checkpoint)
+        self.assertEqual(path.read_bytes(), before)
+        for config in [{}, {'messageFingerprintAlgorithm': 'legacy-json1-serialization'}]:
+            with self.assertRaisesRegex(RuntimeError, 'proof contract'):
+                installer.require_proof_contract(config)
+        installer.require_proof_contract({'messageFingerprintAlgorithm': data_proof.MESSAGE_FINGERPRINT_ALGORITHM})
 
     def test_checkpoint_retains_database_settings_and_link_without_cache_copy(self):
         self.capture()

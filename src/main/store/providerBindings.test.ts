@@ -9,7 +9,7 @@ import { codexTurnPrompt, rememberCodexThread, rememberedCodexThread } from '../
 import { fingerprints, firstUnsent, rememberSent } from '../backends/cli/resumePrompt.ts'
 import { turnImages } from '../backends/cli/cliImages.ts'
 import { flushAll } from './jsonStore.ts'
-import { forgetBindingsForSession, loadProviderBindings, resetProviderBindingsForTests } from './providerBindings.ts'
+import { discardEphemeralBindingsForSession, forgetBindingsForSession, getProviderBinding, loadProviderBindings, resetProviderBindingsForTests } from './providerBindings.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'blinky-bindings-'))
 const file = join(dir, 'provider-bindings.json')
@@ -24,6 +24,21 @@ const messages = [
   { role: 'assistant' as const, content: 'ack' },
   { role: 'user' as const, content: 'second' }
 ]
+
+test('discarding one-use judgment bindings leaves ordinary native continuity untouched and no Claude tombstone',async()=>{
+ const ephemeral=sessionId+':task-judgment:one'
+ const key=JSON.stringify(['claude',ephemeral,'bot-a','/work','sonnet'])
+ const normal=JSON.stringify(['kimi',sessionId,'bot-a','/work','judgment-isolation'])
+ continuityArgs(key);confirmClaudeSession(key);rememberSent(key,fingerprints(messages))
+ rememberCliSession('kimi',normal,'ses_normal')
+ discardEphemeralBindingsForSession(ephemeral)
+ assert.equal(getProviderBinding('claude',key),undefined)
+ assert.equal(firstUnsent(key,fingerprints(messages)),0)
+ assert.equal(rememberedCliSession('kimi',normal),'ses_normal')
+ await flushAll();resetProviderBindingsForTests(file);await loadProviderBindings()
+ assert.equal(getProviderBinding('claude',key),undefined)
+ assert.equal(rememberedCliSession('kimi',normal),'ses_normal')
+})
 
 before(async () => {
   resetProviderBindingsForTests(file)

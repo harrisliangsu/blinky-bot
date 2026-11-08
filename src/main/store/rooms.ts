@@ -9,12 +9,9 @@ const collection = new JsonCollection<StoredRoom>(roomsDir, normalise)
 /*
  * A stored room always comes back disabled.
  *
- * Sharing is an act, not a property of a file. Rooms used to resurrect the LAN
- * listener by themselves — the room list started the server, and the renderer
- * lists rooms on every boot — so one room created once meant every later launch
- * silently bound an HTTP server on 0.0.0.0. Reading `enabled` back as true here
- * would be that same bug wearing a new hat, so the flag is persisted for the
- * document's sake and ignored on the way in: the user turns sharing back on.
+ * An old room document is not consent to resume a listener. Only the separate
+ * OS-encrypted recovery record created by an explicit share can restore it.
+ * Listing rooms never starts a server; upgrades do not enable old invitations.
  */
 function normalise(raw: unknown): StoredRoom | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
@@ -27,6 +24,8 @@ function normalise(raw: unknown): StoredRoom | null {
 export const loadRooms = (): Promise<void> => collection.load()
 export const storedRooms = (): StoredRoom[] => collection.all().sort((a, b) => b.createdAt - a.createdAt)
 export const roomById = (id: string): StoredRoom | null => collection.get(id)
+export function restoreRoomSharing(id: string): void { const room = collection.get(id); if (room) collection.adopt({ ...room, enabled: true }) }
+export function restoreRoomDocument(room: StoredRoom): void { collection.put(room) }
 
 /** Rooms the user is sharing right now. Empty means nothing needs a listener. */
 export const sharedRooms = (): StoredRoom[] => collection.all().filter((room) => room.enabled)

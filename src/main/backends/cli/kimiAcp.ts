@@ -7,6 +7,7 @@ import { redactSecrets } from '../vaultRedaction'
 import type { ChatChunk, ChatRequest, ProviderImagePart } from '../types'
 import type { CliRunContext } from './spec'
 import { agentTraceEntry } from './agentTrace'
+import { kimiNativeEnvironment } from './kimiEnvironment'
 
 interface Run {
   binaryPath: string
@@ -44,7 +45,8 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
   let nativeEnv: NodeJS.ProcessEnv | undefined
   let process: Awaited<ReturnType<typeof spawnLines>>
   try {
-    nativeEnv = provider === 'grok' ? await hydratedEnv() : undefined
+    const baseEnv = await hydratedEnv()
+    nativeEnv = provider === 'kimi' ? kimiNativeEnvironment(baseEnv) : baseEnv
     process = await spawnLines(run.binaryPath, { args, cwd: ctx.cwd, stdin: 'pipe', signal: req.signal, timeoutMs: 30 * 60_000, extraEnv: { ...run.extraEnv, ...(probe ? { BLINKY_GROK_POLICY_MARKER: probe.markerPath } : {}) }, ...(nativeEnv ? { env: nativeEnv } : {}) })
   } catch (error) { await probe?.cleanup(); throw error }
   const output = new AsyncQueue<ChatChunk>()
@@ -98,7 +100,12 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
       const summary = redactSecrets(title).slice(0, 400)
       const change = diff && (typeof diff.oldText === 'string' || typeof diff.newText === 'string')
         ? `\nBefore:\n${truncate(str(diff.oldText), 700)}\nAfter:\n${truncate(str(diff.newText), 700)}` : ''
-      const detail = truncate(redactSecrets(`${target === title ? title : `${title}\n${target}`}${change}`), 2000)
+      // Internal task requests need an intelligible target without displaying
+      // arbitrary report bodies or credentials in a generic MCP approval card.
+      const taskInput = Object.keys(object(raw.arguments)).length ? object(raw.arguments) : raw
+      const action = str(taskInput.action), taskId = str(taskInput.task_id)
+      const taskTarget = /^[a-z_]{1,32}$/.test(action) ? `\nAction: ${action}${/^[a-f0-9-]{36}$/i.test(taskId) ? `\nTask: ${taskId}` : ''}` : ''
+      const detail = truncate(redactSecrets(`${target === title ? title : `${title}\n${target}`}${taskTarget}${change}`), 2000)
       // An ACP permission request is an explicit request from the native
       // executor, not an ordinary application tool call. Preserve the request
       // for the user even when ordinary application tools run automatically.

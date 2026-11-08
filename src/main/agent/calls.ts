@@ -19,6 +19,7 @@ import { sessions } from './sessionGateway'
 import { isTracedBackgroundRun } from './executionAgent'
 import { iterationsUsed } from './limits'
 import { mustDelegateTool } from './inlineToolBudget'
+import { taskJudgmentAllows, taskJudgmentScope } from './taskJudgmentScope'
 
 export async function runCalls(
   input: TurnInput,
@@ -27,6 +28,8 @@ export async function runCalls(
   mode: TurnMode
 ): Promise<TurnResult> {
   const { session, bot, settings, signal } = input
+  const judgment=taskJudgmentScope(session.id)
+  if(judgment&&(message.toolCalls??[]).some(c=>!taskJudgmentAllows(session.id,c.name,c.args??{}))){judgment.attemptedTool=true;return {status:'final',message,mode}}
 
   for (const call of message.toolCalls ?? []) {
     if (signal.aborted) return { status: 'aborted', message, mode }

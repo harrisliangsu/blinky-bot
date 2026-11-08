@@ -27,7 +27,7 @@ export function useResolvedTheme(theme: Settings['theme'] | undefined): 'light' 
  * Reflects the theme and font-size preferences onto the document root, where
  * tokens.css picks them up. 'system' follows the OS and keeps following it.
  */
-export function useTheme(settings: Pick<Settings, 'theme' | 'fontSize' | 'uiScale' | 'accent' | 'vibrant'> | undefined): void {
+export function useTheme(settings: Pick<Settings, 'theme' | 'fontSize' | 'uiScale' | 'accent' | 'vibrant' | 'nativeGlass'> | undefined): void {
   const theme = settings?.theme
   const fontSize = settings?.fontSize
   useEffect(() => {
@@ -54,9 +54,18 @@ export function useTheme(settings: Pick<Settings, 'theme' | 'fontSize' | 'uiScal
   useEffect(() => {
     const root = document.documentElement
     const scale = settings?.uiScale ?? 100
-    root.style.zoom = `${scale}%`
+    root.style.zoom = window.openbot.environment?.kind === 'browser' ? '' : `${scale}%`
     if (settings?.accent && settings.accent !== 'theme') root.dataset.accent = settings.accent
     else delete root.dataset.accent
-    root.dataset.vibrant = settings?.vibrant ? 'true' : 'false'
+    root.dataset.vibrant = 'false'
   }, [settings?.uiScale, settings?.accent, settings?.vibrant])
+
+  useEffect(() => {
+    if (window.openbot.environment?.kind === 'browser') return
+    const apply = (status: { applied: boolean }): void => { document.documentElement.dataset.nativeGlass = String(status.applied) }
+    const refresh = (): void => { void window.openbot.window.chromeStatus().then(apply).catch(() => apply({ applied: false })) }
+    const off = window.openbot.window.onChromeChanged(apply)
+    refresh(); const timer = setInterval(refresh, 3000)
+    return () => { off(); clearInterval(timer) }
+  }, [settings?.nativeGlass])
 }

@@ -79,8 +79,8 @@ export const gatewayHost: ToolHost = {
     if (!result.ok) throw new Error(result.message)
   },
 
-  delegateTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles) {
-    return delegateBackgroundTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles)
+  delegateTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, plan) {
+    return delegateBackgroundTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, plan)
   },
   reviewTask: reviewBackgroundTask,
   scheduleRoutine: createScheduledInstruction,

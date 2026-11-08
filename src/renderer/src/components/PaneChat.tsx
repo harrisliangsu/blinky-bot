@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { cx } from '../lib/format'
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
 import { useStickyScroll } from '../lib/stickyScroll'
-import { clearPane, fetchPaneSession, focusPane, respondToApproval, stopTurn, useAppState } from '../state'
+import { clearPane, fetchPaneSession, focusPane, respondToApproval, stopTurn, useAppState, store } from '../state'
 import { ApprovalDialog } from './ApprovalDialog'
 import { BotAvatar } from './BotAvatar'
 import { EarlierMessages } from './EarlierMessages'
@@ -76,7 +76,7 @@ export function PaneChat({ sessionId, index, focused }: PaneChatProps): ReactNod
   // whatever conversation was in this slot before.
   const [limit, setLimit] = useState(TRANSCRIPT_WINDOW)
   useEffect(() => setLimit(TRANSCRIPT_WINDOW), [sessionId])
-  const shown = tailWindow(messageIds, limit)
+  const shown = tailWindow(messageIds, limit, id=>!store.getMessage(id)?.internal)
 
   return (
     <section

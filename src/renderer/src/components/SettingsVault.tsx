@@ -11,6 +11,8 @@ const FIELDS: Record<VaultKind, Array<{ id: string; zh: string; en: string; secr
 
 export function SettingsVault({ zh }: { zh: boolean }): ReactNode {
   const focusScope = useId()
+  const remote = window.openbot.environment?.kind === 'browser'
+  const host = (): void => { window.dispatchEvent(new CustomEvent('blinky:remote-host-required', { detail: zh ? '保险库的新增、修改、删除与敏感字段仅可在 Mac 上管理。远程可查看名称与引用，不传输凭据值。' : 'Manage vault items and sensitive fields on the Mac. Remote access shows labels and references only.' })) }
   const [items, setItems] = useState<VaultItem[]>([])
   const [kind, setKind] = useState<VaultKind>('login')
   const [label, setLabel] = useState('')
@@ -57,9 +59,9 @@ export function SettingsVault({ zh }: { zh: boolean }): ReactNode {
   }
 
   return <div className="ob-vault" id={focusScope}>
-    <div className="ob-vault-intro"><p>{zh ? '登录、银行卡和地址信息保存在本机，并由系统加密。敏感值不会显示在聊天中。' : 'Logins, cards and addresses are stored on this Mac with OS encryption. Secret values are not shown in chat.'}</p><button type="button" data-vault-add className="ob-btn ob-btn-sm" disabled={busy} onClick={() => { if (saving.current || busy) return; setEditing(null); setLabel(''); setOrigin(''); setCreating(true); setValues({}); setError('') }}>{creating ? (zh ? '取消' : 'Cancel') : (zh ? '添加' : 'Add')}</button></div>
+    <div className="ob-vault-intro"><p>{zh ? '登录、银行卡和地址信息保存在本机，并由系统加密。敏感值不会显示在聊天中。' : 'Logins, cards and addresses are stored on this Mac with OS encryption. Secret values are not shown in chat.'}</p><button type="button" data-vault-add className="ob-btn ob-btn-sm" disabled={busy} onClick={() => { if (remote) { host(); return }; if (saving.current || busy) return; setEditing(null); setLabel(''); setOrigin(''); setCreating(true); setValues({}); setError('') }}>{remote ? (zh ? '在 Mac 管理' : 'Manage on Mac') : creating ? (zh ? '取消' : 'Cancel') : (zh ? '添加' : 'Add')}</button></div>
     {error && !creating ? <p className="ob-notice ob-notice-error" role="alert">{error}</p> : null}
-    {creating ? <FormDialog fallbackFocus={`#${CSS.escape(focusScope)} [data-vault-add]`} title={editing ? (zh ? '修改保险库项目' : 'Edit vault item') : (zh ? '添加保险库项目' : 'Add vault item')} onClose={closeDraft} size="sm"><form className="ob-vault-form" aria-busy={busy} onSubmit={(event) => void save(event)} autoComplete="off">
+    {creating && !remote ? <FormDialog fallbackFocus={`#${CSS.escape(focusScope)} [data-vault-add]`} title={editing ? (zh ? '修改保险库项目' : 'Edit vault item') : (zh ? '添加保险库项目' : 'Add vault item')} onClose={closeDraft} size="sm"><form className="ob-vault-form" aria-busy={busy} onSubmit={(event) => void save(event)} autoComplete="off">
       {error ? <p className="ob-notice ob-notice-error" role="alert">{error}</p> : null}
       <label>{zh ? '类型' : 'Type'}<select className="ob-select" disabled={busy || editing !== null} value={kind} onChange={(event) => { setKind(event.target.value as VaultKind); setValues({}) }}><option value="login">{zh ? '登录' : 'Login'}</option><option value="card">{zh ? '银行卡' : 'Card'}</option><option value="address">{zh ? '地址' : 'Address'}</option></select></label>
       <label>{zh ? '名称' : 'Name'}<input disabled={busy} className="ob-input" required maxLength={120} value={label} onChange={(event) => setLabel(event.target.value)} /></label>
@@ -69,8 +71,8 @@ export function SettingsVault({ zh }: { zh: boolean }): ReactNode {
     </form></FormDialog> : null}
     <div className="ob-vault-items">{items.length ? items.map((item) => <div className="ob-vault-item" key={item.id}>
       <div style={{ minWidth: 0 }}><strong>{item.label}</strong><small>{item.kind === 'login' ? (zh ? '登录' : 'Login') : item.kind === 'card' ? (zh ? '银行卡' : 'Card') : (zh ? '地址' : 'Address')}{item.origin ? ` · ${item.origin}` : ''}</small><small>{zh ? '引用：' : 'Reference: '}<code style={{ overflowWrap: 'anywhere', userSelect: 'text' }}>{`vault://ref/${item.id}`}</code></small></div>
-      <button type="button" className="ob-btn ob-btn-sm" disabled={busy} onClick={() => { if (saving.current || busy) return; setKind(item.kind); setLabel(item.label); setOrigin(item.origin ?? ''); setValues({}); setError(''); setEditing(item.id); setCreating(true) }}>{zh ? '修改' : 'Edit'}</button>
-      {removing === item.id ? <span className="ob-vault-actions"><button type="button" className="ob-btn ob-btn-sm" disabled={busy} onClick={() => void remove(item.id)}>{zh ? '确认删除' : 'Confirm'}</button><button type="button" className="ob-btn ob-btn-sm" onClick={() => setRemoving(null)}>{zh ? '取消' : 'Cancel'}</button></span> : <button type="button" className="ob-btn ob-btn-sm" onClick={() => setRemoving(item.id)}>{zh ? '删除' : 'Remove'}</button>}
+      <button type="button" className="ob-btn ob-btn-sm" disabled={busy} onClick={() => { if (remote) { host(); return }; if (saving.current || busy) return; setKind(item.kind); setLabel(item.label); setOrigin(item.origin ?? ''); setValues({}); setError(''); setEditing(item.id); setCreating(true) }}>{zh ? '修改' : 'Edit'}</button>
+      {removing === item.id ? <span className="ob-vault-actions"><button type="button" className="ob-btn ob-btn-sm" disabled={busy} onClick={() => void remove(item.id)}>{zh ? '确认删除' : 'Confirm'}</button><button type="button" className="ob-btn ob-btn-sm" onClick={() => setRemoving(null)}>{zh ? '取消' : 'Cancel'}</button></span> : <button type="button" className="ob-btn ob-btn-sm" onClick={() => { if (remote) host(); else setRemoving(item.id) }}>{zh ? '删除' : 'Remove'}</button>}
     </div>) : <p className="ob-hint">{zh ? '还没有保存项目。' : 'No items saved yet.'}</p>}</div>
     <p className="ob-hint">{zh ? '可将引用和字段名发给 Bot，请它在浏览器中经授权填入；不要发送真实值。也可接管后手动选择字段。网站和之后控制该页面的 Bot 可能读取已填内容。' : 'Share the reference and field name with a Bot for an authorized browser fill, without sharing the value. You can also take over and fill manually. The website and later browser actions may read filled values.'}</p>
   </div>

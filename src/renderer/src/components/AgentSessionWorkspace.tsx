@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AgentTaskSummary } from '../../../shared/types'
-import { useAppState } from '../state'
+import { selectSession, useAppState } from '../state'
 import { AgentSessionView } from './AgentSessionView'
 import { captureReturnFocus, restoreReturnFocus, type ReturnFocus } from './returnFocus'
 import { taskBelongsToBot } from './agentTaskPresentation'
@@ -40,6 +40,12 @@ export function AgentSessionWorkspace({ children }: { children: ReactNode }): Re
   useEffect(() => {
     if (selection && !visible) { setSelection(null); returnTo.current = null }
   }, [selection, visible])
+  // Notification navigation also uncovers a task that overlays its source chat.
+  // The preload retains a startup click until this workspace has mounted.
+  useEffect(() => window.openbot.notifications.onOpen(({ sessionId }) => {
+    close()
+    void selectSession(sessionId)
+  }), [close])
   const open = (next: AgentTaskSummary): void => {
     if (!currentSessionId || !bot || !taskBelongsToBot(next, bot)) return
     returnTo.current = captureReturnFocus()

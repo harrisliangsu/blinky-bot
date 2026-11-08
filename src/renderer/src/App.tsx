@@ -22,20 +22,17 @@ import { Sidebar } from './components/Sidebar'
 import { StartupScreen } from './components/StartupScreen'
 import { Toast } from './components/Toast'
 import { Transcript } from './components/Transcript'
+import { WorkspaceNavigation } from './components/WorkspaceNavigation'
 import { Workspace } from './components/Workspace'
 import './App.css'
 
 /** Application shell: navigation, conversation, side panel and overlays. */
 export default function App(): ReactNode {
   const [botDetailsOpen, setBotDetailsOpen] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const remoteCompact = (): boolean => window.openbot.environment?.kind === 'browser' && innerWidth < 760
+  const [sidebarOpen, setSidebarOpen] = useState(() => !remoteCompact())
   const { ready, bootError, settings, modal, botDraftId, railOpen, approvals, projectHome, workspace, currentSessionId } =
     useAppState()
-
-  useEffect(() => {
-    if (!ready) return
-    return window.openbot.notifications.onOpen(({ sessionId }) => { void selectSession(sessionId) })
-  }, [ready])
 
   useEffect(() => {
     void boot()
@@ -54,13 +51,27 @@ export default function App(): ReactNode {
         window.requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.ob-side-search-input')?.focus())
       })
     }
+    const close = (): void => { if (remoteCompact()) setSidebarOpen(false) }
+    let compact = remoteCompact()
+    const resize = (): void => { const next = remoteCompact(); if (next !== compact) { setSidebarOpen(!next); compact = next } }
+    window.addEventListener('openbot:close-sidebar', close)
+    window.addEventListener('resize', resize)
     window.addEventListener('openbot:focus-bot-search', focusSearch)
     window.addEventListener('openbot:toggle-sidebar', toggleSidebar)
     return () => {
+      window.removeEventListener('openbot:close-sidebar', close)
+      window.removeEventListener('resize', resize)
       window.removeEventListener('openbot:focus-bot-search', focusSearch)
       window.removeEventListener('openbot:toggle-sidebar', toggleSidebar)
     }
   }, [])
+
+  useEffect(() => {
+    if (window.openbot.environment?.kind === 'browser') return
+    const update = (): void => { void window.openbot.window.chromeLayout(document.querySelector('.ob-sidebar')?.getBoundingClientRect().width ?? 0).catch(() => {}) }
+    update(); const observer = new ResizeObserver(update); const sidebar = document.querySelector('.ob-sidebar'); if (sidebar) observer.observe(sidebar)
+    return () => observer.disconnect()
+  }, [sidebarOpen, ready])
 
   useTheme(settings ?? undefined)
   useShortcuts(botDetailsOpen, () => setBotDetailsOpen(false))
@@ -73,7 +84,7 @@ export default function App(): ReactNode {
     <ErrorBoundary>
     <AgentSessionWorkspace>
     <div className="ob-app">
-      {sidebarOpen ? <Sidebar /> : null}
+      {sidebarOpen ? <><button type="button" className="ob-sidebar-backdrop" aria-label={settings?.language === 'en' ? 'Close navigation' : '关闭导航'} onClick={() => setSidebarOpen(false)} /><Sidebar /></> : null}
 
       <main className={`ob-main${!projectHome && !workspace.open && !elsewhere ? ' is-chat' : ''}`}>
         <AgentMainSurface>
@@ -101,6 +112,7 @@ export default function App(): ReactNode {
       {railOpen ? <RightRail /> : null}
       {botDetailsOpen ? <BotDetailsPanel onClose={() => setBotDetailsOpen(false)} /> : null}
 
+      {modal === 'navigation' ? <WorkspaceNavigation /> : null}
       {modal === 'settings' ? <SettingsPanel /> : null}
       {modal === 'bots' ? (botDraftId === 'new' || botDraftId?.startsWith('new:') ? <CreateBotDialog key={botDraftId} templateId={botDraftId.startsWith('new:') ? botDraftId.slice(4) : undefined} /> : <BotManager />) : null}
       {modal === 'routines' ? <RoutinePanel /> : null}

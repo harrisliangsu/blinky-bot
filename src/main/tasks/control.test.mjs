@@ -68,17 +68,35 @@ test('live acknowledgement is distinct from executor completion; uncertain RPC n
   } finally { await f.close() }
 })
 
-test('milestones are visible in the source chat, deduplicated and throttled', async () => {
+test('an acknowledged live instruction gets a response only after its exact App turn completes',async()=>{
+ const f=await fixture()
+ try{
+  const task=await f.start(),id='live-executor-message'
+  f.state.replyExtras={[task.sessionId]:{id}}
+  f.api.event({type:'message-start',sessionId:task.sessionId,message:{id,role:'assistant',content:'',streaming:true,createdAt:Date.now()}})
+  f.state.steer=async(_id,_text,record)=>{await record();return true}
+  const receipt=(await f.command({action:'message',taskId:task.id,text:'use the existing safe direction',requestId:'live-response'})).receipt
+  assert.equal(receipt.responseTargetMessageId,id);assert.equal(receipt.responseMessageIds,undefined)
+  await f.api.recordTaskTurnResponses(task.id,['different-turn'])
+  assert.equal((await f.api.taskMessages(task.id))[0].responseMessageIds,undefined)
+  f.state.gates.get(task.sessionId).release();await until(()=>f.api.getTask(task.id).status==='completed')
+  assert.deepEqual((await f.api.taskMessages(task.id))[0].responseMessageIds,[id])
+  assert.equal(f.api.getTask(task.id).review,undefined)
+  f.api.event({type:'done',sessionId:task.sessionId})
+ }finally{await f.close()}
+})
+
+test('Agent reports are durably delivered to Bot observations, never directly to the user', async () => {
   const f = await fixture()
   try {
     const task = await f.start()
     const command = { action: 'report', taskId: task.id, text: '已完成源码核对，正在验证。', requestId: 'milestone-1' }
     const first = await f.command(command, task.sessionId)
     assert.equal(first.receipt.status, 'delivered')
-    assert.ok(f.api.getSession(f.home.id).messages.some(value => value.content === `${task.title}：${command.text}`))
-    assert.ok(f.state.events.some(value => value.type === 'message-end' && value.sessionId === f.home.id && value.content === `${task.title}：${command.text}`))
+    assert.equal(f.api.getSession(f.home.id).messages.some(value => value.content.includes(command.text)), false)
+    assert.equal(f.state.events.some(value => value.type === 'message-end' && value.sessionId === f.home.id && value.content.includes(command.text)), false)
     assert.equal((await f.command({ ...command, requestId: 'milestone-2' }, task.sessionId)).duplicate, true)
-    assert.equal((await f.command({ ...command, text: 'another update', requestId: 'milestone-3' }, task.sessionId)).throttled, true)
+    assert.equal((await f.command({ ...command, text: 'another update', requestId: 'milestone-3' }, task.sessionId)).receipt.status, 'delivered')
   } finally { await f.close() }
 })
 
@@ -116,4 +134,33 @@ for (const outcome of ['cancelled', 'failed']) test(`partial commentary before a
     await f.api.flushAll()
     assert.equal(JSON.parse(await readFile(join(f.root, 'tasks', `${task.id}.json`), 'utf8')).status, outcome)
   } finally { await f.close() }
+})
+
+test('automatic inquiry stays at a safe boundary while concrete advice uses existing acknowledged live steering',async()=>{
+ const f=await fixture()
+ try{
+  const task=await f.start();let steers=0
+  f.state.steer=async(_id,_text,ack)=>{steers++;await ack();return true}
+  const inquiry=await f.api.manageBackgroundTask(f.home.id,f.bot.id,{action:'message',taskId:task.id,requestId:'bot-inquiry',text:'Please report observed progress at a safe boundary; this is not new consent.'},new AbortController().signal,undefined,'turn_boundary')
+  assert.equal(inquiry.receipt.status,'queued');assert.equal(steers,0)
+  const advice=await f.command({action:'message',taskId:task.id,requestId:'bot-advice',text:'Review the isolated failing input first. Existing user permissions still apply.'})
+  assert.equal(advice.receipt.status,'delivered');assert.equal(advice.receipt.delivery,'live');assert.equal(steers,1)
+  assert.equal((await f.command({action:'message',taskId:task.id,requestId:'bot-advice',text:'Review the isolated failing input first. Existing user permissions still apply.'})).duplicate,true);assert.equal(steers,1)
+  assert.equal(f.api.getSession(task.sessionId).messages.filter(m=>m.id.includes('bot-advice')).length,1)
+ }finally{await f.close()}
+})
+
+test('inspect exposes same-executor native receipts without sibling data or file/code payloads',async()=>{
+ const f=await fixture()
+ try{
+  const a=await f.start('own execution'),b=await f.start('sibling execution')
+  for(const [task,path] of [[a,'/tmp/own-a'],[b,'/tmp/sibling-b']]){
+   const session=f.api.getSession(task.sessionId)
+   f.api.saveSession({...session,messages:[...session.messages,{id:'evidence-'+task.id,role:'assistant',content:'',createdAt:1,agentTrace:[{id:'read',kind:'read',phase:'started',detail:JSON.stringify({rawInput:{path}})},{id:'read',kind:'kimi_tool',phase:'completed',detail:JSON.stringify({status:'completed',content:[{content:{text:'PRIVATE_CODE_BODY'}}]})}]}]})
+  }
+  const result=await f.command({action:'inspect',taskId:a.id})
+  assert.equal(result.executionEvidence[0].state,'completed');assert.equal(result.executionEvidence[0].target,'/tmp/own-a')
+  assert.equal(JSON.stringify(result).includes('/tmp/sibling-b'),false);assert.equal(JSON.stringify(result).includes('PRIVATE_CODE_BODY'),false)
+  await assert.rejects(f.command({action:'inspect',taskId:b.id},a.sessionId),/scope/)
+ }finally{await f.close()}
 })

@@ -333,3 +333,5 @@ html[data-vibrant='true'] .ob-header {
 .ob-set-default-models .ob-settings-select { width: 100%; min-width: 0; padding-inline: 8px 20px; height: 32px; font-size: var(--ob-font-size-sm); }
 .ob-notification-delivery { padding: 12px 0; font-size: var(--ob-font-size-sm); color: var(--ob-text-secondary); }
 .ob-inline-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+.ob-set-mobile-picker { display: none; }

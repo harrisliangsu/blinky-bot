@@ -22,7 +22,7 @@ const mocks = {
 }
 for (const [a,b] of [['./settings','../settings'],['./store/sessions','../store/sessions'],['./app/window','../app/window']]) mocks[a]=mocks[b]
 const outfile = join(root, 'test.mjs')
-await build({ stdin: { contents: `export * from './src/main/ipc/broadcast.ts';export * from './src/main/routines/notifications.ts';export * from './src/main/routines/runs.ts';export * from './src/main/store/activity.ts';export {flushAll} from './src/main/store/jsonStore.ts'`, resolveDir: resolve('.'), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile,
+await build({ stdin: { contents: `export * from './src/main/ipc/broadcast.ts';export * from './src/main/agent/taskJudgmentScope.ts';export * from './src/main/routines/notifications.ts';export * from './src/main/routines/runs.ts';export * from './src/main/store/activity.ts';export {flushAll} from './src/main/store/jsonStore.ts'`, resolveDir: resolve('.'), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile,
   plugins: [{ name: 'forbid-electron-runtime', setup(b) {
     b.onResolve({ filter: /.*/ }, a => Object.hasOwn(mocks, a.path) ? { path: a.path, namespace: 'mock' } : undefined)
     b.onLoad({ filter: /.*/, namespace: 'mock' }, a => ({ contents: mocks[a.path], loader: 'js' }))
@@ -96,12 +96,21 @@ test('routine approvals/help and generic events retain their normal behavior', (
   release()
 })
 
+test('internal task consideration is quiet; real approval/help and later human replies retain delivery',()=>{
+ const release=api.beginTaskJudgment('consideration','task','bot'),before=count(),notices=state.notifications.length
+ done('consideration');error('consideration');done('consideration');assert.equal(count(),before);assert.equal(state.notifications.length,notices)
+ api.broadcast({type:'approval-request',request:{id:'judgment-approval',sessionId:'consideration',summary:'Existing local permission'}})
+ api.broadcast({type:'human-help-request',request:{id:'judgment-help',sessionId:'consideration',botId:'bot',reason:'Real help',createdAt:1}})
+ assert.equal(count(),before+2);assert.equal(state.notifications.length,notices+2)
+ release();done('consideration');assert.equal(count(),before+3)
+})
+
 test('active tasks, focus and global desktop settings remain respected', () => {
   state.activeTasks.add('executor')
   let before = count()
   error('executor'); done('executor')
   assert.equal(count(), before)
-  state.focused = {}
+  state.focused = { isVisible: () => true, isMinimized: () => false }
   done('focused'); error('focused-error')
   assert.equal(count(), before + 2)
   state.focused = null

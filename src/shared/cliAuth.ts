@@ -2,7 +2,8 @@
  * Login state for an agent CLI, as reported by that CLI.
  *
  * BlinkyBot does not store the credential. The state is a label the CLI
- * printed, or the fact that its documented credential file exists.
+ * printed, or a native credential file/configuration presence hint. Presence
+ * never proves a successful authenticated remote request.
  */
 
 export type CliAuthState = 'not-installed' | 'logged-out' | 'logged-in' | 'unknown'

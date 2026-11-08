@@ -1,70 +1,66 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { TaskProgressMonitor, PROGRESS_QUIET_MS, PROGRESS_COALESCE_MS, type ProgressPorts, type ProgressSnapshot, type ProgressState } from './progressMonitor'
+import { TaskProgressMonitor, type ProgressDecision, type ProgressPorts, type ProgressSnapshot, type ProgressState } from './progressMonitor'
 function fixture() {
-  let now = 1_000_000
-  const snapshots: ProgressSnapshot[] = [{ id: 'a', owner: 'source/lead/executor', title: 'synthetic objective', phase: 'queued', progress: 'empty', detail: '', terminal: false, needsAttention: true }]
+  const snapshots: ProgressSnapshot[] = [{ id: 'a', owner: 'source/lead/executor', title: 'synthetic objective', phase: 'running', progress: 'empty', detail: '', evidence: [], terminal: false, needsAttention: true }]
   const disk = new Map<string, ProgressState>(), messages = new Map<string, string>(), errors: unknown[] = []
-  let writes = 0, posts = 0, failWrite = false, failPost = false, failAck = false
+  let writes = 0, posts = 0, judgments = 0, failWrite = false, failPost = false, failAck = false
+  let decision: ProgressDecision | null = { kind: 'silent' }
   const ports: ProgressPorts = {
-    snapshots: () => structuredClone(snapshots), now: () => now,
-    read: async id => structuredClone(disk.get(id) ?? null),
+    snapshots: () => structuredClone(snapshots), read: async id => structuredClone(disk.get(id) ?? null),
     write: async (id, state) => { writes++; if (failWrite || failAck && !state.pending) throw Error('disk failure'); disk.set(id, structuredClone(state)) },
+    judge: async () => { judgments++; return decision },
     post: async (s, n) => { posts++; if (failPost) throw Error('disconnect'); if (s.phase !== snapshots.find(v => v.id === s.id)?.phase) return false; messages.set(n.id, n.text); return true },
     error: (_id, e) => { errors.push(e) }
   }
-  return { snapshots, disk, messages, errors, ports, monitor: new TaskProgressMonitor(ports), advance: (ms: number) => { now += ms }, get writes() { return writes }, get posts() { return posts }, failWrite: (v: boolean) => { failWrite = v }, failPost: (v: boolean) => { failPost = v }, failAck: (v: boolean) => { failAck = v } }
+  return { snapshots, disk, messages, errors, ports, monitor: new TaskProgressMonitor(ports), get writes() { return writes }, get posts() { return posts }, get judgments() { return judgments }, decision: (d: ProgressDecision | null) => { decision = d }, failWrite: (v: boolean) => { failWrite = v }, failPost: (v: boolean) => { failPost = v }, failAck: (v: boolean) => { failAck = v } }
 }
-test('automatic lifecycle notices never claim objective completion; unchanged scans do no IO', async () => {
-  const f = fixture(); await f.monitor.scan(); assert.match([...f.messages.values()][0]!, /排队/)
-  f.snapshots[0]!.phase = 'running'; await f.monitor.scan(); assert.equal(f.messages.size, 2)
-  const writes = f.writes, posts = f.posts
+test('no progress and ordinary todo/state changes stay silent, including recovery scans/restart', async () => {
+  const f = fixture(); await f.monitor.scan()
   for (let i = 0; i < 20; i++) await f.monitor.scan()
-  assert.equal(f.writes, writes); assert.equal(f.posts, posts)
-  Object.assign(f.snapshots[0]!, { phase: 'completed', terminal: true }); await f.monitor.scan()
-  assert.match([...f.messages.values()].at(-1)!, /已返回结果.*待核对/)
-  await f.monitor.scan(); assert.equal(f.messages.size, 3)
+  assert.equal(f.messages.size, 0); assert.equal(f.judgments, 0)
+  Object.assign(f.snapshots[0]!, { progress: 'todo changed', evidence: [{ id: 'step', kind: 'report', text: 'one test passed' }] })
+  await f.monitor.scan(); assert.equal(f.judgments, 1); assert.equal(f.messages.size, 0)
+  await new TaskProgressMonitor(f.ports).scan(); assert.equal(f.judgments, 1)
 })
-test('quiet work emits once per progress episode, survives restart, and never restarts the executor', async () => {
-  const f = fixture(); f.snapshots[0]!.phase = 'running'; await f.monitor.scan()
-  f.advance(PROGRESS_QUIET_MS); await f.monitor.scan(); assert.match([...f.messages.values()].at(-1)!, /暂未收到新进展/)
-  for (let i = 0; i < 8; i++) { f.advance(PROGRESS_QUIET_MS); await f.monitor.scan() }
-  assert.equal(f.messages.size, 2)
-  await new TaskProgressMonitor(f.ports).scan(); assert.equal(f.messages.size, 2)
-  f.snapshots[0]!.progress = 'milestone'; f.snapshots[0]!.detail = 'Agent 记录（尚未独立核验）：1/2'; await f.monitor.scan()
-  f.advance(PROGRESS_QUIET_MS); await f.monitor.scan(); assert.equal(f.messages.size, 4)
+test('the Bot decides a milestone without a minimum elapsed interval; repeats do no IO', async () => {
+  const f = fixture(); await f.monitor.scan()
+  Object.assign(f.snapshots[0]!, { progress: 'usable feature', evidence: [{ id: 'proof', kind: 'report', text: 'user outcome verified' }] })
+  f.decision({ kind: 'milestone', text: '手机现在能上传图片了。', evidenceIds: ['proof'] }); await f.monitor.scan()
+  assert.equal(f.messages.size, 1); const writes = f.writes
+  await f.monitor.scan(); await new TaskProgressMonitor(f.ports).scan(); assert.equal(f.messages.size, 1); assert.equal(f.writes, writes)
 })
-test('todo burst coalesces while waits, failure and cancellation bypass the milestone interval', async () => {
-  const f = fixture(); f.snapshots[0]!.phase = 'running'; await f.monitor.scan()
-  f.snapshots[0]!.progress = 'one'; await f.monitor.scan(); assert.equal(f.messages.size, 1)
-  f.snapshots[0]!.progress = 'two'; f.advance(PROGRESS_COALESCE_MS); await f.monitor.scan(); assert.equal(f.messages.size, 2)
-  for (const phase of ['waiting_user', 'waiting_approval', 'waiting_help', 'reconnecting', 'running', 'failed', 'cancelled'] as const) {
+test('unavailable judgment remains retryable; mandatory lifecycle is written by Bot, transient reconnect stays silent', async () => {
+  const f = fixture(); f.decision(null); await f.monitor.scan()
+  f.snapshots[0]!.phase = 'reconnecting'; await f.monitor.scan(); assert.equal(f.messages.size, 0)
+  f.decision({ kind: 'milestone', text: 'Bot-generated status', evidenceIds: [] })
+  for (const phase of ['waiting_user', 'waiting_approval', 'waiting_help', 'failed', 'cancelled'] as const) {
     Object.assign(f.snapshots[0]!, { phase, terminal: ['failed', 'cancelled'].includes(phase) }); await f.monitor.scan()
   }
-  assert.equal(f.messages.size, 9); assert.match([...f.messages.values()].at(-1)!, /已停止/)
+  assert.equal(f.messages.size, 5); assert.match([...f.messages.values()].at(-1)!, /Bot-generated/)
 })
-test('outbox write precedes publishing, and a lost acknowledgement retries the same message after restart', async () => {
-  const f = fixture(); f.failWrite(true); await f.monitor.scan(); assert.equal(f.messages.size, 0)
+test('outbox persists before publishing, lost acknowledgement retries the same message on restart', async () => {
+  const f = fixture(); f.snapshots[0]!.phase = 'waiting_user'; f.decision({ kind: 'milestone', text: 'Bot-generated action', evidenceIds: [] }); f.failWrite(true); await f.monitor.scan(); assert.equal(f.messages.size, 0)
   f.failWrite(false); f.failPost(true); await f.monitor.scan(); assert.ok(f.disk.get('a')?.pending)
   f.failPost(false); f.failAck(true); await f.monitor.scan(); assert.equal(f.messages.size, 1); assert.ok(f.disk.get('a')?.pending)
   f.failAck(false); await new TaskProgressMonitor(f.ports).scan(); assert.equal(f.messages.size, 1); assert.equal(f.disk.get('a')?.pending, undefined)
 })
-test('cancel discards undelivered running notice and owner changes fail closed', async () => {
-  const f = fixture(); f.failPost(true); await f.monitor.scan(); f.failPost(false)
+test('cancel discards stale milestone; changed ownership fails closed; historical results do not replay', async () => {
+  const f = fixture(); f.snapshots[0]!.phase = 'waiting_user'; f.decision({ kind: 'milestone', text: 'Bot-generated status', evidenceIds: [] }); f.failPost(true); await f.monitor.scan(); f.failPost(false)
   Object.assign(f.snapshots[0]!, { phase: 'cancelled', terminal: true }); await f.monitor.scan()
-  assert.equal(f.messages.size, 1); assert.match([...f.messages.values()][0]!, /已停止/)
-  f.snapshots[0]!.owner = 'different-source/different-bot'; await f.monitor.scan(); assert.equal(f.messages.size, 1); assert.ok(f.errors.length)
+  assert.equal(f.messages.size, 1); assert.match([...f.messages.values()][0]!, /Bot-generated/)
+  f.snapshots[0]!.owner = 'different-source'; await f.monitor.scan(); assert.equal(f.messages.size, 1); assert.ok(f.errors.length)
+  f.snapshots.push({ ...f.snapshots[0]!, id: 'old', phase: 'completed', needsAttention: false }); await f.monitor.scan(); assert.equal(f.messages.size, 1)
 })
-test('multiple tasks stay independent; historical settled work produces no replay', async () => {
-  const f = fixture(); f.snapshots.push({ ...f.snapshots[0]!, id: 'b', phase: 'waiting_user' }, { ...f.snapshots[0]!, id: 'old', phase: 'completed', terminal: true, needsAttention: false })
-  await Promise.all([f.monitor.scan(), f.monitor.scan(), f.monitor.scan()]); assert.equal(f.messages.size, 2)
-  assert.ok([...f.messages.keys()].some(id => id.includes('-b-')))
+test('a slow sibling judgment cannot delay a different task requiring user action', async () => {
+  const f = fixture(); f.snapshots[0]!.evidence = [{id:'slow',kind:'report',text:'detail'}]
+  f.snapshots.push({ ...f.snapshots[0]!, id:'b', phase:'waiting_help' })
+  let release!: () => void; const gate = new Promise<void>(r => { release = r })
+  f.ports.judge = async s => { if (s.id === 'a') await gate; return s.id === 'b' ? { kind: 'milestone', text: 'Bot-generated action', evidenceIds: [] } : { kind: 'silent' } }
+  const scan = f.monitor.scan(); await new Promise(r => setTimeout(r, 10)); assert.ok([...f.messages.keys()].some(id => id.includes('-b-')))
+  release(); await scan
 })
-
-test('a real reported milestone resets quiet tracking without repeating its already-delivered prose', async () => {
-  const f = fixture(); f.snapshots[0]!.phase = 'running'; await f.monitor.scan()
-  f.advance(PROGRESS_QUIET_MS - 1); f.snapshots[0]!.report = 'saved-report-one'; await f.monitor.scan()
-  assert.equal(f.messages.size, 1)
-  f.advance(2); await f.monitor.scan(); assert.equal(f.messages.size, 1)
-  f.advance(PROGRESS_QUIET_MS); await f.monitor.scan(); assert.equal(f.messages.size, 2)
+test('a returned Agent stage is not automatically a user milestone or objective completion',async()=>{
+ const f=fixture();await f.monitor.scan();Object.assign(f.snapshots[0]!,{phase:'completed',terminal:true,progress:'partial returned stage',evidence:[{id:'stage',kind:'report',text:'Initial input read; owning Bot still needs to choose next verification.'}]})
+ f.decision({kind:'silent'});await f.monitor.scan();assert.equal(f.messages.size,0);assert.equal(f.judgments,1)
 })

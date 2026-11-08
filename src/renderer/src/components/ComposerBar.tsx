@@ -6,6 +6,7 @@ import { IconMic, IconPaperclip, IconSend, IconPlus } from './Icons'
 
 interface BarProps {
   onAttach: () => void
+  attaching?: boolean
   listening: boolean
   voiceBusy: boolean
   onToggleVoice: () => void
@@ -14,7 +15,7 @@ interface BarProps {
   onSend: () => void
   children: ReactNode
 }
-export function ComposerBar({ onAttach, listening, voiceBusy, onToggleVoice, blocked, canSend, onSend, children }: BarProps): ReactNode {
+export function ComposerBar({ onAttach, attaching, listening, voiceBusy, onToggleVoice, blocked, canSend, onSend, children }: BarProps): ReactNode {
   const copy = useSettingsCopy()
   const zh = useBotChinese()
   const shortcut = useAppState().settings?.sendShortcut ?? 'enter'
@@ -33,9 +34,10 @@ export function ComposerBar({ onAttach, listening, voiceBusy, onToggleVoice, blo
       if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); trigger.current?.focus() }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!open) setOpen(true); else root.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus() }
     }}>
-      <button ref={trigger} type="button" className="ob-icon-btn ob-composer-plus" onClick={() => setOpen(!open)} aria-label={zh ? '添加附件' : 'Add attachments'} aria-haspopup="menu" aria-expanded={open} aria-controls="ob-composer-add-menu" disabled={blocked}><IconPlus size={19} /></button>
+      <button ref={trigger} type="button" className="ob-icon-btn ob-composer-plus" onClick={() => setOpen(!open)} aria-label={zh ? '添加附件' : 'Add attachments'} aria-haspopup="menu" aria-expanded={open} aria-controls="ob-composer-add-menu" disabled={blocked || attaching}><IconPlus size={19} /></button>
       {open ? <div role="menu" id="ob-composer-add-menu" className="ob-composer-add-menu">
-        <button type="button" role="menuitem" onClick={() => { setOpen(false); trigger.current?.focus(); onAttach() }}><IconPaperclip size={15} />{zh ? '添加文件' : 'Attach files'}</button>
+        <button type="button" role="menuitem" onPointerDown={event => event.preventDefault()} onClick={() => { setOpen(false); trigger.current?.focus(); onAttach() }}><IconPaperclip size={15} />{zh ? '添加文件' : 'Attach files'}</button>
+        {window.openbot.environment?.kind === 'browser' ? <p className="ob-hint ob-attach-hint">{zh ? '可选择照片或文件，每个最多 6 MB。粘贴图片可长按输入框；浏览器不提供图片时请添加文件。' : 'Choose photos or files up to 6 MB each. Paste images in the input, or choose a file if your browser does not expose the clipboard image.'}</p> : null}
       </div> : null}
     </div>
     {children}

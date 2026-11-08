@@ -92,6 +92,11 @@ def validate_paths(config):
         raise RuntimeError('Formal handoff targets only /Applications/BlinkyBot.app')
 
 
+def require_proof_contract(config):
+    if config.get('messageFingerprintAlgorithm') != proof.MESSAGE_FINGERPRINT_ALGORITHM:
+        raise RuntimeError('Installer proof contract is missing or incompatible; prepare a new sealed handoff without reusing an old installation status')
+
+
 def prepare(config_path, handoff):
     config = json.loads(config_path.read_text())
     required = ['app', 'dataDir', 'candidateApp', 'oldAsarSha256', 'newAsarSha256',
@@ -111,6 +116,7 @@ def prepare(config_path, handoff):
     queues = json.loads(queue_file.read_text()).get('queues', {}) if queue_file.exists() else {}
     config['queuedItemIdsAtHandoff'] = {sid: [item.get('id') for item in queue.get('items', [])] for sid, queue in queues.items()}
     config['helperDir'] = str(Path(__file__).resolve().parent)
+    config['messageFingerprintAlgorithm'] = proof.MESSAGE_FINGERPRINT_ALGORITHM
     config['sealedFiles'] = config.get('sealedFiles', {})
     for name in ['local-update-install.py', 'local-update-runtime.mjs', 'local-update-data.py',
                  'freeze-local-build.py', 'inspect-installed-app.mjs', 'local-update-contracts.mjs']:
@@ -304,6 +310,7 @@ class Installer:
             time.sleep(.25)
         if (self.root / 'RELEASE').read_text().strip() != digest(self.root / 'config.json'):
             raise RuntimeError('Release token does not match reviewed handoff')
+        require_proof_contract(self.cfg)
         lease_path = self.app.parent / '.blinkybot-local-update.flock'
         lease = lease_path.open('a')
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)

@@ -60,7 +60,7 @@ export function PaneChatBody({ sessionId, index, snapshot, failed, opening, bots
     )
   }
 
-  const messages = snapshot.session.messages
+  const messages = snapshot.session.messages.filter(m=>!m.internal)
   if (messages.length === 0) return <p className="ob-pane-empty">No messages yet.</p>
 
   /*

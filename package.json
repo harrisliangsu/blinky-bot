@@ -31,7 +31,7 @@
   },
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "node Scripts/build-speech.mjs && electron-vite build",
+    "build": "node Scripts/build-speech.mjs && node Scripts/build-native-glass.mjs && electron-vite build",
     "start": "electron-vite preview",
     "vm-daemon": "node out/main/vmDaemon.js",
     "dist": "node -e \"require('electron')\" && npm run build && electron-builder --mac",

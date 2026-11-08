@@ -5,14 +5,15 @@ import { optStr, reqStr } from '../args'
 import { ToolError } from '../errors'
 import { defineTool } from '../results'
 import type { ToolContext } from '../types'
+import { taskContextSchema } from '../../../shared/taskContext'
 
 const NAME = 'delegate_task'
 
 export const schema: ToolSchema = {
   name: NAME,
   description:
-    'Start an independent background task. Omit to_bot_id to use this bot’s configured execution agent; ' +
-    'otherwise delegate to another bot already in this conversation. Before creating related work, use manage_task list/inspect to decide from context whether an existing executor fits. Send an active executor a message or continue a returned independent task in its original execution session using continue_task_id and the remaining work. Do not reuse a task only because its title looks similar. If the user explicitly named local output files within the workspace, optionally supply output_files for independent existence checks; only supply a SHA-256 if the user gave that exact hash. A file check is only part of verification, never proof of the whole goal.',
+    'Start an independent background task. For a new task, include plan.context (summary, categories, scope and boundaries) in the tool arguments; update it when the goal changes. Omit to_bot_id to use this bot’s configured execution agent; ' +
+    'otherwise delegate to another bot already in this conversation. First use manage_task match with the new goal, then inspect plausible candidates to decide whether an existing executor fits. Send an active executor a message or continue a returned task using continue_task_id and the remaining work. Check active consumers before continuing a producer. Do not reuse a task only because its title looks similar. If the user explicitly named local output files within the workspace, optionally supply output_files for independent existence checks; only supply a SHA-256 if the user gave that exact hash. A file check is only part of verification, never proof of the whole goal.',
   parameters: {
     type: 'object',
     properties: {
@@ -21,10 +22,11 @@ export const schema: ToolSchema = {
       prompt: { type: 'string', description: 'A self-contained task with the context and expected result.' },
       title: { type: 'string', description: 'Optional short task label.' },
       output_files: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, sha256: { type: 'string' } }, required: ['path'] }, description: 'Optional explicit user-requested output files within the current workspace; at most 10. Existing files also pass existence-only checks.' },
-      plan: { type: 'object', description: 'Think about session reuse and workspace separately. continue_task_id reuses same-task context; independent work gets a new session. Choose priority/dependencies from user goals, urgency and current work. auto isolates independent work and may share a completed dependency; shared requires a task-specific reason. Running tasks are never preempted for priority changes.', properties: {
+      plan: { type: 'object', description: 'Include context for each new task: brief goal, free-form categories, scope and exclusions. A continuation inherits context unless replaced. Think about session reuse and workspace separately. Choose priority/dependencies from user goals, urgency and current work. Running tasks are never preempted for priority changes.', properties: {
         priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] }, priority_reason: { type: 'string' },
         depends_on: { type: 'array', items: { type: 'string' }, description: 'Existing tasks from this lead/source conversation whose results must be available first.' },
-        workspace: { type: 'string', enum: ['auto', 'isolated', 'shared'] }, workspace_reason: { type: 'string' }, session_reason: { type: 'string' }
+        workspace: { type: 'string', enum: ['auto', 'isolated', 'shared'], description: 'auto isolates independent work; with one completed prerequisite it can reuse that prerequisite workspace. isolated always allocates a separate workspace. shared uses this lead conversation source directory, NOT a prerequisite task directory; requires a specific reason. A continuation retains its own existing workspace.' }, workspace_reason: { type: 'string' }, session_reason: { type: 'string' },
+        context: taskContextSchema
       } }
     },
     required: ['prompt']

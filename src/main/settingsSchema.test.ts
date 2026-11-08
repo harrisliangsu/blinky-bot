@@ -185,6 +185,7 @@ test('defaults include the settings the window actually shows', () => {
   assert.equal(settings.language, 'zh-CN')
   assert.equal(settings.uiScale, 100)
   assert.equal(settings.vibrant, false)
+  assert.equal(settings.nativeGlass, true)
   assert.equal(settings.sendShortcut, 'enter')
   assert.equal(settings.expandSteps, false)
   assert.equal(settings.linkOpen, 'browser')
@@ -201,6 +202,7 @@ test('a partial save keeps the new fields and drops unknown ones', () => {
     language: 'en',
     uiScale: 125,
     vibrant: true,
+    nativeGlass: true,
     accent: 'purple',
     sendShortcut: 'mod-enter',
     expandSteps: true,
@@ -218,7 +220,8 @@ test('a partial save keeps the new fields and drops unknown ones', () => {
   })
   assert.equal(saved.language, 'en')
   assert.equal(saved.uiScale, 125)
-  assert.equal(saved.vibrant, true)
+  assert.equal(saved.vibrant, false)
+  assert.equal(saved.nativeGlass, true)
   assert.equal(saved.accent, 'purple')
   assert.equal(saved.sendShortcut, 'mod-enter')
   assert.equal(saved.expandSteps, true)

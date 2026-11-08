@@ -15,6 +15,11 @@ export async function fixture({ clarificationSource } = {}) {
   const state = { calls: [], events: [], gates: new Map(), steering: [], sideCalls: [], answer: null, stopped: [] }
   globalThis.__taskControl = state
   const mocks = {
+    './coordinationPermission': 'export const communicationPermissionStatus=async()=>null;export const authorizeCoordination=async i=>await i.valid()?globalThis.__taskControl.communicationAuthorization??"approved":"deferred"',
+    './tasks/coordinationPermission': 'export const communicationPermissionStatus=async()=>null',
+    '../agent/taskJudgmentTurn': 'export const runTaskJudgmentTurn=async(input)=>{const s=globalThis.__taskControl;if(!s.nativeBackend)throw Error("Cloud-API fixture must not invoke a native Bot turn");(s.protectedCalls??=[]).push(input);return s.protectedAnswer??{state:"failed"}}',
+    '../agent/execute': 'export const toolAllowedForBot=async()=>globalThis.__taskControl.communicationAllowed!==false',
+    '../desktopNotifications': 'export const showDesktopNotification=()=>false',
     './ipc/broadcast': 'export const broadcast=e=>globalThis.__taskControl.events.push(e);export const postActivity=()=>{}',
     '../ipc/broadcast': 'export const broadcast=e=>globalThis.__taskControl.events.push(e);export const postActivity=()=>{}',
     './ipc/agentRuntime': 'export const loopFn=async n=>n==="sendMessage"?globalThis.__taskControl.send:n==="stopSession"?async id=>globalThis.__taskControl.stopped.push(id):async()=>false',
@@ -23,10 +28,10 @@ export async function fixture({ clarificationSource } = {}) {
     // rather than starting an unbounded automatic inbox-review retry loop.
     './agent/cancel': 'export const isRunning=id=>id===globalThis.__taskControl.homeId',
     './backends/cli/codexAppServer': 'export const steerCodexTurn=(...args)=>globalThis.__taskControl.steer(...args)',
-    '../agent/backendGateway': 'export const runSideCall=async(...args)=>{globalThis.__taskControl.sideCalls.push(args);if(globalThis.__taskControl.sideCallError){args[3]?.(new Error(globalThis.__taskControl.sideCallError));return null}return globalThis.__taskControl.answer}'
+    '../agent/backendGateway': 'export const getBackend=async()=>globalThis.__taskControl.nativeBackend?({kind:"agent-cli",modelOnlyChat:globalThis.__taskControl.pureInterface?()=>{}:undefined}):({kind:"cloud-api"});export const runSideCall=async(...args)=>{const s=globalThis.__taskControl;s.sideCalls.push(args);if(s.sideCallUnavailable||s.sideCallError){args[3]?.(s.sideCallUnavailable??new Error(s.sideCallError));return null}return s.progressAnswer?.(...args)??s.answer}'
   }
   const outfile = join(root, 'control.mjs')
-  await build({ stdin: { contents: `export * from '../tasks.ts';export * from './messages.ts';export * from './progressRuntime.ts';export * from './progressObservations.ts';export * from './clarifications.ts';export * from '../store/tasks.ts';export * from '../store/sessions.ts';export * from '../store/bots.ts';export * from '../store/botHome.ts';export {manageTaskTool} from '../tools/agent/task.ts';export {flushAll,writeJsonNow} from '../store/jsonStore.ts';export {broadcast as event} from '../agent/events.ts';`, resolveDir: dirname(fileURLToPath(import.meta.url)), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile,
+  await build({ stdin: { contents: `export * from '../backends/modelOnlyUnavailable.ts';export * from './progressDecision.ts';export * from '../tasks.ts';export * from './messages.ts';export * from './progressRuntime.ts';export * from './progressObservations.ts';export * from './clarifications.ts';export * from '../store/tasks.ts';export * from '../store/sessions.ts';export * from '../store/bots.ts';export * from '../store/botHome.ts';export {manageTaskTool} from '../tools/agent/task.ts';export {flushAll,writeJsonNow} from '../store/jsonStore.ts';export {broadcast as event} from '../agent/events.ts';`, resolveDir: dirname(fileURLToPath(import.meta.url)), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile,
     plugins: [{ name: 'safe-boundaries', setup(b) {
       b.onResolve({ filter: /.*/ }, args => Object.hasOwn(mocks, args.path) ? { path: args.path, namespace: 'mock' } : undefined)
       b.onLoad({ filter: /.*/, namespace: 'mock' }, args => ({ contents: mocks[args.path], loader: 'js' }))
@@ -57,7 +62,7 @@ export async function fixture({ clarificationSource } = {}) {
     state.calls.push({ id, text })
     if (!state.gates.has(id)) { let release; const promise = new Promise(resolve => { release = resolve }); state.gates.set(id, { promise, release }) }
     await state.gates.get(id).promise
-    reply(id, `returned:${text}`)
+    reply(id, `returned:${text}`,state.replyExtras?.[id]??{})
   }
   async function start(text = 'original objective') { const task = await api.delegateBackgroundTask(home.id, bot.id, bot.id, text); await until(() => state.calls.some(value => value.id === task.sessionId)); return task }
   return { root, api, state, bot, home, start, reply, command: (command, sessionId = home.id, botId = bot.id, confirmResume) => api.manageBackgroundTask(sessionId, botId, command, new AbortController().signal, confirmResume), async close() {

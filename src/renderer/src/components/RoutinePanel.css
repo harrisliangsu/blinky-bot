@@ -108,3 +108,10 @@
 .ob-routine-history ol { list-style: none; padding: 0; display: grid; gap: var(--ob-space-3); }
 .ob-routine-history li { padding: var(--ob-space-3); border: 1px solid var(--ob-border); border-radius: var(--ob-radius-base); overflow-wrap: anywhere; }
 .ob-routine-result { white-space: pre-wrap; }
+@media (max-width: 600px) {
+  .ob-routine-detail-head { flex-direction: column; align-items: stretch; }
+  .ob-routine-detail-head > div { min-width: 0; }
+  .ob-routine-detail-head h3 { overflow-wrap: anywhere; }
+  .ob-routine-actions { flex-wrap: wrap; }
+  .ob-routine-actions > button { flex-shrink: 0; white-space: nowrap; }
+}

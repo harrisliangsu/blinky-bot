@@ -12,7 +12,7 @@ export const schema: ToolSchema = {
     properties: {
       task_id: { type: 'string', description: 'Returned task id from this conversation.' },
       outcome: { type: 'string', enum: ['complete_claimed', 'blocked'] },
-      summary: { type: 'string', description: 'The concrete outcome for the user, or the specific blocker and what is needed.' },
+      summary: { type: 'string', description: 'One or two short, plain-language sentences describing the user-relevant outcome or actual blocker/action needed. State material limits honestly. Keep implementation details, commands, hashes and logs in evidence; do not imply the overall goal is complete merely because an Agent returned.' },
       evidence: { type: 'array', items: { type: 'string' }, description: 'Specific checks and observations supporting this assessment. Required for complete_claimed.' }
     },
     required: ['task_id', 'outcome', 'summary']

@@ -1,5 +1,3 @@
-import { agentProgressName, agentProgressReport } from './tasks/progressText'
-import { recordTaskMilestone } from './tasks/progressObservations'
 /** Background-task orchestration shared by the renderer and delegate_task. */
 
 import type { AgentTask } from '../shared/types'
@@ -26,13 +24,19 @@ import { parseAcceptance, verifyAcceptance } from './tasks/acceptance'
 import { getSettings } from './settings'
 import { manageRoutineTaskResult } from './routines/notifications'
 import { MAX_CONCURRENT_RUNS, MAX_QUEUED_TASKS, MAX_QUEUED_TASKS_PER_BOT } from './tasks/limits'
-import { saveTaskMessages, setTaskMessageStatus, taskMessages } from './tasks/messages'
+import { saveTaskMessages, setTaskMessageStatus, taskMessages, recordTaskTurnResponses } from './tasks/messages'
 import { steerCodexTurn } from './backends/cli/codexAppServer'
 import { liveMessages } from './agent/liveMessages'
+import { executionObservations } from './tasks/executionObservations'
+import { taskJudgmentStatus } from './tasks/progressTurn'
+import { communicationPermissionStatus } from './tasks/coordinationPermission'
 import { scrubVaultTranscript } from './store/vaultPrivacy'
 import { dependencyState, parseTaskPlan, rankQueuedTasks, validateDependencyGraph } from './tasks/planning'
 import { prepareTaskWorkspace, taskWorkspaceKey, workspaceInstructions } from './tasks/workspaces'
 import { forgetBindingsForSession } from './store/providerBindings'
+import { matchTaskCandidates } from './tasks/matching'
+import { describeTask, describedTaskResult } from './tasks/describe'
+import { contextForTask, taskContextInstructions } from './tasks/context'
 
 /**
  * How many background runs may be live at once.
@@ -125,7 +129,6 @@ export function installTaskInbox(): void {
   })
   const snapshot = listTasks()
   const continued = new Set(snapshot.filter(task => task.continuedFromTaskId).map(task => JSON.stringify([task.continuedFromTaskId, task.sourceSessionId])))
-  const interrupted = new Map<string, { task: AgentTask; count: number }>()
   for (const task of snapshot) {
     if (task.sourceSessionId && task.deliveryStatus === 'pending') void drainTaskInbox(task.sourceSessionId)
     else if (task.sourceSessionId && task.deliveryStatus === 'uncertain' && task.status !== 'cancelled') {
@@ -135,14 +138,9 @@ export function installTaskInbox(): void {
         // without asking the lead to run again after a crash.
         updateTaskDelivery(task.id, 'pending')
         void drainTaskInbox(task.sourceSessionId)
-      } else {
-        const key = JSON.stringify([task.sourceSessionId, task.requesterBotId ?? task.botId])
-        const group = interrupted.get(key)
-        interrupted.set(key, { task: group?.task ?? task, count: (group?.count ?? 0) + 1 })
       }
     }
   }
-  for (const { task, count } of interrupted.values()) void reportToSource(task, count === 1 ? agentProgressReport(agentProgressName(task.title, getSession(task.sessionId)?.title), '结果送达待确认，请核对。') : `${agentProgressName(task.title, getSession(task.sessionId)?.title)} 等 ${count} 个任务：执行中断或结果待确认，未自动重跑。`, true)
 }
 
 async function durable(): Promise<void> {
@@ -168,7 +166,6 @@ async function drainTaskInbox(sessionId: string): Promise<void> {
   let releaseRoutineNotifications = () => {}
   try {
     await durable()
-    await reportToSource(task, agentProgressReport(agentProgressName(task.title, getSession(task.sessionId)?.title), task.status === 'completed' ? '已返回结果，待核对。' : taskExecutionWasInterrupted(task) ? '执行已中断，未自动重跑。' : '执行失败，请核对已有结果。'))
     if (isRunning(sessionId) || isStarting(sessionId) || isQueueDraining(sessionId) || isQueueSuspended(sessionId) || hasPendingQueueWrite(sessionId) || getMessageQueue(sessionId).items.length) return
     // Reserve synchronously before the next await. User sends then see a busy
     // chat and are safely accepted by the normal follow-up delivery path.
@@ -198,7 +195,6 @@ async function drainTaskInbox(sessionId: string): Promise<void> {
     console.error('[openbot/inbox] could not confirm result delivery', error)
     announce(updateTaskDelivery(task.id, 'uncertain'))
     await durable().catch(console.error)
-    await reportToSource(task, agentProgressReport(agentProgressName(task.title, getSession(task.sessionId)?.title), '结果送达待确认，请核对。'), true).catch(console.error)
   } finally {
     if (reserved) releaseStart(sessionId)
     if (reserved && !invoked && !isRunning(sessionId)) broadcast({ type: 'done', sessionId })
@@ -270,17 +266,7 @@ export async function delegateBackgroundTask(
   plan?: TaskPlanInput
 ): Promise<AgentTask> {
   const task = await createDelegatedTask(sourceSessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, undefined, plan)
-  await dispatchNotice(task, sourceSessionId, fromBotId)
   return task
-}
-
-async function dispatchNotice(task: AgentTask, sourceSessionId: string, fromBotId: string): Promise<void> {
-  // A notice failure cannot turn an already-created task into a failed tool
-  // call: retrying that call could otherwise start the work twice.
-  try {
-    const source = await sessions.get(sourceSessionId)
-    if (source) await addNotice(source, getBot(fromBotId), agentProgressReport(agentProgressName(task.title, getSession(task.sessionId)?.title), getSettings().language === 'en' ? 'Dispatched.' : '已派发。'), undefined, `agent-dispatch-${task.id}`, true)
-  } catch (error) { console.warn('[openbot/tasks] dispatch notice could not be saved', error) }
 }
 
 async function createDelegatedTask(
@@ -396,7 +382,7 @@ function privateExecutorSession(sessionId: string): boolean {
 }
 
 function taskForInspection(task: AgentTask): AgentTask {
-  return { ...task, title: scrubVaultTranscript(task.title), prompt: scrubVaultTranscript(task.prompt), ...(task.result === undefined ? {} : { result: scrubVaultTranscript(task.result) }), ...(task.error === undefined ? {} : { error: scrubVaultTranscript(task.error) }), ...(task.review ? { review: { ...task.review, summary: scrubVaultTranscript(task.review.summary), evidence: task.review.evidence.map(scrubVaultTranscript) } } : {}) }
+  return { ...task, ...(task.plan?.context ? { plan: { ...task.plan, context: contextForTask(task).context } } : {}), title: scrubVaultTranscript(task.title), prompt: scrubVaultTranscript(task.prompt), ...(task.result === undefined ? {} : { result: scrubVaultTranscript(task.result) }), ...(task.error === undefined ? {} : { error: scrubVaultTranscript(task.error) }), ...(task.review ? { review: { ...task.review, summary: scrubVaultTranscript(task.review.summary), evidence: task.review.evidence.map(scrubVaultTranscript) } } : {}) }
 }
 
 function managedTask(sessionId: string, botId: string, taskId: string): AgentTask {
@@ -409,9 +395,14 @@ function managedTask(sessionId: string, botId: string, taskId: string): AgentTas
 }
 
 /** One Bot owns its tasks across its chats; an executor only manages its own task. */
-export async function manageBackgroundTask(sessionId: string, botId: string, command: AgentTaskCommand, signal?: AbortSignal, confirmResume?: (task: AgentTask) => Promise<boolean>): Promise<Record<string, unknown>> {
+export async function manageBackgroundTask(sessionId: string, botId: string, command: AgentTaskCommand, signal?: AbortSignal, confirmResume?: (task: AgentTask) => Promise<boolean>, deliveryPolicy?: 'turn_boundary'): Promise<Record<string, unknown>> {
   managementCaller(sessionId, botId)
   if (signal?.aborted) throw new Error('Task management was stopped.')
+  if (command.action === 'match') {
+    const executor = privateExecutorSession(sessionId)
+    const visible = listTasks().filter(value => ((value.requesterBotId ?? value.botId) === botId || value.sessionId === sessionId && value.botId === botId) && (!executor || value.sessionId === sessionId) && getSession(value.sourceSessionId ?? value.sessionId)?.botIds.includes(botId))
+    return matchTaskCandidates(visible, command, { sessionId, botId, executor, sourceCwd: getSession(sessionId)?.cwd ?? '', sessionBusy: id => runningSessions.has(id) || isRunning(id), interrupted: taskExecutionWasInterrupted, workspaceKey: task => taskWorkspaceKey(task, visible, getSession(task.sessionId)?.cwd) })
+  }
   if (command.action === 'list') {
     const executor = privateExecutorSession(sessionId)
     const owned = listTasks().filter(value => ((value.requesterBotId ?? value.botId) === botId || value.sessionId === sessionId && value.botId === botId) && (!executor || value.sessionId === sessionId)).sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
@@ -423,6 +414,15 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
   }
   if (!command.taskId?.trim()) throw new TypeError('Provide the exact task id.')
   const task = managedTask(sessionId, botId, command.taskId)
+  if (command.action === 'describe') {
+    if (privateExecutorSession(sessionId)) throw new TypeError('Only the owning lead can update task scope; report a proposal instead.')
+    return withTaskDecision(`task:${task.id}`, async () => {
+      const current = managedTask(sessionId, botId, task.id)
+      const saved = await describeTask(current, command.context, listTasks(), signal)
+      announce(saved)
+      return describedTaskResult(taskForInspection(saved))
+    })
+  }
   if (command.action === 'prioritize') {
     if (privateExecutorSession(sessionId)) throw new TypeError('Only the owning lead can change queued work. Report the proposed change instead.')
     return withTaskDecision(`task:${task.id}`, async () => {
@@ -458,7 +458,6 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
     // The private creation path validates this server-created proof again under
     // both locks. There is no model argument, message id or Boolean override.
     const next = await createDelegatedTask(task.sourceSessionId, botId, task.botId, command.text, task.title, task.id, signal, undefined, proof)
-    await dispatchNotice(next, task.sourceSessionId, botId)
     return { task: summariseTask(next), resumedFromTaskId: task.id, sameSession: next.sessionId === task.sessionId, note: 'A new attempt was explicitly requested; inspect previous actions before repeating them. The previous attempt remains unchanged.' }
   }
   if (command.action === 'stop') {
@@ -471,7 +470,7 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
     if (command.action === 'inspect') {
       const session = getSession(current.sessionId)
       const recent = [...(session?.messages ?? []), ...liveMessages(current.sessionId)].filter(value => !value.internal && !value.uiOnly).slice(-12).map(value => ({ id: value.id, role: value.role, content: scrubVaultTranscript((value.displayContent ?? value.content).slice(-6000)), error: value.error ? scrubVaultTranscript(value.error) : undefined, streaming: value.streaming }))
-      return { task: taskForInspection(current), scheduling: dependencyState(current, listTasks()), recent, todos: session?.todos.map(value => ({ ...value, text: scrubVaultTranscript(value.text) })) ?? [], messages: await taskMessages(current.id), note: 'Progress and executor output are observations. Check original requirements and independent evidence before review_task.' }
+      return { task: taskForInspection(current), scheduling: dependencyState(current, listTasks()), recent, executionEvidence: executionObservations([...(session?.messages ?? []), ...liveMessages(current.sessionId)],scrubVaultTranscript), automaticJudgment: await taskJudgmentStatus(current.id), automaticCommunication: await communicationPermissionStatus(current.id), todos: session?.todos.map(value => ({ ...value, text: scrubVaultTranscript(value.text) })) ?? [], messages: await taskMessages(current.id), note: 'Progress, tool-reported execution metadata and executor output are observations, not proof of the whole user goal. executionEvidence is same-session, bounded and excludes file/code bodies. automaticJudgment records internal consideration; automaticCommunication records the separate ordinary approval for a mutating task message, including held refusals. Neither is Agent execution or user consent. Inspect relevant task evidence before review_task; do not re-read source code to guess progress.' }
     }
     const text = command.text?.trim().slice(0, 30_000)
     if (!text || !command.requestId?.trim() || command.requestId.length > 160) throw new TypeError('Provide text and a stable request_id (at most 160 characters); reuse that id when checking delivery after a timeout.')
@@ -486,23 +485,19 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
     const receipt: AgentTaskMessageReceipt = { requestId: command.requestId, taskId: current.id, text: scrubVaultTranscript(text), fingerprint, direction: command.action === 'report' ? 'to_lead' : 'to_executor', status: 'queued', createdAt: Date.now(), updatedAt: Date.now() }
     if (command.action === 'report') {
       if (sessionId !== current.sessionId || !current.sourceSessionId) throw new TypeError('Only an independent task’s executor can report its milestone.')
-      const previous = messages.filter(value => value.direction === 'to_lead' && value.status === 'delivered').at(-1)
-      if (previous && previous.fingerprint === fingerprint && Date.now() - previous.updatedAt < 300_000) return { receipt: previous, duplicate: true }
-      if (previous && Date.now() - previous.updatedAt < 10_000) return { reported: false, throttled: true, retryAfterMs: 10_000 - (Date.now() - previous.updatedAt), note: 'Avoid repeated milestone updates; report a meaningful change after this short interval.' }
-      await saveTaskMessages(current.id, [...messages, { ...receipt, status: 'delivering' }])
-      try {
-        await reportToSource(current, agentProgressReport(agentProgressName(current.title, getSession(current.sessionId)?.title), text), false, `milestone-${command.requestId}`)
-        await setTaskMessageStatus(current.id, [receipt.requestId], 'delivered')
-        recordTaskMilestone(current.id, receipt.requestId)
-        announce(getTask(current.id))
-      } catch (error) { await setTaskMessageStatus(current.id, [receipt.requestId], 'uncertain'); throw error }
-      return { receipt: (await taskMessages(current.id)).find(value => value.requestId === receipt.requestId), note: 'The milestone was saved in the lead chat. This is not task completion.' }
+      const previous = messages.find(value => value.direction === 'to_lead' && value.status === 'delivered' && value.fingerprint === fingerprint)
+      if (previous) return { receipt: previous, duplicate: true }
+      // Receipt means durable delivery to the owning Bot's observation inbox,
+      // never permission for an executor to publish directly to the user.
+      await saveTaskMessages(current.id, [...messages, { ...receipt, status: 'delivered' }])
+      announce(getTask(current.id))
+      return { receipt: (await taskMessages(current.id)).find(value => value.requestId === receipt.requestId), note: 'Saved for the owning Bot to assess against the user goal and previous updates. Ordinary details remain in the task; a saved receipt does not mean a user-facing report or task completion.' }
     }
     if (command.action !== 'message') throw new TypeError('Unknown task action.')
     if (sessionId === current.sessionId) throw new TypeError('An executor cannot send instructions to itself; report a milestone instead.')
     messageBodies.set(`${current.id}:${receipt.requestId}`, text)
     await saveTaskMessages(current.id, [...messages, receipt])
-    if (current.status === 'running') {
+    if (current.status === 'running' && deliveryPolicy !== 'turn_boundary') {
       await setTaskMessageStatus(current.id, [receipt.requestId], 'delivering')
       try {
         const steered = await steerCodexTurn(current.sessionId, text, async () => {
@@ -510,7 +505,8 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
           if (!session) throw new Error('The execution conversation is unavailable after delivery.')
           await addUserMessage(session, text, undefined, true, `task-message-${current.id}-${receipt.requestId}`, receipt.createdAt)
           await durable()
-          await setTaskMessageStatus(current.id, [receipt.requestId], 'delivered', 'live')
+          const target=liveMessages(current.sessionId).filter(m=>m.role==='assistant'&&m.streaming&&!m.internal).at(-1)?.id
+          await setTaskMessageStatus(current.id, [receipt.requestId], 'delivered', 'live',undefined,target)
         })
         if (!steered) await setTaskMessageStatus(current.id, [receipt.requestId], 'queued')
         else messageBodies.delete(`${current.id}:${receipt.requestId}`)
@@ -674,7 +670,7 @@ async function run(task: AgentTask): Promise<void> {
       if (event.type === 'error' && event.sessionId === task.sessionId) reportedError = event.message
       if (event.type === 'done' && event.sessionId === task.sessionId && event.outcome) reportedOutcome = event.outcome
     })
-    let nextPrompt = workspaceInstructions(workspace) + '\n\n' + task.prompt
+    let nextPrompt = workspaceInstructions(workspace) + taskContextInstructions(task, listTasks()) + '\n\n' + task.prompt + '\n\nInternal progress protocol: record a short factual update in this execution conversation at natural safe points for a completed goal-relevant stage, a genuine blocker, or a proposed adjustment, with concrete evidence. The host persists this conversation. Prefer ordinary assistant updates in this persisted execution conversation. Answer Bot inquiries and acknowledge suggestions here without a reporting/MCP tool; the host correlates replies automatically. Proactive manage_task report remains optional under existing permissions for independent material observations; do not request new privileges solely for routine progress. Reports go to the owning Bot for judgment, not directly to the user. Do not report each todo or repeat unchanged status. Long tool execution must not be interrupted just to manufacture a report; update after it returns. Respond to a Bot coordination inquiry or suggestion in this same conversation; use its reply request_id if the report tool is already available; distinguish received, proposed and actually applied changes. Bot suggestions never replace user authorization or approval.'
     try {
       for (;;) {
         const batch = await withTaskDecision(`task:${task.id}`, async () => {
@@ -698,7 +694,8 @@ async function run(task: AgentTask): Promise<void> {
         const turnError = reportedError ?? turnMessages.find(value => value.error)?.error ?? (outcome === 'failed' ? 'The executor reported failure before completion.' : undefined)
         const replies = turnMessages.filter(value => value.role === 'assistant' && !value.uiOnly && !value.internal)
         const usableReply = replies.some(value => value.content.trim())
-        if (batch.length) await withTaskDecision(`task:${task.id}`, () => setTaskMessageStatus(task.id, batch.map(value => value.requestId), outcome === 'cancelled' || turnError || !usableReply ? 'uncertain' : 'delivered', 'turn_boundary'))
+        if(outcome!=='cancelled'&&!turnError&&usableReply)await withTaskDecision(`task:${task.id}`,async()=>{if(getTask(task.id)?.status==='running')await recordTaskTurnResponses(task.id,replies.map(m=>m.id))})
+        if (batch.length) await withTaskDecision(`task:${task.id}`, () => setTaskMessageStatus(task.id, batch.map(value => value.requestId), outcome === 'cancelled' || turnError || !usableReply ? 'uncertain' : 'delivered', 'turn_boundary', replies.map(value=>value.id)))
         for (const message of batch) messageBodies.delete(`${task.id}:${message.requestId}`)
         if (getTask(task.id)?.status === 'cancelled') return
         if (outcome === 'cancelled') {
@@ -727,7 +724,9 @@ async function run(task: AgentTask): Promise<void> {
           const result = (body.slice(-27000) + `\n\nRetained task workspace: ${workspace.path}${workspace.branch ? '\nBranch: ' + workspace.branch : ''}. Outputs were not automatically merged or copied to the source directory.`).slice(-30000)
           const completed = settle(task.sourceSessionId ? completeAgentTask(task.id, result) : setTaskStatus(task.id, 'completed'))
           if (completed?.sourceSessionId) { await durable(); void drainTaskInbox(completed.sourceSessionId) }
-          if (completed && !completed.sourceSessionId) postActivity('info', completed.title, 'Background execution ended. Inspect its session and result to assess whether the objective was met.', completed.sessionId, completed.botId)
+          if (completed) {
+            postActivity('info', completed.title, 'An Agent returned a result. Inspect its session and evidence to assess whether the objective was met.', completed.sourceSessionId ?? completed.sessionId, completed.botId)
+          }
           return true
         })
         if (finished) return
@@ -743,15 +742,6 @@ async function run(task: AgentTask): Promise<void> {
   }
 }
 
-async function reportToSource(task: AgentTask, text: string, uncertain = false, suffix?: string): Promise<void> {
-  if (!task.sourceSessionId) return
-  const source = await sessions.get(task.sourceSessionId)
-  if (!source) return
-  const id = `agent-result-${uncertain ? 'uncertain' : 'notice'}-${task.id}${suffix ? `-${suffix}` : ''}`
-  if (!source.messages.some((message) => message.id === id)) await addNotice(source, getBot(task.requesterBotId ?? task.botId), text, undefined, id)
-  await durable()
-  if (!(await sessions.get(task.sourceSessionId))?.messages.some((message) => message.id === id)) throw new Error('The result notice was not saved.')
-}
 
 function fail(id: string, error: string): void {
   const before = getTask(id)
@@ -765,5 +755,5 @@ function fail(id: string, error: string): void {
    * post a second, differently worded item for the same failure. The desktop
    * notification that event would have raised is raised from here instead.
    */
-  postActivity('failed', task.title, error, task.sourceSessionId ?? task.sessionId, task.botId, true)
+  postActivity('failed', task.title, error, task.sourceSessionId ?? task.sessionId, task.botId)
 }

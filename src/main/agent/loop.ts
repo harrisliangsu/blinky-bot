@@ -1,3 +1,5 @@
+import { showDesktopNotification } from '../desktopNotifications'
+import { routineOwnsNotifications } from '../routines/notificationOwnership'
 /**
  * The public surface IPC calls into.
  *
@@ -210,15 +212,15 @@ export async function receiveAgentResult(sessionId: string, taskId: string, titl
       const task = getTask(taskId)
       if (task?.review) {
         const noticeId = `agent-review-${taskId}`
-        if (!activeSession.messages.some((message) => message.id === noticeId)) {
-          const zh = (await settingsStore.get()).language === 'zh-CN'
-          const evidence = task.review.evidence.length ? `\n\n${zh ? '依据' : 'Evidence'}：\n${task.review.evidence.map((item) => `- ${item}`).join('\n')}` : ''
-          const files = task.review.verifiedFiles?.length ? `\n\n${zh ? '应用已检查文件' : 'Files checked by the app'}：\n${task.review.verifiedFiles.map((item) => `- ${item.path}${item.sha256 ? ` (SHA-256: ${item.sha256})` : ''}`).join('\n')}` : ''
-          const caveat = task.review.outcome === 'complete_claimed' ? (zh ? '\n\n这是 Bot 的完成判断；文件检查只证明列出的文件条件，其他依据仍需核实。' : '\n\nThis is the Bot’s assessment; file checks establish only the listed conditions, and other evidence still needs verification.') : ''
-          await addNotice(activeSession, await bots.get(task.requesterBotId ?? task.botId), `${task.review.summary}${evidence}${files}${caveat}`, undefined, noticeId)
+        const appended = !activeSession.messages.some((message) => message.id === noticeId)
+        if (appended) {
+          // The Bot writes the user summary. Detailed evidence and file hashes
+          // remain in the task review, available when the user asks for them.
+          await addNotice(activeSession, await bots.get(task.requesterBotId ?? task.botId), task.review.summary, undefined, noticeId)
         }
         const saved = await flushAll()
         if (saved.failed.length || saved.stillWriting) throw new Error('The lead assessment could not be confirmed as saved.')
+        if (appended && !routineOwnsNotifications(sessionId)) showDesktopNotification(task.review.outcome === 'blocked' ? 'failed' : 'task-returned', {sessionId,botId:task.requesterBotId ?? task.botId},false,noticeId)
         await onRecorded()
         return true
       }

@@ -5,6 +5,8 @@ import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { sendTurn, stopTurn, store, useAppState } from '../state'
 import { ComposerAttachments, chooseAttachments } from './ComposerAttachments'
 import { attachmentsFromImageFiles, filesFromTransfer } from './imageAttachments'
+import { transferFiles } from '../remote/attachments'
+import { REMOTE_MAX_ATTACHMENTS } from '../../../shared/remoteAttachments'
 import { ComposerBar } from './ComposerBar'
 import { ComposerMention, type MentionState } from './ComposerMention'
 import { matchBots, mentionQuery } from './MentionPopup'
@@ -23,6 +25,7 @@ export function Composer(): ReactNode {
   const { session, bots, settings, streaming, bootError } = useAppState()
   const [queue, setQueue] = useState<MessageQueue | null>(null)
   const { text, setText, attachments, setAttachments, quote, setQuote } = useComposerDraft(session?.id)
+  const [attaching, setAttaching] = useState(false)
   const [dragging, setDragging] = useState(false)
   // `@` picker: which mention the caret is inside, if any.
   const [mention, setMention] = useState<MentionState | null>(null)
@@ -76,7 +79,7 @@ export function Composer(): ReactNode {
   }, [])
 
   const readOnly = window.openbot.environment?.kind === 'browser' && window.openbot.environment.permission === 'view'
-  const canSend = !readOnly && (text.trim().length > 0 || attachments.length > 0) && bootError === null
+  const canSend = !readOnly && !attaching && (text.trim().length > 0 || attachments.length > 0) && bootError === null
   // Only bots in this session can be addressed — mentioning an absent bot does nothing.
   const mentionable = bots.filter((b) => session?.botIds.includes(b.id))
   // The picker is "open" only when it has something to offer. `@` followed by
@@ -93,6 +96,7 @@ export function Composer(): ReactNode {
     setAttachments([])
     setQuote(null)
     setMention(null)
+    window.dispatchEvent(new CustomEvent('openbot:chat-sent', { detail: session?.id }))
     /*
      * A send that never reached the agent hands its text back. The local echo
      * is dropped on that path (see state/conversation.ts), so without this the
@@ -140,23 +144,38 @@ export function Composer(): ReactNode {
     }
   }
 
+  const addAttachments = (chosen: Attachment[]): void => {
+    setAttachments(previous => {
+      if (previous.length + chosen.length > REMOTE_MAX_ATTACHMENTS) { store.toast(zh ? '最多添加 12 个附件。' : 'Add up to 12 attachments.', 'error'); return previous }
+      return [...previous, ...chosen]
+    })
+  }
   const attach = async (): Promise<void> => {
-    const chosen = await chooseAttachments()
-    if (chosen.length === 0) return
-    setAttachments((prev) => [...prev, ...chosen])
+    if (attaching || readOnly) return
+    setAttaching(true)
+    try { addAttachments(await chooseAttachments()) }
+    catch (error) { store.toast(error instanceof Error ? error.message : '附件未能添加。 / Attachment failed.', 'error') }
+    finally { setAttaching(false) }
   }
 
   const takeImages = async (data: DataTransfer | null): Promise<void> => {
-    if (!data) return
+    if (!data || readOnly) return
+    if (window.openbot.dialog.importAttachments) {
+      setAttaching(true)
+      try { addAttachments(await window.openbot.dialog.importAttachments(transferFiles(data))) }
+      catch (error) { store.toast(error instanceof Error ? error.message : '附件未能添加。 / Attachment failed.', 'error') }
+      finally { setAttaching(false) }
+      return
+    }
     const { attachments: next, skipped } = await attachmentsFromImageFiles(filesFromTransfer(data))
     if (skipped > 0) store.toast(chat.imageTooBig, 'error')
     if (next.length === 0) return
-    setAttachments((prev) => [...prev, ...next])
+    addAttachments(next)
   }
 
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>): void => {
     const images = filesFromTransfer(e.clipboardData)
-    if (images.length === 0) return
+    if (images.length === 0 && !(window.openbot.dialog.importAttachments && transferFiles(e.clipboardData).length)) return
     e.preventDefault()
     const pasted = e.clipboardData.getData('text/plain')
     if (pasted) {
@@ -197,6 +216,7 @@ export function Composer(): ReactNode {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {attaching ? <p className="ob-hint" role="status">{zh ? '正在添加附件…' : 'Adding attachments…'}</p> : null}
       <ComposerAttachments
         attachments={attachments}
         onRemove={(id) => setAttachments((prev) => prev.filter((x) => x.id !== id))}
@@ -222,7 +242,7 @@ export function Composer(): ReactNode {
         <label className="ob-sr-only" htmlFor="ob-prompt">
           Message
         </label>
-        <ComposerBar onAttach={() => void attach()} listening={voice.listening} voiceBusy={voice.busy}
+        <ComposerBar onAttach={() => void attach()} attaching={attaching} listening={voice.listening} voiceBusy={voice.busy}
           onToggleVoice={voice.toggle} blocked={readOnly || bootError !== null || !session} canSend={canSend} onSend={submit}>
         <textarea
           id="ob-prompt"

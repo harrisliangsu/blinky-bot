@@ -11,7 +11,8 @@ const encode = (text: string): Uint8Array => new TextEncoder().encode(text)
 const hash = (text: string): string => hex(nacl.hash(encode(text)))
 export class RemoteHttpError extends Error {
   readonly status: number
-  constructor(status: number, message: string) { super(message); this.status = status }
+  readonly code?: string
+  constructor(status: number, message: string, code?: string) { super(message); this.status = status; this.code = code }
 }
 export interface RemoteGrant { grant: string; permission: 'view' | 'control'; scope: 'room' | 'workspace'; sessionId: string; roomId: string; expiresAt: number }
 interface SavedDevice { publicKey: string; secretKey: string; name: string }
@@ -73,6 +74,7 @@ export class DeviceIdentity {
     this.requestId = record.id; this.remember()
   }
   hasRequest(): boolean { return !!this.requestId }
+  remainingLease(access: RemoteGrant): number { return Math.max(0, access.expiresAt - (Date.now() + this.offset)) }
   async check(refreshClock = false): Promise<{ state: RemoteDeviceState; access?: RemoteGrant }> {
     if (!this.requestId) return { state: 'expired' }
     if (refreshClock) await this.challenge()
@@ -88,7 +90,7 @@ export class DeviceIdentity {
     try {
       const response = await fetch(path, { method, headers: { Authorization: 'BlinkyDevice ' + access.grant, 'X-Blinky-Nonce': value, 'X-Blinky-Time': String(time), 'X-Blinky-Signature': this.sign(requestProof(access.grant, value, time, method, path, hash(raw))), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: raw }), cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal })
       const data = await response.json().catch(() => ({})) as Record<string, unknown>
-      if (!response.ok) throw new RemoteHttpError(response.status, typeof data.error === 'string' ? data.error : 'The request could not be confirmed.')
+      if (!response.ok) throw new RemoteHttpError(response.status, typeof data.error === 'string' ? data.error : 'The request could not be confirmed.', typeof data.code === 'string' ? data.code : undefined)
       return data
     } finally { clearTimeout(timer); options.signal?.removeEventListener('abort', abort) }
   }

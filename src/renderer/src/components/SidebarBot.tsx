@@ -41,7 +41,7 @@ export function SidebarBot({ bot, current, compact, conversation }: { bot: Bot; 
   return <li ref={row} className={`ob-side-item${current ? ' is-current' : ''}`} onMouseEnter={show} onMouseLeave={hide}
     onFocus={show} onBlur={hide} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPosition(null) } }}>
     <button type="button" className="ob-side-item-main" aria-label={bot.name} aria-current={current ? 'true' : undefined}
-      aria-describedby={position ? id : undefined} onClick={() => { setPosition(null); void openBotChat(bot.id) }}>
+      aria-describedby={position ? id : undefined} onClick={() => { setPosition(null); void openBotChat(bot.id); window.dispatchEvent(new Event('openbot:close-sidebar')) }}>
       <BotAvatar bot={bot} size="sm" /><span className="ob-side-item-name">{bot.name}</span>
     </button>
     <button type="button" className="ob-icon-btn ob-side-item-action" aria-label={`Edit ${bot.name}`} onClick={() => store.setModal('bots', bot.id)}><IconPencil size={11} /></button>

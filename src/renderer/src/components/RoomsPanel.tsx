@@ -1,3 +1,4 @@
+import { copyText } from '../lib/clipboard'
 import { RoomDevices } from './RoomDevices'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { CollaborationRoom } from '../../../shared/types'
@@ -20,7 +21,7 @@ export function RoomsPanel(): ReactNode {
   const [stopping, setStopping] = useState<string | null>(null)
   const [error, setError] = useState('')
   const invitation = rooms.find(room => room.id === inviteId)
-  useEffect(() => { void loadRooms() }, [])
+  useEffect(() => { void loadRooms(); const timer = setInterval(() => { void loadRooms() }, 15000); return () => clearInterval(timer) }, [])
   useEffect(() => {
     let active = true; setQr(null); setQrError(false)
     if (invitation?.inviteUrl) void window.openbot.rooms.qr(invitation.id).then(data => {
@@ -53,20 +54,20 @@ export function RoomsPanel(): ReactNode {
     } finally { saving.current = false; setBusy(false) }
   }
   const stop = async (id: string): Promise<void> => { if (stopping) return; setStopping(id); try { if (await removeRoom(id)) setInviteId(current => current === id ? null : current) } finally { setStopping(null) } }
-  const copy = (url: string): void => { void navigator.clipboard.writeText(url).then(() => store.toast(zh ? '邀请链接已复制。' : 'Invite link copied.'), () => store.toast(zh ? '剪贴板不可用。' : 'Clipboard unavailable.', 'error')) }
+  const copy = (url: string): void => { void copyText(url).then(() => store.toast(zh ? '邀请链接已复制。' : 'Invite link copied.'), () => store.toast(zh ? '剪贴板不可用。' : 'Clipboard unavailable.', 'error')) }
   return <FormDialog title={zh ? '远程连接与共享' : 'Remote access and sharing'} subtitle={zh ? '邀请同一 Wi-Fi 的设备申请连接。每台设备须由主机核对身份并明确批准工作区范围和权限。' : 'Invite devices on the same Wi-Fi to request a connection. Verify each device and explicitly approve its workspace scope and permissions on the Mac.'} size="lg" fallbackFocus="#ob-prompt" onClose={() => store.setModal(null)}>
     <div id={scope} className="ob-rooms">
       <div className="ob-rooms-toolbar"><button data-room-add type="button" className="ob-btn ob-btn-primary" disabled={!session || busy} onClick={() => void connect()}><IconPlus size={12} />{busy ? (zh ? '正在开启…' : 'Starting…') : zh ? '显示连接二维码' : 'Show connection QR'}</button></div>
-      <p className="ob-hint">{zh ? '同一 Wi-Fi：手机扫码 → 确认设备名称 → 在 Mac 允许连接。链接只用于申请，批准前不能读取任何聊天或操作。主机可允许只读或操作整个工作区，随时拒绝或撤销；系统及工具审批仍在 Mac 完成。退出应用后连接停止。' : 'On the same Wi-Fi: scan → confirm the device name → allow on this Mac. The link only requests access; no chats or actions are available before approval. Grant workspace viewing or controls, and deny or revoke at any time. System and tool approvals remain on the Mac. Connections stop on quit.'}</p>
+      <p className="ob-hint">{zh ? '同一 Wi-Fi：手机扫码 → 确认设备名称 → 在 Mac 允许连接。链接只用于申请，批准前不能读取任何聊天或操作。主机可允许只读或操作整个工作区，随时拒绝或撤销；系统及工具审批仍在 Mac 完成。退出期间连接暂停；重新打开 App 后在原地址恢复共享，已批准设备可在原八小时期限内自动重连。停止共享或撤销后不会恢复。' : 'On the same Wi-Fi: scan → confirm the device name → allow on this Mac. The link only requests access; no chats or actions are available before approval. Grant workspace viewing or controls, and deny or revoke at any time. System and tool approvals remain on the Mac. Connections pause on quit. Reopening the app restores sharing at the same address within the original eight-hour approval. Stopped sharing and revoked devices stay stopped.'}</p>
       {error && !draft ? <p role="alert">{error}</p> : null}
       {!rooms.length ? <p className="ob-hint">{zh ? '还没有共享房间。' : 'No shared rooms.'}</p> : <ul className="ob-rooms-list">{rooms.map(room => <li key={room.id} data-room-id={room.id}>
-        <div className="ob-rooms-main"><strong>{room.name}</strong><span>{room.enabled && room.inviteUrl ? (room.permission === 'view' ? (zh ? '共享中 · 仅查看' : 'Sharing · view only') : (zh ? '共享中 · 允许操作' : 'Sharing · controls enabled')) : (zh ? '未开启；重启后需重新共享' : 'Off; share again after restart')}</span></div>
+        <div className="ob-rooms-main"><strong>{room.name}</strong><span>{room.enabled && room.inviteUrl ? (room.permission === 'view' ? (zh ? '共享中 · 仅查看' : 'Sharing · view only') : (zh ? '共享中 · 允许操作' : 'Sharing · controls enabled')) : (room.enabled ? (zh ? '等待恢复连接' : 'Waiting to restore sharing') : (zh ? '未开启' : 'Off'))}</span></div>
         <div className="ob-rooms-actions">
           {room.inviteUrl ? <><button type="button" className="ob-btn ob-btn-sm" data-room-invite onClick={() => setInviteId(room.id)}>{zh ? '邀请 / 二维码' : 'Invite / QR'}</button><button type="button" className="ob-btn ob-btn-sm" data-room-edit onClick={() => edit(room)}>{zh ? '修改' : 'Edit'}</button></> : <button type="button" className="ob-btn ob-btn-sm" data-room-reshare onClick={() => edit(room)}><IconRefresh size={12}/>{zh ? '重新共享' : 'Share again'}</button>}
           <button type="button" className="ob-btn ob-btn-sm" data-room-stop disabled={stopping !== null} onClick={() => void stop(room.id)}>{stopping === room.id ? (zh ? '正在停止…' : 'Stopping…') : room.inviteUrl ? (zh ? '停止共享' : 'Stop sharing') : (zh ? '移除' : 'Remove')}</button>
           <button type="button" className="ob-btn ob-btn-sm" onClick={() => { void selectSession(room.sessionId); store.setModal(null) }}>{zh ? '打开聊天' : 'Open chat'}</button>
         </div>
-        <RoomDevices roomId={room.id} />
+        {room.enabled ? <p className="ob-hint" role="status">{room.recovery === 'saved' ? (zh ? '已安全保存重启恢复；设备批准不延长期限。' : 'Secure restart recovery saved; approvals keep their expiry.') : room.recovery === 'address-changed' ? (zh ? '原 Wi-Fi 地址不可用。回到原网络可自动恢复；换网络请在 Mac 重新共享地址。' : 'The saved Wi-Fi address is unavailable. Rejoin that network or share a new address from the Mac.') : room.recovery === 'port-unavailable' ? (zh ? '原连接端口被占用，未改用其他地址。请在 Mac 排查后重试。' : 'The saved port is occupied. Check the conflicting listener on the Mac and retry.') : (zh ? '系统安全存储不可用：当前仅临时共享，重启后需重新开启和批准。' : 'Secure storage unavailable: temporary sharing only; restart requires sharing and approval again.')}</p> : null}<RoomDevices roomId={room.id} />
       </li>)}</ul>}
       {draft ? <FormDialog title={draft.editing ? (zh ? '修改共享' : 'Edit sharing') : (zh ? '共享当前聊天' : 'Share chat')} size="md" fallbackFocus={anchor} onClose={closeDraft}>
         <form className="ob-rooms-form" onSubmit={event => { event.preventDefault(); void save() }}>

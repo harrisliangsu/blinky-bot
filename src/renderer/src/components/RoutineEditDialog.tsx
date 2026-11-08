@@ -5,10 +5,10 @@ import { FormDialog } from './FormDialog'
 import { RoutineTimingFields } from './RoutineTimingFields'
 
 /** Keep edits local; polling updates must not replace unfinished text. */
-export function RoutineEditDialog({ routine, zh, onClose }: { routine: Routine; zh: boolean; onClose(): void }): ReactNode {
+export function RoutineEditDialog({ routine, initialTrigger, zh, onClose }: { routine: Routine; initialTrigger?: Routine['trigger']; zh: boolean; onClose(): void }): ReactNode {
   const [instruction, setInstruction] = useState(routine.instruction ?? '')
   const [original] = useState(routine)
-  const [trigger, setTrigger] = useState(routine.trigger)
+  const [trigger, setTrigger] = useState(initialTrigger ?? routine.trigger)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   return <FormDialog title={zh ? '编辑例程' : 'Edit routine'} size="md" onClose={() => { if (!busy) onClose() }}>
@@ -26,6 +26,7 @@ export function RoutineEditDialog({ routine, zh, onClose }: { routine: Routine; 
     }}>
       <fieldset disabled={busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
         {routine.instruction ? <div className="ob-field"><label htmlFor="ob-routine-edit-instruction">{zh ? '任务指令' : 'Instruction'}</label><textarea id="ob-routine-edit-instruction" className="ob-textarea" rows={5} value={instruction} onChange={event => setInstruction(event.target.value)} required /></div> : null}
+        <p className="ob-hint">{zh ? '运行时间：' : 'Trigger: '}{({ manual: zh ? '手动' : 'Manual', schedule: zh ? '定时' : 'Schedule', once: zh ? '一次性' : 'Once', folder_change: zh ? '文件夹变化' : 'Folder changes' } as Record<string, string>)[trigger.kind] ?? trigger.kind}</p>
         <RoutineTimingFields id="ob-routine-edit" trigger={trigger} onChange={setTrigger} zh={zh} />
         {error ? <p role="alert">{error}</p> : null}
         <button type="button" className="ob-btn ob-btn-sm" onClick={onClose}>{zh ? '取消' : 'Cancel'}</button>

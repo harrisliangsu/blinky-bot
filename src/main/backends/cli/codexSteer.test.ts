@@ -15,7 +15,7 @@ test('Codex steering reaches the active turn and is recorded before completion',
   const dir = await mkdtemp(join(tmpdir(), 'blinky-steer-'))
   const prior = process.env.OPENBOT_DATA_DIR
   process.env.OPENBOT_DATA_DIR = dir
-  const script = join(dir, 'fake-codex')
+  const script = join(dir, 'fake-codex.cjs')
   const trace = join(dir, 'trace.json')
   await writeFile(script, `#!/usr/bin/env node
 const readline = require('node:readline');
@@ -81,7 +81,7 @@ test('a text-only live model receives an image warning instead of a local image'
   const dir = await mkdtemp(join(tmpdir(), 'blinky-steer-text-only-'))
   const prior = process.env.OPENBOT_DATA_DIR
   process.env.OPENBOT_DATA_DIR = dir
-  const script = join(dir, 'fake-codex')
+  const script = join(dir, 'fake-codex.cjs')
   const trace = join(dir, 'input.json')
   await writeFile(script, `#!/usr/bin/env node
 const readline = require('node:readline');
@@ -136,7 +136,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 
 test('foreign threads and turns cannot replace or end the active Codex reply', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'blinky-thread-isolation-'))
-  const script = join(dir, 'fake-codex')
+  const script = join(dir, 'fake-codex.cjs')
   await writeFile(script, `#!/usr/bin/env node
 const readline = require('node:readline');
 const emit = x => process.stdout.write(JSON.stringify(x)+'\\n');

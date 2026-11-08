@@ -2,14 +2,15 @@ import type { CollaborationRoom } from '../../shared/types'
 import { collaborationOrigin, ensureCollaborationServer, roomInviteUrl, stopCollaborationServer } from '../collaboration/server'
 import { invitationQr } from '../collaboration/qr'
 import { getSession } from '../store/sessions'
-import { removeRoom, roomById, shareRoom, sharedRooms, storedRooms, type StoredRoom } from '../store/rooms'
+import { removeRoom, roomById, shareRoom, sharedRooms, storedRooms, restoreRoomDocument, type StoredRoom } from '../store/rooms'
+import { forgetSharing, rememberSharing, sharingRecoveryState } from '../collaboration/recovery'
 import { CHANNELS } from './channels'
 import { emptyArray, handle, handleEvent, nullResult } from './handler'
 import { asId, asString } from './validate'
 import { roomAccess } from '../collaboration/access'
 import { broadcast } from './broadcast'
 
-function publicRoom(room: StoredRoom): CollaborationRoom { const { token: _token, ...visible } = room; return { ...visible, inviteUrl: roomInviteUrl(room) } }
+function publicRoom(room: StoredRoom): CollaborationRoom { const { token: _token, ...visible } = room; return { ...visible, inviteUrl: roomInviteUrl(room), recovery: sharingRecoveryState() } }
 let mutations: Promise<unknown> = Promise.resolve()
 function serial<T>(action: () => Promise<T>): Promise<T> { const result = mutations.then(action, action); mutations = result.catch(() => {}); return result }
 export function registerRoomIpc(): void {
@@ -30,10 +31,14 @@ export function registerRoomIpc(): void {
     const label = name === undefined ? session.title : asString(name, 200)
     // Only report sharing enabled after the listener actually exists.
     await ensureCollaborationServer()
-    return publicRoom(shareRoom(session.id, label, permission ?? 'control'))
+    const previous = storedRooms().find(room => room.sessionId === session.id)
+    const room = shareRoom(session.id, label, permission ?? 'control')
+    try { rememberSharing() } catch (error) { if (previous) restoreRoomDocument(previous); else removeRoom(room.id); throw error }
+    return publicRoom(room)
   }), nullResult)
   handle<boolean>(CHANNELS.roomsRemove, ([id]) => serial(async () => {
     roomAccess.revokeRoom(asId(id))
+    forgetSharing(asId(id))
     removeRoom(asId(id))
     if (sharedRooms().length === 0) await stopCollaborationServer()
     return roomById(asId(id)) === null

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Bot, SearchResult } from '../../../shared/types'
 import { useFocusTrap } from '../lib/focusTrap'
 import { openBotChat, selectProject, store, useAppState } from '../state'
-import { IconBot, IconRoutine, IconSearch, IconSettings } from './Icons'
+import { IconBot, IconClose, IconRoutine, IconSearch, IconSettings } from './Icons'
 import './CommandPalette.css'
 
 interface PaletteItem {
@@ -138,6 +138,7 @@ function PaletteDialog({ bots, currentSessionId }: { bots: Bot[]; currentSession
               setCursor(0)
             }}
           />
+          <button type="button" className="ob-icon-btn" aria-label="Close search" title="Close search (Esc)" onClick={() => store.setModal(null)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }}><IconClose size={14} /></button>
         </div>
 
         <ul className="ob-palette-list" id="ob-palette-list" role="listbox" aria-label="Results">

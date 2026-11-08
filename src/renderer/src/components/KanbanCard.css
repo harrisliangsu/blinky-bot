@@ -128,3 +128,6 @@
   color: var(--ob-text-disabled);
   cursor: not-allowed;
 }
+@media (hover: none), (pointer: coarse) {
+  .ob-kb-card-actions { opacity: 1; }
+}

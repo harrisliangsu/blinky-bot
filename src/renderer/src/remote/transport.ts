@@ -2,6 +2,8 @@ import type { AgentEvent, Message, OpenBotApi, Session } from '../../../shared/t
 import type { RemotePage, RemoteRpcReply, RemoteUpdateReply } from '../../../shared/remoteProtocol'
 import { createOpenBotApi, type ApiTransport } from '../../../shared/apiClient'
 import { DeviceIdentity, RemoteHttpError, nonce, type RemoteGrant } from './identity'
+import { remoteChannelPolicies } from '../../../shared/remoteCapabilities'
+import { browserAttachments, selectBrowserFiles } from './attachments'
 import { store, loadActivity, loadBots, loadGroups, loadProjects, loadRoutines, loadSessions, loadSettings, loadSkills, loadBackends } from '../state'
 
 interface PageCache { session: Session; page: RemotePage }
@@ -15,19 +17,96 @@ export class BrowserTransport implements ApiTransport {
   private readonly runStates = new Map<string, boolean>()
   private readonly earlier = new Map<string, Promise<void>>()
   private stopped = false
+  private leaseTimer: ReturnType<typeof setTimeout> | undefined
+  private expireLease(): void {
+    clearTimeout(this.leaseTimer)
+    this.leaseTimer = setTimeout(() => { if (!this.stopped) { this.stop(); this.lost('expired') } }, this.identity.remainingLease(this.access))
+  }
+  private readonly watches = new Map<string, string | null>()
+  private restartPending = false
+  private restoring: Promise<void> | null = null
   private polling = false
   private revision = 0
   private pollController: AbortController | null = null
+  private retryWake: (() => void) | null = null
+  private acceptAccess(next: RemoteGrant): boolean {
+    if (next.scope !== this.access.scope || next.permission !== this.access.permission || next.sessionId !== this.access.sessionId || next.roomId !== this.access.roomId) {
+      // A changed grant must boot a fresh projection, never retain a formerly
+      // authorized workspace or an editable composer after a downgrade.
+      this.stop(); this.lost('changed'); return false
+    }
+    if (next.grant !== this.access.grant) this.restartPending = true
+    this.access = next
+    this.expireLease()
+    return true
+  }
+  /** Grants rotate after a host restart. Restore watches/cursors without a navigation or resend. */
+  private restoreHost(): Promise<void> {
+    if (!this.restartPending) return Promise.resolve()
+    if (this.restoring) return this.restoring
+    this.restoring = (async () => {
+      this.revision = 0; this.runStates.clear()
+      for (const [slot, id] of this.watches) await this.rpc('openbot:sessions:watch', [slot, id])
+      for (const [id, previous] of [...this.pages]) {
+        let reply = await this.rpc('openbot:sessions:get', [id])
+        let session = reply.value as Session, page = reply.page
+        if (!page) throw new Error('The restored conversation response was incomplete.')
+        const oldest = previous.session.messages[0]?.id
+        while (page.hasMore && page.olderCursor && session.messages.length < previous.session.messages.length + 40 && oldest && !session.messages.some(message => message.id === oldest)) {
+          reply = await this.rpc('openbot:remote:history', [id, page.olderCursor])
+          if (!reply.page || reply.page.olderCursor === page.olderCursor) break
+          const earlier = reply.value as Session, known = new Set(earlier.messages.map(message => message.id))
+          session = { ...session, messages: [...earlier.messages, ...session.messages.filter(message => !known.has(message.id))] }
+          page = { ...page, olderCursor: reply.page.olderCursor, hasMore: reply.page.hasMore }
+        }
+        if (this.stopped) return
+        window.dispatchEvent(new CustomEvent('blinky:remote-history-before', { detail: id }))
+        this.pages.set(id, { session, page }); this.historyChanged(); this.emit({ type: 'session-updated', session })
+        window.dispatchEvent(new CustomEvent('blinky:remote-history-after', { detail: id }))
+      }
+      this.restartPending = false
+    })().finally(() => { this.restoring = null })
+    return this.restoring
+  }
+  private probePending: Promise<void> | null = null
+  private disconnected = false
+  private probe(): Promise<void> {
+    if (this.probePending) return this.probePending
+    this.probePending = (async () => {
+      try {
+        const result = await this.identity.check(true)
+        if (this.stopped) return
+        if (!result.access) { this.stop(); this.lost(result.state); return }
+        if (!this.acceptAccess(result.access)) return
+        await this.restoreHost()
+        this.disconnected = false; this.network(true)
+      } catch (error) {
+        if (this.stopped) return
+        if (error instanceof RemoteHttpError && [401, 403, 404].includes(error.status)) { this.stop(); this.lost('expired'); return }
+        this.disconnected = true; this.network(false)
+      }
+    })().finally(() => { this.probePending = null })
+    return this.probePending
+  }
+  reconnect(): void { if (this.stopped) return; void this.probe(); this.retryWake?.(); this.kick() }
+  private readonly online = (): void => { this.reconnect() }
   private metadataRefresh = Promise.resolve()
   private readonly kick = (): void => { this.pollController?.abort(); if (!this.stopped) void this.poll() }
-  constructor(private readonly identity: DeviceIdentity, private access: RemoteGrant, private readonly network: (connected: boolean) => void, private readonly lost: (state: string) => void) {
+  constructor(private readonly identity: DeviceIdentity, private access: RemoteGrant, private readonly network: (connected: boolean, reason?: 'offline' | 'host-restarting') => void, private readonly lost: (state: string) => void) {
+    this.expireLease()
     this.api = createOpenBotApi(this, { kind: 'browser', scope: access.scope, permission: access.permission, initialSessionId: access.sessionId, capabilities: ['workspace', 'public-chat', 'history', 'ordinary-questions', 'browser-files'] })
+    const upload = async (input: { name: string; data: string }): Promise<string> => String((await this.rpc('openbot:remote:upload', [input])).value)
+    this.api.dialog.importAttachments = async files => {
+      if (this.access.permission !== 'control') throw new Error('此设备仅可查看。 / This device has view-only access.')
+      return browserAttachments(files, upload)
+    }
+    this.api.dialog.pickAttachments = async () => this.api.dialog.importAttachments!(await selectBrowserFiles())
     this.api.history = {
       hasMore: id => this.pages.get(id)?.page.hasMore === true,
       loadEarlier: (id, beforeApply) => this.loadEarlier(id, beforeApply),
       subscribe: listener => { this.historyListeners.add(listener); return () => this.historyListeners.delete(listener) }
     }
-    window.addEventListener('online', this.kick)
+    window.addEventListener('online', this.online)
     document.addEventListener('visibilitychange', this.kick)
   }
   subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -73,7 +152,7 @@ export class BrowserTransport implements ApiTransport {
     try {
       const undefinedArgs = args.flatMap((value, index) => value === undefined ? [index] : [])
       const data = await this.identity.signed('/api/rpc', { channel, args, undefinedArgs, clientId: this.id, ...extra }, this.access) as RemoteRpcReply
-      this.network(true); return data
+      if (!this.restartPending) this.network(true); return data
     } catch (error) {
       if (error instanceof RemoteHttpError && error.status === 401) void this.refreshAccess()
       throw error
@@ -81,21 +160,27 @@ export class BrowserTransport implements ApiTransport {
   }
   async invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
     if (this.stopped) throw new Error('This connection is closed.')
+    if (this.restartPending) await this.restoreHost()
     // These act on this browser, never on the host operating system.
     if (channel === 'openbot:window:isFullScreen') return Boolean(document.fullscreenElement) as T
     if (channel === 'openbot:window:setFullScreen') { if (args[0]) await document.documentElement.requestFullscreen(); else if (document.fullscreenElement) await document.exitFullscreen(); return true as T }
-    if (channel === 'openbot:notification:status') return { supported: false, state: 'idle', enabled: false, replies: false } as T
+    if (channel === 'openbot:notification:status') return { supported: false, hostManaged: true, state: 'idle', enabled: false, replies: false } as T
     if (channel === 'openbot:voice:status') return { speech: 'unavailable', microphone: 'unknown', onDevice: false, language: typeof args[0] === 'string' ? args[0] : '', failure: 'host-required' } as T
     if (channel === 'openbot:voice:stop') return undefined as T
     if (channel === 'openbot:voice:start') return { ok: false, error: 'host-required' } as T
     if (channel === 'openbot:gmail-drafts:presented') return false as T
     if (channel === 'openbot:app:openRelease') {
       const url = new URL(String(args[0])); if (!['http:', 'https:'].includes(url.protocol)) throw new Error('This link cannot be opened in the browser.')
-      return Boolean(window.open(url.href, '_blank', 'noopener,noreferrer')) as T
+      const link = document.createElement('a'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.click(); return true as T
     }
     if (channel === 'openbot:dialog:pickFiles') return await this.pickFiles() as T
-    if (channel === 'openbot:dialog:pickDirectory') throw new Error('在 Mac 选择本机目录。 / Choose host directories on the Mac.')
-    if (channel.startsWith('openbot:notification:') || channel === 'openbot:backends:login' || channel === 'openbot:rooms:decideDevice' || channel === 'openbot:rooms:devices') throw new Error('此操作须在 Mac 上完成。 / Complete this operation on the Mac.')
+    if (channel === 'openbot:dialog:pickDirectory') { window.dispatchEvent(new CustomEvent('blinky:remote-host-required', { detail: '本机文件夹须在 Mac 上选择；远程无法授予文件系统访问权限。 / Choose host folders on the Mac.' })); return null as T }
+    if (channel === 'openbot:apps:cancelGoogle' || channel === 'openbot:apps:cancelX') return undefined as T
+    if (!remoteChannelPolicies.has(channel) && channel !== 'openbot:sessions:watch') {
+      const message = '此操作需要在 Mac 上完成。远程可以查看状态；账号登录、凭据、工具/系统授权和本机设备配置请回到主机处理。 / Complete this operation on the Mac.'
+      window.dispatchEvent(new CustomEvent('blinky:remote-host-required', { detail: message }))
+      throw new Error(message)
+    }
     if (channel === 'openbot:bots:create' && args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])) {
       // Templates and both common editors create a persona, not a new local
       // permission grant. The server independently rejects direct escalation.
@@ -107,6 +192,10 @@ export class BrowserTransport implements ApiTransport {
       const cache = this.pages.get(String(args[0])); if (cache) extra.knownVersion = cache.page.revision
     }
     if (channel === 'openbot:agent:send' || channel === 'openbot:agent:enqueue') {
+      if (Array.isArray(args[2])) args[2] = args[2].map(attachment => {
+        if (attachment?.kind === 'image' && typeof attachment.path === 'string' && attachment.path.startsWith('blinky-upload:')) { const { data: _preview, ...reference } = attachment; return reference }
+        return attachment
+      })
       const key = JSON.stringify([args[0], args[1], args[2]])
       receipt = this.pendingReceipts.get(key) ?? this.identity.messageReceipt(String(args[0]), args.slice(1))
       this.pendingReceipts.set(key, receipt); extra.requestId = receipt.id
@@ -118,7 +207,7 @@ export class BrowserTransport implements ApiTransport {
     }
     const reply = await this.rpc(channel, args, extra)
     if (channel === 'openbot:sessions:get') { const session = this.acceptPage(reply); this.kick(); return session as T }
-    if (channel === 'openbot:sessions:watch') this.kick()
+    if (channel === 'openbot:sessions:watch') { this.watches.set(String(args[0]), args[1] === null ? null : String(args[1])); this.kick() }
     return reply.value as T
   }
   private loadEarlier(id: string, beforeApply?: () => void): Promise<void> {
@@ -160,7 +249,7 @@ export class BrowserTransport implements ApiTransport {
     try {
       const result = await this.identity.check(true)
       if (this.stopped) return false
-      if (result.access) { this.access = result.access; if (this.api.environment) this.api.environment.permission = this.access.permission; return true }
+      if (result.access) { if (!this.acceptAccess(result.access)) return false; await this.restoreHost(); return true }
       this.stop(); this.lost(result.state); return false
     } catch {
       // This follows an explicit 401, not ordinary Wi-Fi loss. A host that
@@ -213,6 +302,8 @@ export class BrowserTransport implements ApiTransport {
     let failures = 0
     try {
       while (!this.stopped) {
+        if (this.disconnected) await this.probe()
+        if (this.stopped) break
         this.pollController = new AbortController()
         try {
           const versions = Object.fromEntries([...this.pages].map(([id, cache]) => [id, cache.page.revision]))
@@ -222,15 +313,22 @@ export class BrowserTransport implements ApiTransport {
         } catch (error) {
           if (this.stopped) break
           if (this.pollController.signal.aborted) continue
-          this.network(false)
+          this.disconnected = true
+          this.network(false, error instanceof RemoteHttpError && error.code === 'host-restarting' ? 'host-restarting' : 'offline')
           if (error instanceof RemoteHttpError && error.status === 401 && !await this.refreshAccess()) break
-          await new Promise(resolve => setTimeout(resolve, Math.min(5000, 300 * 2 ** Math.min(failures++, 4))))
+          await new Promise<void>(resolve => {
+            const timer = setTimeout(done, Math.min(5000, 300 * 2 ** Math.min(failures++, 4)))
+            function done(): void { clearTimeout(timer); resolve() }
+            this.retryWake = done
+          })
+          this.retryWake = null
         }
       }
     } finally { this.polling = false; this.pollController = null }
   }
   stop(): void {
-    this.stopped = true; this.pollController?.abort(); this.pages.clear(); this.listeners.clear(); this.historyListeners.clear()
-    window.removeEventListener('online', this.kick); document.removeEventListener('visibilitychange', this.kick)
+    clearTimeout(this.leaseTimer)
+    this.stopped = true; this.retryWake?.(); this.pollController?.abort(); this.pages.clear(); this.listeners.clear(); this.historyListeners.clear()
+    window.removeEventListener('online', this.online); document.removeEventListener('visibilitychange', this.kick)
   }
 }

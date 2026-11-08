@@ -11,6 +11,7 @@ import { newId, now } from './ids'
 import { sessions } from './sessionGateway'
 import { captureUserPreference } from './memoryPreferences'
 import { scrubVaultMessage } from '../store/vaultPrivacy'
+import { taskJudgmentScope } from './taskJudgmentScope'
 
 export function assistantMessage(bot: Bot): Message {
   return {
@@ -91,8 +92,9 @@ export async function addToolMessage(
   result: ToolResult
 ): Promise<Message> {
   const message: Message = {
-    id: newId('msg'),
+    id: (taskJudgmentScope(session.id)?'agent-judgment-tool-':'')+newId('msg'),
     role: 'tool',
+    ...(taskJudgmentScope(session.id)?{internal:true}:{}),
     content: result.output,
     toolResult: result,
     botId,
@@ -119,7 +121,7 @@ export async function addNotice(
   uiOnly = false
 ): Promise<Message> {
   const message: Message = {
-    id: messageId ?? newId('msg'),
+    id: (taskJudgmentScope(session.id)?'agent-judgment-notice-':'')+(messageId ?? newId('msg')),
     role: 'assistant',
     content: text,
     botId: bot?.id,
@@ -127,6 +129,7 @@ export async function addNotice(
     createdAt: now(),
     streaming: false,
     error,
+    ...(taskJudgmentScope(session.id)?{internal:true}:{}),
     ...(uiOnly ? { uiOnly: true } : {})
   }
   begin(session.id, message)

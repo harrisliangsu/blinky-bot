@@ -98,6 +98,7 @@ export function defaultSettings(): Settings {
     fontSize: 14,
     uiScale: 100,
     vibrant: false,
+    nativeGlass: true,
     language: 'zh-CN',
     accent: 'theme',
     sendShortcut: 'enter',
@@ -323,7 +324,8 @@ export function normaliseSettings(raw: unknown): Settings {
       ? Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(fontSize)))
       : defaults.fontSize,
     uiScale: pickScale(merged['uiScale']),
-    vibrant: merged['vibrant'] === true,
+    vibrant: false,
+    nativeGlass: merged['nativeGlass'] !== false,
     language: pickEnum(merged['language'], LANGUAGES, defaults.language),
     accent: pickEnum(merged['accent'], ACCENTS, defaults.accent),
     sendShortcut: pickEnum(merged['sendShortcut'], SHORTCUTS, defaults.sendShortcut),

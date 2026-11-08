@@ -32,6 +32,7 @@ import { startAppleVm } from '../vm/appleVmSupervisor'
 import { vmToken } from '../store/vmSecrets'
 import { settingsStore } from './settingsGateway'
 import { isLocalResourceTool } from '../../shared/localExecution'
+import { taskJudgmentAllows, taskJudgmentScope } from './taskJudgmentScope'
 
 export interface ExecuteInput {
   session: Session
@@ -62,6 +63,8 @@ export async function toolAllowedForBot(bot: Bot, name: string, resolved?: ToolE
 }
 
 export async function executeCall(input: ExecuteInput): Promise<ToolResult> {
+  const judgment=taskJudgmentScope(input.session.id)
+  if(judgment&&!taskJudgmentAllows(input.session.id,input.call.name,input.call.args??{})){judgment.attemptedTool=true;return {callId:input.call.id,name:input.call.name,ok:false,output:'Internal task consideration permits only scoped task inspection, not task mutation, delegation, file access or execution. Return a decision; the host validates and delivers it.'}}
   input = { ...input, settings: await settingsStore.get() }
   const { session, bot, call, signal } = input
   const startedAt = now()
@@ -118,7 +121,7 @@ function gate(
 
   if (!permitted) return fail(call, `Refused: "${call.name}" is not enabled for this bot.`)
 
-  if (!allowedInMode(session.mode, call.name, schema)) {
+  if (!allowedInMode(session.mode, call.name, schema, call.args ?? {})) {
     return fail(call, modeRefusal(session.mode, call.name))
   }
 
@@ -150,9 +153,9 @@ async function approveAndRun(
   const { call, session, signal } = input
 
   // Tools that describe their own action ask for themselves; see `toolContext.ts`.
-  const selfApproving = SELF_APPROVING.has(call.name)
+  const selfApproving = SELF_APPROVING.has(call.name) || (call.name === 'manage_task' && call.args?.action === 'resume')
   const needsApproval =
-    !selfApproving && (isMutatingTool(call.name, schema) || schema?.computerUse === true)
+    !selfApproving && (isMutatingTool(call.name, schema, call.args ?? {}) || schema?.computerUse === true)
 
   if (needsApproval) {
     const target = targetForCall(call)

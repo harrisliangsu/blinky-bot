@@ -18,6 +18,7 @@ import { isCodexCoordinator, isTracedBackgroundRun } from './executionAgent'
 import { usesApplicationToolLoop } from '../../shared/executionAgentCapabilities'
 import { requestTaskClarification } from '../tasks/clarifications'
 import { localExecutionPolicy } from '../../shared/localExecution'
+import { taskJudgmentScope } from './taskJudgmentScope'
 
 export interface ChatRequestInput {
   session: Session
@@ -40,7 +41,7 @@ export interface ChatRequestInput {
 function mcpServersFor(input: ChatRequestInput): ChatRequest['mcpServers'] {
   // Third-party MCP servers execute outside the CLI sandbox and cannot be
   // classified as read-only. Ask/Plan must not expose them directly.
-  const configured = (isReadOnlyMode(input.session.mode) || isCodexCoordinator(input.session, input.bot) || usesApplicationToolLoop(input.bot.backendId) ? [] : (input.settings.mcpServers ?? []))
+  const configured = (taskJudgmentScope(input.session.id) || isReadOnlyMode(input.session.mode) || isCodexCoordinator(input.session, input.bot) || usesApplicationToolLoop(input.bot.backendId) ? [] : (input.settings.mcpServers ?? []))
     .filter((server) => server.enabled)
     .map((server) => ({
       name: server.accountName?.trim() ? `${server.name} ${server.accountName.trim()}` : server.name,
@@ -72,7 +73,7 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
   return {
     model: bot.modelId,
     localExecutionSessionId: session.id,
-    requestInput: questions => requestTaskClarification(session.id, bot.id, questions, signal),
+    requestInput: questions => taskJudgmentScope(session.id) ? Promise.reject(new Error('Return the required action as a task decision; do not open a new question from internal consideration.')) : requestTaskClarification(session.id, bot.id, questions, signal),
     captureAgentTrace: isTracedBackgroundRun(session.id),
     ...(input.supportsVision === undefined ? {} : { supportsVision: input.supportsVision }),
     ...(bot.thinking ? { thinking: bot.thinking } : {}),
@@ -112,13 +113,15 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
     mcpServers: mcpServersFor(input),
     // Lets a session-based CLI continue its own conversation between turns
     // instead of starting cold each time, without two bots sharing one thread.
-    sessionKey: conversationKey(session, bot),
+    sessionKey: conversationKey(taskJudgmentScope(session.id)?.nativeSessionId?{...session,id:taskJudgmentScope(session.id)!.nativeSessionId!}:session, bot),
     /*
      * Permission requests raised by a session-based CLI are answered by the
      * same gate, policy and allowlist as our own tools — rather than the CLI
      * quietly answering them itself, which is what one-shot `exec` does.
      */
     approve: async ({ kind, summary, detail, target, force }) => {
+      const judgment=taskJudgmentScope(session.id)
+      if(judgment){judgment.attemptedTool=true;return 'reject'}
       const policyTarget = target?.trim() || detail
       /*
        * An approval dialog must not be offered for something the mode

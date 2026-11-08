@@ -1,3 +1,4 @@
+import { randomId } from '../lib/randomId'
 import { useEffect, useRef, useState } from 'react'
 import type { VoiceEvent } from '../../../shared/voice'
 import { voiceError } from '../lib/voice'
@@ -35,7 +36,7 @@ export function useVoiceInput(owner: string | undefined, language: string, zh: b
       setState('stopping'); void window.openbot.voice.stop(active.id); return
     }
     if (!owner) return
-    const id = crypto.randomUUID(); run.current = { id, owner }
+    const id = randomId(); run.current = { id, owner }
     setError(''); setInterim(''); setState('starting')
     void window.openbot.voice.start(id, language).then((reply) => {
       if (run.current?.id !== id) return

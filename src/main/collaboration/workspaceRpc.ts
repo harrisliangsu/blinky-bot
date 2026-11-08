@@ -77,7 +77,7 @@ export function remoteMessageChanges(session: Session, since: number) {
   return { revision: changed.revision, reset: changed.reset, upserts, removed }
 }
 const ordinary = (request: AgentTaskClarification): boolean => request.questions.every(question => !protectedQuestion(question) && ['fact', 'preference', 'implementation'].includes(question.kind ?? ''))
-const allowedSettings = new Set(['theme', 'language', 'vibrant', 'uiScale', 'accent', 'sendShortcut', 'linkOpen', 'expandSteps', 'defaultBackendId', 'defaultModelId', 'defaultThinking', 'defaultMode'])
+const allowedSettings = new Set(['theme', 'language', 'vibrant', 'nativeGlass', 'uiScale', 'accent', 'sendShortcut', 'linkOpen', 'expandSteps', 'defaultBackendId', 'defaultModelId', 'defaultThinking', 'defaultMode', 'notifications', 'notifyOnTurn'])
 function plain(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new RoomAccessError(400, 'Expected form fields.')
   return value as Record<string, unknown>
@@ -105,7 +105,7 @@ export async function remoteRpc(access: RemoteAccess, context: RemoteContext, in
   if (!policy) throw new RoomAccessError(403, 'This operation needs confirmation or a native capability on the Mac.')
   if (policy === 'write' && access.permission !== 'control') throw new RoomAccessError(403, 'This device has view-only access.')
   if (!allowed()) throw new RoomAccessError(401, 'This device is no longer approved.')
-  if (channel === 'openbot:remote:upload') return { value: await uploadRemoteFile(access.grant, args[0], allowed) }
+  if (channel === 'openbot:remote:upload') return { value: await uploadRemoteFile(access.room.id + ':' + access.room.token + ':' + access.deviceId, args[0], allowed) }
   if (watch) {
     if (args[0] !== 'chat' && args[0] !== 'agent') throw new RoomAccessError(400, 'Invalid conversation slot.')
     context.slots[args[0] as 'chat' | 'agent'] = args[1] === null ? null : remoteSession(access, args[1]).id
@@ -137,7 +137,7 @@ export async function remoteRpc(access: RemoteAccess, context: RemoteContext, in
   if (channel === 'openbot:agent:send' || channel === 'openbot:agent:enqueue') {
     const session = remoteSession(access, args[0]), text = safeLine(typeof args[1] === 'string' ? args[1] : '', 10_000), requestId = input.requestId
     if (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{8,120}$/.test(requestId)) throw new RoomAccessError(400, 'A stable message receipt is required.')
-    const attachments = remoteAttachments(access.grant, args[2])
+    const attachments = remoteAttachments(access.room.id + ':' + access.room.token + ':' + access.deviceId, args[2])
     if (!text && !attachments.length) throw new RoomAccessError(400, 'A message is required.')
     const names = session.botIds.map(id => getBot(id)?.name ?? '').filter(Boolean)
     const line = '[remote device] ' + defangSpeakerLabels(access.deviceName + ': ' + text, names)

@@ -8,6 +8,7 @@ export interface TaskPlanInput {
   workspace?: TaskWorkspaceMode
   workspace_reason?: string
   session_reason?: string
+  context?: import('./taskContext').TaskContextInput
 }
 export interface TaskPlan {
   priority: TaskPriority
@@ -17,6 +18,7 @@ export interface TaskPlan {
   workspaceReason: string
   sourceCwd: string
   sessionReason: string
+  context?: import('./taskContext').TaskContext
 }
 export interface TaskWorkspace {
   strategy: 'git-worktree' | 'directory' | 'shared' | 'legacy'

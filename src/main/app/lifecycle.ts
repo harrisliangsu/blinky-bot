@@ -72,7 +72,7 @@ function warnUnsaved(files: string[]): void {
 async function shutdown(): Promise<void> {
   stopRoutineScheduler()
   stopRoutineLauncher()
-  await stopCollaborationServer().catch((error) => console.warn('[openbot] collaboration server did not stop cleanly', error))
+  await stopCollaborationServer('host-exit').catch((error) => console.warn('[openbot] collaboration server did not stop cleanly', error))
   try {
     const report = await flushBeforeQuit()
     if (!report) {

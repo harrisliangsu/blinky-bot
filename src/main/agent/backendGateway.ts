@@ -168,7 +168,18 @@ export async function openChatStream(
     if (!outcome.approved) throw new Error(`本轮原生 CLI 任务未获批准。 / Native CLI task was not approved: ${outcome.reason}`)
     const operation = localOperationSignal(req.signal, settings)
     return (async function* () {
-      try { yield* backend.chat({ ...req, signal: operation.signal }, cfg) }
+      try {
+        for await (const chunk of backend.chat({ ...req, signal: operation.signal }, cfg)) {
+          operation.signal.throwIfAborted()
+          yield chunk
+        }
+        // Some native transports close quietly on revocation. Partial prose
+        // is not a completed turn when the narrower operation was cancelled.
+        operation.signal.throwIfAborted()
+      } catch (error) {
+        if (operation.signal.aborted) throw new DOMException('Native CLI turn cancelled after local execution permission changed or the request stopped.', 'AbortError')
+        throw error
+      }
       finally { operation.dispose() }
     })()
   }

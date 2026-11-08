@@ -27,7 +27,7 @@ import {
   targetForCall
 } from '../agent/approvalPolicy'
 import { broadcast } from '../agent/events'
-import { allowedInMode, modeRefusal } from '../agent/modes'
+import { allowedInMode, isMutatingTool, modeRefusal } from '../agent/modes'
 import { settingsStore } from '../agent/settingsGateway'
 import { SELF_APPROVING } from '../agent/toolContext'
 import { getComputerProvider } from '../tools/computer'
@@ -44,6 +44,7 @@ import { getSession } from '../store/sessions'
 import { bindExecutionAgent, isCodexCoordinator } from '../agent/executionAgent'
 import { isLocalResourceTool } from '../../shared/localExecution'
 import { getSettings } from '../settings'
+import { taskJudgmentAllows, taskJudgmentScope } from '../agent/taskJudgmentScope'
 
 const WORKER_TOOLS = new Set(['shell', 'fetch', 'web_search', 'screenshot', 'click', 'double_click', 'type_text', 'key_press', 'scroll', 'drag', 'open_app', 'navigate'])
 
@@ -53,6 +54,8 @@ export async function invokeTool(
   args: Record<string, unknown>,
   signal: AbortSignal
 ): Promise<McpToolCallResult> {
+  const judgment=taskJudgmentScope(grant.sessionId)
+  if(judgment&&!taskJudgmentAllows(grant.sessionId,name,args)){judgment.attemptedTool=true;return refusal('Internal task consideration permits only scoped task inspection, not task mutation, delegation, file access or execution. Return a decision; the host validates and delivers it.')}
   const mode = sessionMode(grant.sessionId)
   const schema = exposedSchema(grant.tools, name, grant.computerTarget)
   if (!schema) {
@@ -78,7 +81,7 @@ export async function invokeTool(
    * else on this path re-checks the mode — it goes straight to `runTool`, so
    * every mutation an agent-CLI bot made in Ask or Plan mode came through here.
    */
-  if (!allowedInMode(mode, schema.name, schema)) {
+  if (!allowedInMode(mode, schema.name, schema, args)) {
     return refusal(modeRefusal(mode, schema.name))
   }
 
@@ -109,7 +112,8 @@ export async function invokeTool(
   // attaches a live preview and high-risk shell calls mark the request `force`.
   // Pre-approving those here used to cache a weaker, generic answer which then
   // satisfied the handler's mandatory confirmation.
-  if (!SELF_APPROVING.has(call.name) && (schema.mutating || schema.computerUse)) {
+  const selfApproving = SELF_APPROVING.has(call.name) || (call.name === 'manage_task' && args.action === 'resume')
+  if (!selfApproving && (isMutatingTool(call.name, schema, args) || schema.computerUse)) {
     const outcome = await requestApproval({
       sessionId: grant.sessionId,
       botId: grant.botId,

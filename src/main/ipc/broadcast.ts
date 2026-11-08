@@ -20,6 +20,7 @@ import { showDesktopNotification } from '../desktopNotifications'
 import { ReplyCompletion } from '../replyCompletion'
 import { sendNativeEvent } from '../native/stdioBridge'
 import { routineOwnsNotifications } from '../routines/notificationOwnership'
+import { taskJudgmentScope } from '../agent/taskJudgmentScope'
 
 const failedRuns = new Set<string>()
 const replyCompletion = new ReplyCompletion()
@@ -65,21 +66,22 @@ export function broadcast(event: AgentEvent): void {
   if (event.type === 'activity-updated' || event.type === 'task-updated') return
   // Preserve the live event for every UI/native consumer. Only the generic
   // completion activity/notification is owned by the routine ledger instead.
-  if ((event.type === 'done' || event.type === 'error') && routineOwnsNotifications(event.sessionId)) {
+  if ((event.type === 'done' || event.type === 'error') && (routineOwnsNotifications(event.sessionId) || taskJudgmentScope(event.sessionId))) {
     failedRuns.delete(event.sessionId)
     return
   }
 
-  if (event.type === 'message-start' && event.message.role === 'assistant') {
+  if (event.type === 'run-started' || event.type === 'message-start' && event.message.role === 'assistant') {
     failedRuns.delete(event.sessionId)
   }
 
   if (event.type === 'human-help-request') {
     const bot = getBot(event.request.botId)
-    postActivity('help', `${bot?.name ?? 'A bot'} needs you`, event.request.reason, event.request.sessionId, event.request.botId, true)
+    postActivity('help', `${bot?.name ?? 'A bot'} needs you`, event.request.reason, event.request.sessionId, event.request.botId, true, event.request.id)
   } else if (event.type === 'approval-request') {
-    postActivity('approval', 'Approval needed', event.request.summary, event.request.sessionId, undefined, true)
+    postActivity('approval', 'Approval needed', event.request.summary, event.request.sessionId, undefined, true, event.request.id)
   } else if (event.type === 'error') {
+    const alreadyFailed = failedRuns.has(event.sessionId)
     failedRuns.add(event.sessionId)
     /*
      * A background task posts its own inbox item — carrying the task's title
@@ -87,7 +89,7 @@ export function broadcast(event: AgentEvent): void {
      * every failed task two entries that told different stories. The session is
      * still marked failed, which is what keeps the `done` below quiet.
      */
-    if (!hasActiveTask(event.sessionId)) {
+    if (!alreadyFailed && !hasActiveTask(event.sessionId)) {
       postActivity('failed', getSession(event.sessionId)?.title ?? 'Agent run failed', event.message, event.sessionId, undefined, true)
     }
   } else if (event.type === 'done') {

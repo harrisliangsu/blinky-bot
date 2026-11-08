@@ -3,8 +3,9 @@
  *
  * The status command is the CLI's own. When it has none, or this version
  * does not provide it, only the presence of the documented credential file
- * (or a documented env var name) is checked. File contents and env values
- * are never read.
+ * (or a documented env var name) is checked. Kimi also supports API credentials
+ * in its native providers configuration; project that CLI output to a boolean
+ * without returning or persisting credential values.
  */
 
 import { readdir, stat } from 'node:fs/promises'
@@ -23,6 +24,8 @@ import {
   interpretCliAuth
 } from './authStatus'
 import type { AgentCliSpec } from './spec'
+import { captureCli } from './stdioJson'
+import { hasKimiProviderCredential } from './kimiCredentialPresence'
 
 const AUTH_TIMEOUT_MS = 3_000
 
@@ -171,6 +174,15 @@ export async function probeCliAuth(
   const method = authMethod(spec.id)
   const env = await hydratedEnv()
   const presence = await credentialPresence(spec.id, env, cfg)
+  if (spec.id === 'kimi' && !presence.file) {
+    const root = env.KIMI_CODE_HOME?.trim()
+    const dir = root && isAbsolute(root) ? root : join(homeOf(env), '.kimi-code')
+    // `provider list` initializes a missing config; a readiness probe must not.
+    if (await nonemptyFile(join(dir, 'config.toml'))) {
+      const config = await captureCli(binaryPath, ['provider', 'list', '--json'], process.cwd(), AUTH_TIMEOUT_MS)
+      if (config.code === 0 && hasKimiProviderCredential(config.stdout)) return { state: 'logged-in', account: 'API key configuration' }
+    }
+  }
   const command = method?.statusArgs ? await runStatus(binaryPath, method.statusArgs) : null
   return interpretCliAuth(spec.id, command, presence)
 }

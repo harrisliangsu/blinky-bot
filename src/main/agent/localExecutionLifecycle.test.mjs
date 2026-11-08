@@ -90,3 +90,16 @@ test('non-native Bot inference still operates without local resource permission 
   assert.equal((await local).approved,policy==='always-allow')
  }
 })
+
+test('a revoked native stream cannot promote partial prose or a late done chunk to successful completion',async()=>{
+ for(const lateDone of [false,true]){
+  reset();settings({localExecutionPolicy:'always-allow'});let release
+  const gate=new Promise(resolve=>release=resolve)
+  const backend={id:'codex',label:'Codex',kind:'agent-cli',chat:async function*(){yield {type:'text',delta:'Partial work only'};await gate;if(lateDone)yield {type:'done'}}}
+  const req={model:'fixture',messages:[{role:'user',content:'Synthetic workload'}],signal:new AbortController().signal,localExecutionSessionId:'native'}
+  const stream=await api.openChatStream(backend,req,{enabled:true}),iterator=stream[Symbol.asyncIterator]()
+  assert.equal((await iterator.next()).value.delta,'Partial work only')
+  settings({asklist:['tool:synthetic']});release()
+  await assert.rejects(iterator.next(),error=>error.name==='AbortError')
+ }
+})

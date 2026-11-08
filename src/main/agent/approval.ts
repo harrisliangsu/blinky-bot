@@ -21,6 +21,7 @@ import { redactSecrets } from '../backends/vaultRedaction'
 import { newId } from './ids'
 import { settingsStore } from './settingsGateway'
 import { reviewApproval } from './semanticApproval'
+import { taskJudgmentScope } from './taskJudgmentScope'
 
 /** Long enough for the user to read the diff; short enough to not hang a session forever. */
 export const APPROVAL_TIMEOUT_MS = 5 * 60_000
@@ -89,6 +90,13 @@ function rememberedFor(sessionId: string): Set<string> {
 }
 
 export async function requestApproval(ask: ApprovalAsk): Promise<ApprovalOutcome> {
+  const result=await decideApproval(ask)
+  const judgment=taskJudgmentScope(ask.sessionId)
+  if(judgment&&!result.approved){judgment.permissionUnconfirmed=true;if(!ask.signal?.aborted)judgment.denied=true}
+  return result
+}
+
+async function decideApproval(ask: ApprovalAsk): Promise<ApprovalOutcome> {
   if (ask.signal?.aborted) return { approved: false, reason: 'session stopped before approval' }
   const settings = await settingsStore.get()
   const memory = rememberedFor(ask.sessionId)

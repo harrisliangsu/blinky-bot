@@ -32,3 +32,11 @@ test('first-body timing excludes private reasoning, unknown text, whitespace and
   assert.equal(result.error, undefined)
   assert.deepEqual(stages, ['first-public-text', 'first-body-text'])
 })
+
+test('native operation cancellation preserves partial text and reaches the turn as aborted, while real faults remain errors', async()=>{
+ for(const cancelled of [true,false]){
+  async function* stream(){yield {type:'text',delta:'Partial work',visible:true};throw cancelled?new DOMException('Native operation revoked','AbortError'):new Error('Real transport failure')}
+  const result=await streamAssistantTurn({sessionId:'revocation-test',messageId:'partial',signal:new AbortController().signal,stream:stream()})
+  assert.equal(result.text,'Partial work');assert.equal(result.aborted,cancelled);assert.ok(result.error)
+ }
+})

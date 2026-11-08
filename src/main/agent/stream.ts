@@ -12,6 +12,7 @@ import type { ChatChunk } from './contracts'
 import { broadcast, onAgentEvent } from './events'
 import { asRecord } from './json'
 import { normaliseCall } from './backendGateway'
+import { isAbortError } from './errors'
 import { agentTraceEntry } from '../backends/cli/agentTrace'
 import { noteTiming, type TimingObserver } from '../backends/chatTiming'
 
@@ -204,6 +205,7 @@ export async function streamAssistantTurn(input: StreamTurnInput): Promise<Strea
     }
   } catch (err) {
     error = err
+    aborted = signal.aborted || isAbortError(err)
   } finally {
     unsubscribe?.()
     await checkpointQueue

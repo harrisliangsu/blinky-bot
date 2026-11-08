@@ -7,6 +7,8 @@ function localInput(at?: number): string {
   return new Date(at - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 export function RoutineTimingFields({ id, trigger, onChange, zh }: { id: string; trigger: Trigger; onChange(value: Trigger): void; zh: boolean }) {
+  const remote = window.openbot.environment?.kind === 'browser'
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
   if (trigger.kind === 'folder_change') return <div className="ob-field">
     <label htmlFor={`${id}-folder`}>{zh ? '观察文件夹' : 'Folder to watch'}</label>
     <div className="ob-row">
@@ -20,10 +22,10 @@ export function RoutineTimingFields({ id, trigger, onChange, zh }: { id: string;
     {trigger.kind === 'schedule' ? <div className="ob-field">
       <label htmlFor={`${id}-cron`}>{zh ? 'Cron 表达式' : 'Cron expression'}</label>
       <input className="ob-input" id={`${id}-cron`} value={trigger.cron ?? ''} onChange={event => onChange({ ...trigger, cron: event.target.value })} placeholder="0 9 * * 1-5" spellCheck={false} />
-      <label htmlFor={`${id}-tz`}>{zh ? '时区（留空使用本机）' : 'Timezone (blank uses this Mac)'}</label>
+      <label htmlFor={`${id}-tz`}>{zh ? (remote ? '时区（留空使用 Mac 主机）' : '时区（留空使用本机）') : 'Timezone (blank uses this Mac)'}</label>
       <input className="ob-input" id={`${id}-tz`} value={trigger.tz ?? ''} onChange={event => onChange({ ...trigger, tz: event.target.value || undefined })} placeholder="Asia/Shanghai" spellCheck={false} />
     </div> : <div className="ob-field">
-      <label htmlFor={`${id}-at`}>{zh ? '一次性时间（本机时区）' : 'Once, in this Mac’s timezone'}</label>
+      <label htmlFor={`${id}-at`}>{remote ? (zh ? `一次性时间（此设备：${zone}）` : `Once, this device’s timezone (${zone})`) : (zh ? '一次性时间（本机时区）' : 'Once, in this Mac’s timezone')}</label>
       <input className="ob-input" id={`${id}-at`} type="datetime-local" value={localInput(trigger.at)} onChange={event => onChange({ ...trigger, at: event.target.value ? new Date(event.target.value).getTime() : undefined })} />
       <p className="ob-hint">{zh ? '按所选时间所在分钟触发一次。超过允许窗口会记为已错过，不自动补跑；实际开始时间单独记录。' : 'Runs once within the selected minute. A missed window is recorded without automatic replay; actual start time is recorded separately.'}</p>
     </div>}

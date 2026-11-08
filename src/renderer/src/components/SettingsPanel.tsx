@@ -109,8 +109,8 @@ function General({ settings }: { settings: Settings }): ReactNode {
             ))}
           </div>
         </Row>
-        <Row title={g.vibrant} hint={g.vibrantHint}>
-          <Switch on={settings.vibrant === true} label={g.vibrant} onChange={(vibrant) => void updateSettings({ vibrant })} />
+        <Row title={zh ? '原生液态玻璃' : 'Native Liquid Glass'} hint={zh ? '在支持的 macOS 上使用系统原生侧栏材质。旧版系统、减少透明度或高对比度时使用不透明界面。远程浏览器使用清晰的不透明界面。' : 'Native macOS sidebar material, with an opaque fallback on older systems and accessibility settings. Remote browsers use opaque surfaces.'}>
+          <Switch on={settings.nativeGlass !== false} label={zh ? '原生液态玻璃' : 'Native Liquid Glass'} onChange={nativeGlass => void updateSettings({ nativeGlass })} />
         </Row>
         <Row title={g.language} hint={g.languageHint}>
           <select
@@ -504,6 +504,10 @@ export function SettingsPanel(): ReactNode {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
+            <select className="ob-set-mobile-picker ob-select" aria-label={lang === 'zh-CN' ? '设置分类' : 'Settings category'} value={current ?? ''} disabled={!current} onChange={event => setSection(event.target.value as SettingsSection)}>
+              {!current ? <option value="">{lang === 'zh-CN' ? '没有匹配的设置' : 'No matching settings'}</option> : null}
+              {visible.map(id => <option key={id} value={id}>{copy.nav[id]}</option>)}
+            </select>
             <nav aria-label={copy.title} className="ob-set-nav-groups">
               {groups.map((group) => {
                 const items = group.sections.filter((id) => visible.includes(id))

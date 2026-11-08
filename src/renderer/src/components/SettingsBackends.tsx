@@ -162,6 +162,10 @@ export function SettingsBackends({ settings, backends, loading, error }: Setting
     ? (dialog.section === 'provider' ? filterCatalog(PROVIDER_CATALOG, query) : filterCatalog(CLI_CATALOG, query)).filter((item) => !listedIds.has(item.id))
     : []
   const openDialog = (next: NonNullable<Dialog>): void => {
+    if (next.kind === 'edit' && window.openbot.environment?.kind === 'browser') {
+      window.dispatchEvent(new CustomEvent('blinky:remote-host-required', { detail: zh ? '模型连接、CLI 登录和 API 凭据请在 Mac 上管理。远程可查看连接状态，并在 Bot 中选择已配置的模型。' : 'Manage model connections, CLI login and API credentials on the Mac. Remotely view status and select configured models in a Bot.' }))
+      return
+    }
     if (!dialog) returnFocus.current = captureReturnFocus()
     setDialog(next)
   }

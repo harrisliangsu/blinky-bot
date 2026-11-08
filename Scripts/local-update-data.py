@@ -20,6 +20,8 @@ import sqlite3
 import stat
 import time
 
+MESSAGE_FINGERPRINT_ALGORITHM = 'canonical-json-v1-ignore-top-level-streaming'
+
 CACHE_NAMES = {'Cache', 'Code Cache', 'GPUCache', 'DawnGraphiteCache', 'DawnWebGPUCache',
                'Crashpad', 'Dictionaries', 'logs', 'cache', 'browser', 'backups', 'boxes'}
 TRANSIENT_NAMES = {'sessions.sqlite-wal', 'sessions.sqlite-shm', 'SingletonLock',
@@ -84,6 +86,21 @@ def inventory(root, full=False):
     return result
 
 
+def message_payload_fingerprint(raw):
+    """Compare JSON payload semantics, never SQLite JSON1 serialization order.
+
+    Only the documented transient top-level spinner is ignored. Nested values,
+    array order, JSON types, text and attachment references remain significant.
+    """
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise RuntimeError('Invalid message payload')
+    value.pop('streaming', None)
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True,
+                         separators=(',', ':'), allow_nan=False).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def database_proof(database):
     wal = database.with_name(database.name + '-wal')
     # An idle WAL-mode database may have no sidecars after normal shutdown.
@@ -97,12 +114,8 @@ def database_proof(database):
         sessions = sorted(row[0] for row in connection.execute('SELECT id FROM sessions'))
         messages = {}
         for sid, mid, raw in connection.execute('SELECT session_id,id,value FROM messages'):
-            value = json.loads(raw)
-            # Startup may clear an interrupted spinner. Actual content must survive.
-            value.pop('streaming', None)
-            encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
-            messages[json.dumps([sid, mid], separators=(',', ':'))] = hashlib.sha256(encoded).hexdigest()
-        return {'sessions': sessions, 'messages': messages}
+            messages[json.dumps([sid, mid], separators=(',', ':'))] = message_payload_fingerprint(raw)
+        return {'messageFingerprintAlgorithm': MESSAGE_FINGERPRINT_ALGORITHM, 'sessions': sessions, 'messages': messages}
 
 
 def checkpoint(data, output, full=False):
@@ -317,6 +330,8 @@ def verify(data, checkpoint_dir, allowed_settings_defaults=None, transport_task_
         raise RuntimeError('Readback dataRoot differs from checkpoint')
     current = database_proof(data / 'sessions.sqlite')
     expected = manifest['database']
+    if expected.get('messageFingerprintAlgorithm') != MESSAGE_FINGERPRINT_ALGORITHM:
+        raise RuntimeError('Checkpoint message fingerprint contract is missing or incompatible; create a fresh reviewed checkpoint. Existing install status is not changed.')
     missing_sessions = sorted(set(expected['sessions']) - set(current['sessions']))
     changed_messages = [key for key, value in expected['messages'].items()
                         if current['messages'].get(key) != value]

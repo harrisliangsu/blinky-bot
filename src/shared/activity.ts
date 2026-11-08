@@ -128,7 +128,7 @@ export interface AgentTaskClarification {
 }
 
 export interface AgentTaskCommand {
-  action: 'list' | 'inspect' | 'message' | 'stop' | 'resume' | 'report' | 'prioritize'
+  action: 'list' | 'inspect' | 'message' | 'stop' | 'resume' | 'report' | 'prioritize' | 'match' | 'describe'
   taskId?: string
   text?: string
   requestId?: string
@@ -137,4 +137,5 @@ export interface AgentTaskCommand {
   priority?: import('./taskPlan').TaskPriority
   dependencies?: string[]
   reason?: string
+  context?: import('./taskContext').TaskContextInput
 }

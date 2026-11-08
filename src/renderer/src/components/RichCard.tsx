@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { RichCardSpec } from '../../../shared/types'
 import { store } from '../state'
+import { copyText } from '../lib/clipboard'
 import { IconCopy } from './Icons'
 import './RichCard.css'
 
@@ -81,7 +82,7 @@ function Recipients({ label, addresses }: { label: string; addresses: string[] }
 }
 
 export function RichCard({ spec }: { spec: RichCardSpec }): ReactNode {
-  const copy = (value: string): void => { void navigator.clipboard.writeText(value).then(() => store.toast('Draft copied.'), () => store.toast('The clipboard is unavailable.', 'error')) }
+  const copy = (value: string): void => { void copyText(value).then(() => store.toast('Draft copied.'), () => store.toast('The clipboard is unavailable.', 'error')) }
   if (spec.type === 'email-draft') {
     const full = `To: ${spec.to.join(', ')}${spec.cc?.length ? `\nCc: ${spec.cc.join(', ')}` : ''}\nSubject: ${spec.subject}\n\n${spec.body}`
     /*

@@ -1,6 +1,7 @@
 import { isAbsolute } from 'node:path'
 import type { AgentTask } from '../../shared/types'
 import type { TaskPlan, TaskPlanInput, TaskPriority } from '../../shared/taskPlan'
+import { parseTaskContext, validateTaskParent } from './context'
 
 const priorities: TaskPriority[] = ['low', 'normal', 'high', 'urgent']
 export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId: string, ownerBotId: string, tasks: AgentTask[], previous?: AgentTask): TaskPlan {
@@ -8,7 +9,7 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
   const value = input === undefined ? {} : input
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid task plan.')
   const request = value as TaskPlanInput
-  if (Object.keys(value).some(key => !['priority', 'priority_reason', 'depends_on', 'workspace', 'workspace_reason', 'session_reason'].includes(key))) throw new TypeError('Unknown task plan fields.')
+  if (Object.keys(value).some(key => !['priority', 'priority_reason', 'depends_on', 'workspace', 'workspace_reason', 'session_reason', 'context'].includes(key))) throw new TypeError('Unknown task plan fields.')
   const priority = request.priority ?? previous?.plan?.priority ?? 'normal'
   if (!priorities.includes(priority)) throw new TypeError('Invalid task priority.')
   const workspace = request.workspace ?? previous?.plan?.workspace ?? 'auto'
@@ -27,7 +28,9 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
     if (!dependency || dependency.sourceSessionId !== sourceSessionId || (dependency.requesterBotId ?? dependency.botId) !== ownerBotId) throw new TypeError('A dependency must belong to this Bot and source conversation.')
     if (previous && (dependency.id === previous.id || dependency.sessionId === previous.sessionId) && ['queued', 'running'].includes(dependency.status)) throw new TypeError('A continuation cannot depend on its own active execution.')
   }
-  return { priority, priorityReason: reason(request.priority_reason) || previous?.plan?.priorityReason || '', dependencies: [...dependencies], workspace, workspaceReason, sourceCwd, sessionReason: reason(request.session_reason) || (previous ? 'Continue the same delegated task with its existing context.' : 'Independent work receives its own execution conversation.') }
+  const context = request.context === undefined ? previous?.plan?.context : parseTaskContext(request.context)
+  validateTaskParent(context, tasks, sourceSessionId, ownerBotId, previous)
+  return { priority, priorityReason: reason(request.priority_reason) || previous?.plan?.priorityReason || '', dependencies: [...dependencies], workspace, workspaceReason, sourceCwd, sessionReason: reason(request.session_reason) || (previous ? 'Continue the same delegated task with its existing context.' : 'Independent work receives its own execution conversation.'), ...(context ? { context } : {}) }
 }
 
 /** Malformed saved plans are refused; legacy tasks have no plan and stay legacy. */
@@ -35,7 +38,7 @@ export function parseSavedTaskPlan(input: unknown): TaskPlan | undefined {
   if (input === undefined) return undefined
   const value = input as TaskPlan
   if (!value || typeof value !== 'object' || !isAbsolute(value.sourceCwd ?? '') || !priorities.includes(value.priority) || !['auto', 'isolated', 'shared'].includes(value.workspace) || !Array.isArray(value.dependencies) || value.dependencies.length > 20 || new Set(value.dependencies).size !== value.dependencies.length || value.dependencies.some(id => typeof id !== 'string' || !id || id.length > 200) || ['priorityReason', 'workspaceReason', 'sessionReason'].some(key => typeof (value as unknown as Record<string, unknown>)[key] !== 'string') || value.workspace === 'shared' && !value.workspaceReason?.trim()) throw new TypeError('The saved task plan is invalid; inspect it before resuming.')
-  return { priority: value.priority, priorityReason: value.priorityReason.slice(0, 2000), dependencies: [...value.dependencies], workspace: value.workspace, workspaceReason: value.workspaceReason.slice(0, 2000), sourceCwd: value.sourceCwd, sessionReason: value.sessionReason.slice(0, 2000) }
+  return { priority: value.priority, priorityReason: value.priorityReason.slice(0, 2000), dependencies: [...value.dependencies], workspace: value.workspace, workspaceReason: value.workspaceReason.slice(0, 2000), sourceCwd: value.sourceCwd, sessionReason: value.sessionReason.slice(0, 2000), ...(value.context === undefined ? {} : { context: parseTaskContext(value.context, true) }) }
 }
 
 export function dependencyState(task: AgentTask, tasks: AgentTask[], index: ReadonlyMap<string, AgentTask> = new Map(tasks.map(value => [value.id, value]))): { ready: boolean; waiting: string[]; failed: string[] } {

@@ -10,6 +10,7 @@ import { broadcast as sendToWindows } from '../ipc/broadcast'
 import { errorMessage } from './errors'
 import { recordLiveMessage } from './liveMessages'
 import { createVaultEventProjection } from '../store/vaultEvents'
+import { taskJudgmentScope } from './taskJudgmentScope'
 
 type Listener = (event: AgentEvent) => void
 
@@ -33,6 +34,13 @@ function publish(event: AgentEvent): void {
     } catch {
       /* a bad listener must never break the loop */
     }
+  }
+  if (event.type === 'error') {
+    const judgment=taskJudgmentScope(event.sessionId)
+    // This is a failed internal consideration, not a failed user execution.
+    // Retain it for the durable judgment status. Permission/help cards are
+    // separate events and retain their normal user-visible contract.
+    if(judgment){judgment.errors.push(event.message);return}
   }
   try {
     sendToWindows(event)

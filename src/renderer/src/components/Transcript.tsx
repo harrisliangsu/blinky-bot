@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
 import { showsJump } from '../lib/stickyScroll'
+import { copyText } from '../lib/clipboard'
 import { useTranscriptScroll } from '../lib/useTranscriptScroll'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { respondToApproval, store, useAppState } from '../state'
@@ -43,7 +44,7 @@ function PendingMessage({ item, queue, known }: { item: QueuedMessage; queue: Me
         const src = imagePreviewSrc(attachment)
         return src ? <img key={attachment.id} className="ob-msg-picture" src={src} alt={attachment.name} /> : <span key={attachment.id}>{attachment.name}</span>
       })}</div> : null}
-      {item.status === 'interrupted' ? <p className="ob-msg-error">发送状态未确认，请核对对话后处理。 <button type="button" onClick={() => void navigator.clipboard.writeText(item.text)}>复制</button> <button type="button" onClick={() => void window.openbot.agent.removeQueued(queue.sessionId, item.id)}>移除</button></p> : null}
+      {item.status === 'interrupted' ? <p className="ob-msg-error">发送状态未确认，请核对对话后处理。 <button type="button" onClick={() => void copyText(item.text).then(() => store.toast('已复制'), () => store.toast('无法访问剪贴板，请选中文本复制。', 'error'))}>复制</button> <button type="button" onClick={() => void window.openbot.agent.removeQueued(queue.sessionId, item.id)}>移除</button></p> : null}
       {queue.paused && item.status === 'waiting' ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => void window.openbot.agent.pauseQueue(queue.sessionId, false).then((result) => { if (!result) store.toast('请先处理发送状态未确认的消息。', 'error') })}>继续处理</button> : null}
     </div>
   </article>
@@ -82,13 +83,13 @@ export function Transcript(): ReactNode {
     return () => { active = false; unsubscribe() }
   }, [session?.id])
 
-  const { scrollerRef, contentRef, onScroll, onWheel, onKeyDown, onPointerDown, pin, jump, preservePrepend, restorePrepend } = useTranscriptScroll(session?.id, !sessionLoading, (geometry) =>
+  const { scrollerRef, contentRef, onScroll, onWheel, onKeyDown, onPointerDown, onTouchStart, onTouchMove, pin, jump, preservePrepend, restorePrepend } = useTranscriptScroll(session?.id, !sessionLoading, (geometry) =>
     setShowJump(showsJump(geometry))
   )
 
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
   const multiBot = (session?.botIds.length ?? 0) > 1
-  const { visible, hidden } = tailWindow(messageIds, limit)
+  const { visible, hidden } = tailWindow(messageIds, limit, id=>!store.getMessage(id)?.internal)
 
   const toBottom = useCallback(
     () => {
@@ -137,10 +138,10 @@ export function Transcript(): ReactNode {
 
   return (
     <div className="ob-transcript">
-      <div className="ob-transcript-scroller" ref={scrollerRef} onScroll={event => { onScroll(); if (event.currentTarget.scrollTop < 80 && (hidden > 0 || more)) void earlier() }} onWheel={onWheel} onKeyDown={onKeyDown} onPointerDown={onPointerDown} tabIndex={0} role="log" aria-live="polite" aria-label="Conversation">
+      <div className="ob-transcript-scroller" ref={scrollerRef} onScroll={event => { onScroll(); if (event.currentTarget.scrollTop < 80 && (hidden > 0 || more)) void earlier() }} onWheel={onWheel} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onTouchStart={onTouchStart} onTouchMove={onTouchMove} tabIndex={0} role="log" aria-live="polite" aria-label="Conversation">
         <div className="ob-transcript-content" ref={contentRef}>
           <RoomDevices pendingOnly />
-          {messageIds.length === 0 && !runError && !queue?.items.length ? <EmptyTranscript hasSession={session !== null} bot={session?.botIds[0] ? botMap.get(session.botIds[0]) : undefined} /> : null}
+          {visible.length === 0 && !runError && !queue?.items.length ? <EmptyTranscript hasSession={session !== null} bot={session?.botIds[0] ? botMap.get(session.botIds[0]) : undefined} /> : null}
 
           <EarlierMessages hidden={hidden} more={more} loading={loadingEarlier} onShow={() => void earlier()} />
 

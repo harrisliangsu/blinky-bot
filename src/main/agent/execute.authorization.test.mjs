@@ -9,7 +9,7 @@ import { build } from 'esbuild'
 const mocks = {
   './toolGateway': `export async function getTool(name) { return globalThis.__grantFixture.tools[name] ?? null }
     export async function schemasFor(enabled, target) { return globalThis.__grantFixture.schemas(enabled, target) }`,
-  './approval': `export async function requestApproval() { return { approved: true } }`,
+  './approval': `export async function requestApproval(input) { const f=globalThis.__grantFixture; f.approvals.push(input); return { approved: f.approved !== false, reason: 'synthetic rejection' } }`,
   './approvalPolicy': `export const deniedRuleForCall = () => null; export const denyRefusal = () => ''; export const detailFor = () => ''; export const kindForTool = () => 'write'; export const summarise = () => ''; export const targetForCall = () => ''`,
   './builtinHandlers': `export const applyTodos = async () => {}; export const normaliseTodos = () => []; export const runRemember = async () => ({ok:true,output:'remembered'}); export const runTodoWrite = async () => ({ok:true,output:'todo'})`,
   './events': `export const broadcast = () => {}`,
@@ -35,9 +35,9 @@ const { runCalls, executeCall } = await import(`data:text/javascript;base64,${Bu
 
 const schema = (name, extra = {}) => ({ name, mutating: false, parameters: { type: 'object', properties: {} }, ...extra })
 function setup(enabled, { target } = {}) {
-  const fixture = { results: [], calls: [], handoffs: 0, tools: {},
+  const fixture = { results: [], calls: [], approvals: [], handoffs: 0, tools: {},
     schemas: (ids, computerTarget) => ids.filter((id) => !(computerTarget?.kind === 'vm' && id === 'search_gmail')).map((id) => schema(id)).concat(ids.includes('delegate_task') ? [schema('review_task')] : []) }
-  for (const name of ['search_gmail', 'read_file', 'click', 'double_click', 'review_task', 'handoff']) {
+  for (const name of ['search_gmail', 'read_file', 'click', 'double_click', 'review_task', 'handoff', 'manage_task']) {
     fixture.tools[name] = { schema: schema(name, name === 'click' || name === 'double_click' ? { computerUse: true } : {}), handler: async () => { fixture.calls.push(name); return { ok: true, output: 'ran' } } }
   }
   globalThis.__grantFixture = fixture
@@ -98,4 +98,27 @@ test('enabled loop-owned builtins remain usable without the optional registry', 
   await invoke(input, 'todo_write')
   assert.equal(fixture.results[0].ok, true)
   assert.equal(fixture.results[0].output, 'todo')
+})
+
+
+test('manage_task uses actual action at the normal executor even with mutating:false', async () => {
+  const { fixture, input } = setup(['manage_task'])
+  fixture.approved = false
+  const call = action => executeCall({ ...input, call: { id: action, name: 'manage_task', args: { action, task_id: 'task' } }, messageId: 'm', record: false })
+  for (const action of ['list', 'inspect', 'match']) assert.equal((await call(action)).ok, true)
+  assert.equal(fixture.approvals.length, 0)
+  for (const action of ['message', 'stop', 'report', 'prioritize', 'describe', 'unknown']) assert.equal((await call(action)).ok, false)
+  assert.deepEqual(fixture.approvals.map(value => value.call.args.action), ['message', 'stop', 'report', 'prioritize', 'describe', 'unknown'])
+  assert.equal(fixture.calls.length, 3, 'denied mutations never reach the handler')
+  fixture.approved = true
+  assert.equal((await call('describe')).ok, true)
+  const count = fixture.approvals.length
+  await call('resume')
+  assert.equal(fixture.approvals.length, count, 'resume retains its handler-owned forced confirmation')
+  for (const mode of ['ask', 'plan']) {
+    input.session.mode = mode
+    const before = fixture.calls.length
+    for (const action of ['message', 'describe', 'resume']) assert.equal((await call(action)).ok, false)
+    assert.equal(fixture.calls.length, before)
+  }
 })

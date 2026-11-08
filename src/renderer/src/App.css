@@ -17,3 +17,15 @@
   background: var(--ob-bg-editor);
 }
 .ob-approval-elsewhere { align-self: center; margin: var(--ob-space-2); }
+
+.ob-sidebar-backdrop { display: none; }
+
+html[data-native-glass='true'] body, html[data-native-glass='true'] .ob-app, html[data-native-glass='true'] .ob-sidebar { background: transparent; backdrop-filter: none; }
+
+.ob-workspace-navigation { display: grid; gap: 20px; }
+.ob-navigation-actions { display: grid; gap: 8px; }
+.ob-navigation-actions .ob-btn { justify-content: flex-start; min-height: 36px; }
+.ob-navigation-projects { display: grid; gap: 8px; }
+.ob-navigation-projects h3 { font-size: var(--ob-font-size-base); }
+.ob-navigation-project { display: flex; gap: 6px; flex-wrap: wrap; }
+.ob-navigation-project > .ob-btn:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }

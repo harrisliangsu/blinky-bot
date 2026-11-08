@@ -12,6 +12,7 @@ import { textOf } from '../messageContent'
 import type { ChatChunk, ChatRequest } from '../types'
 import { MODEL_ONLY_CODEX_VERSION, modelOnlyConfig, modelOnlyFeatures, modelOnlyCatalog, tomlValue } from './codexModelOnlyProfile'
 import { codexEffort } from '../../../shared/thinking'
+import { ModelOnlyUnavailableError } from '../modelOnlyUnavailable'
 
 const LIMIT_MS = 30_000
 export function assertModelOnlyRequest(req: ChatRequest): void {
@@ -38,7 +39,7 @@ function isolatedProvider(config: Record<string, unknown>): Record<string, unkno
       selected.auth || selected.aws || selected.gateway_oauth || selected.credential_file || selected.experimental_bearer_token ||
       (isPlainObject(selected.http_headers) && Object.keys(selected.http_headers).length) ||
       (isPlainObject(selected.query_params) && Object.keys(selected.query_params).length) || typeof selected.base_url !== 'string') {
-    throw new Error('Tool-free Codex requires the same existing custom Responses provider with environment-based or no authentication; CLI-managed ChatGPT credentials are not copied')
+    throw new ModelOnlyUnavailableError('Tool-free Codex requires the same existing custom Responses provider with environment-based or no authentication; CLI-managed ChatGPT credentials are not copied')
   }
   const url = new URL(selected.base_url)
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search) throw new Error('Cannot isolate a provider with inline URL credentials')

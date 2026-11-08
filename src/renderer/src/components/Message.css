@@ -249,7 +249,15 @@
 .ob-msg-reactions { position: absolute; z-index: 10; right: 0; top: calc(100% + var(--ob-space-1)); display: flex; gap: var(--ob-space-1); padding: var(--ob-space-1); background: var(--ob-bg-card); border: 1px solid var(--ob-border-subtle); border-radius: var(--ob-radius-lg); box-shadow: var(--ob-shadow-popover); }
 .ob-msg-reactions button { padding: var(--ob-space-1); border: 1px solid transparent; border-radius: var(--ob-radius-base); background: transparent; color: inherit; cursor: pointer; font-size: var(--ob-font-size-base); }
 .ob-msg-reactions button:hover, .ob-msg-reactions button.is-active { border-color: var(--ob-border); background: var(--ob-bg-hover); opacity: 1; }
-@media (hover: none) { .ob-msg-actions { opacity: 1; pointer-events: auto; } }
+.ob-msg-action-group { display: flex; align-items: center; position: relative; }
+.ob-msg-more { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .ob-msg-more { display: inline-flex; min-width: 44px; min-height: 44px; font-size: 22px; }
+  .ob-msg-action-group .ob-msg-actions { display: none; }
+  .ob-msg-action-group.is-open .ob-msg-actions { display: flex; opacity: 1; pointer-events: auto; flex-wrap: wrap; }
+  .ob-msg-action-group.is-open { flex-wrap: wrap; }
+  .ob-msg-actions .ob-icon-btn { min-width: 44px; min-height: 44px; }
+}
 
 /* ── Handoff divider ──────────────────────────────────────────────── */
 

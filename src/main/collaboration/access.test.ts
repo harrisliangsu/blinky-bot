@@ -73,3 +73,44 @@ test('tampered challenges, spoofed signatures, concurrent clients and downgraded
   requests.forEach((r,i) => { const grant = status(auth, clients[i]!, r.id, now).grant!;assert.equal(authorize(auth, grant, proof(clients[i]!, grant, now), { ...room, permission: 'view' }).permission, 'view') })
   assert.throws(() => auth.challenge(room, 'not-a-key', 'Name'), { status: 400 })
 })
+
+test('encrypted snapshot restores the same host/device within the original lease; old process grants cannot replay', () => {
+  let now = 1_000_000
+  const auth = new RoomAccess(() => now), client = key(), request = connect(auth, client)
+  auth.decide(room, request.id, 'approve', 'control', 'workspace')
+  const before = status(auth, client, request.id, now), host = auth.hostKey(room), snapshot = auth.snapshot()
+  now += 60_000
+  const next = new RoomAccess(() => now); next.restore(snapshot, [room])
+  const restored = status(next, client, request.id, now)
+  assert.equal(next.hostKey(room), host); assert.equal(restored.expiresAt, before.expiresAt)
+  assert.equal(restored.scope, 'workspace'); assert.equal(restored.permission, 'control'); assert.notEqual(restored.grant, before.grant)
+  assert.throws(() => authorize(next, before.grant!, proof(client, before.grant!, now)), { status: 401 })
+  assert.equal(authorize(next, restored.grant!, proof(client, restored.grant!, now)).deviceId, request.id)
+  assert.throws(() => authorize(next, restored.grant!, proof(key(), restored.grant!, now)), { status: 401 })
+  for (const action of ['deny', 'revoke'] as const) {
+    next.decide(room, request.id, action)
+    const reboot = new RoomAccess(() => now); reboot.restore(next.snapshot(), [room])
+    assert.equal(status(reboot, client, connect(reboot, client).id, now).state, action === 'deny' ? 'denied' : 'revoked')
+  }
+  const expired = new RoomAccess(() => before.expiresAt! + 1); expired.restore(snapshot, [room])
+  assert.equal(status(expired, client, request.id, before.expiresAt! + 1).state, 'expired')
+  const stopped = new RoomAccess(() => now); stopped.restore(snapshot, [])
+  assert.throws(() => status(stopped, client, request.id, now), { status: 401 })
+  const rotated = new RoomAccess(() => now); rotated.restore(snapshot, [{ ...room, token: 'new-invite' }])
+  assert.throws(() => status(rotated, client, request.id, now, { ...room, token: 'new-invite' }), { status: 401 })
+})
+
+test('a failed durable consent write is not acknowledged and does not change live authorization', () => {
+  const now = 1_000_000, auth = new RoomAccess(() => now), client = key(), request = connect(auth, client)
+  auth.onPersist(() => { throw new Error('Synthetic disk failure') })
+  assert.throws(() => auth.decide(room, request.id, 'approve', 'control'), /disk failure/)
+  assert.equal(status(auth, client, request.id, now).state, 'pending')
+  auth.onPersist(() => {})
+  auth.decide(room, request.id, 'approve', 'view', 'room')
+  auth.onPersist(() => { throw new Error('Synthetic disk failure') })
+  assert.throws(() => auth.decide(room, request.id, 'approve', 'control', 'workspace'), /disk failure/)
+  const after = status(auth, client, request.id, now)
+  assert.equal(after.permission, 'view'); assert.equal(after.scope, 'room')
+  assert.throws(() => auth.decide(room, request.id, 'revoke'), /disk failure/)
+  assert.equal(status(auth, client, request.id, now).state, 'approved')
+})

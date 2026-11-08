@@ -14,7 +14,7 @@ test('the chat consumer can stop at done after each CLI has persisted its resume
   const previous = process.env.OPENBOT_DATA_DIR
   process.env.OPENBOT_DATA_DIR = root
   const bindingFile = join(root, 'bindings.json')
-  const binary = join(root, 'fake-cli')
+  const binary = join(root, 'fake-cli.cjs')
   await writeFile(binary, `#!/usr/bin/env node
 const a=process.argv.slice(2), out=x=>process.stdout.write(JSON.stringify(x)+'\\n');
 if(a.includes('--fixture-kimi')) require('node:fs').appendFileSync('kimi-captured.jsonl',JSON.stringify(a)+'\\n');

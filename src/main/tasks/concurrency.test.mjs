@@ -11,6 +11,9 @@ import { spawnSync } from 'node:child_process'
 // Replace only model execution, GUI fan-out, routine notification leases and
 // chat-queue queries. Nothing imports a running app or its data directory.
 const mocks = {
+  // Inspection-only ledgers must not load an Electron/native judgment runtime.
+  './tasks/coordinationPermission': 'export const communicationPermissionStatus=async()=>null',
+  './tasks/progressTurn': 'export const taskJudgmentStatus=async()=>null',
   './ipc/broadcast': 'export const broadcast=e=>globalThis.__taskPool.events.push(e);export const postActivity=()=>{}',
   '../ipc/broadcast': 'export const broadcast=e=>globalThis.__taskPool.events.push(e);export const postActivity=()=>{}',
   './ipc/agentRuntime': 'export const loopFn=async name=>name==="sendMessage"?globalThis.__taskPool.send:name==="stopSession"?globalThis.__taskPool.stop:async()=>false',
@@ -305,7 +308,7 @@ test('invalid recovery metadata fails closed without rewriting the original task
  }finally{await rm(root,{recursive:true,force:true})}
 })
 
-test('restart emits one local interruption notice per source rather than one per queued task',async()=>{
+test('restart retains interrupted tasks for Bot review without appending host templates',async()=>{
  const root=await mkdtemp(join(tmpdir(),'blinky-task-recovery-notice-')),module=join(root,'runtime.mjs')
  try{
   await writeFile(module,productionBundle.outputFiles[0].contents)
@@ -317,6 +320,6 @@ test('restart emits one local interruption notice per source rather than one per
    await api.loadTasks();api.installTaskInbox();for(let i=0;i<200&&api.getSession(home.id).messages.length<2;i++)await new Promise(r=>setTimeout(r,5));await api.flushAll();
    const messages=api.getSession(home.id).messages;console.log(JSON.stringify({notices:messages.filter(m=>m.content.includes('64')&&m.botId===bot.id).length,other:messages.filter(m=>m.content.includes('2 个')&&m.botId===other.id).length,total:messages.length,active:api.countActiveTasks()}));
   `],{env:{...process.env,OPENBOT_DATA_DIR:root},encoding:'utf8',timeout:15000})
-  assert.equal(child.status,0,child.stderr);assert.deepEqual(JSON.parse(child.stdout.trim()),{notices:1,other:1,total:2,active:0})
+  assert.equal(child.status,0,child.stderr);assert.deepEqual(JSON.parse(child.stdout.trim()),{notices:0,other:0,total:0,active:0})
  }finally{await rm(root,{recursive:true,force:true})}
 })

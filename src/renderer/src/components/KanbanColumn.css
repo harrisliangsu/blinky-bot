@@ -123,3 +123,7 @@
   color: var(--ob-text-primary);
   background: var(--ob-bg-hover);
 }
+@media (hover: none), (pointer: coarse) {
+  .ob-kb-col-head { flex-wrap: wrap; }
+  .ob-kb-col-actions { width: 100%; justify-content: flex-end; opacity: 1; }
+}

@@ -28,7 +28,7 @@ test('Claude, Droid, pi and OpenCode send the selected model and delegate defaul
   const root = await mkdtemp(join(tmpdir(), 'blinky-model-routing-'))
   const previous = process.env.OPENBOT_DATA_DIR
   process.env.OPENBOT_DATA_DIR = root
-  const binary = join(root, 'fake-cli')
+  const binary = join(root, 'fake-cli.cjs')
   const trace = join(root, 'trace.jsonl')
   await writeFile(binary, `#!/usr/bin/env node
 const fs=require('node:fs'),http=require('node:http');
