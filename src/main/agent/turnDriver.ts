@@ -36,6 +36,7 @@ import { applyBotBinding, getBot } from '../store/bots'
 import { getSession } from '../store/sessions'
 import { settingsStore } from './settingsGateway'
 import { backgroundBotOwner, bindExecutionAgent, isExecutionAgent } from './executionAgent'
+import { quickDecisionHint } from './quickDecision'
 import { untrustedToolText } from './untrusted'
 
 /** How many times per user message the moderator will ask for a missing ACTION line. */
@@ -79,6 +80,7 @@ async function runTurns(
   options?: IterationOptions
 ): Promise<void> {
   let firstTurn = true
+  let decisionChecked = false
   let extras: string[] = []
   let bot: Bot | null = null
   // Exchange bookkeeping: which turn we are on, and the message being answered.
@@ -174,6 +176,16 @@ async function runTurns(
      * meant the retry ran without it, so a bot that was nudged forgot what its
      * teammate had asked it.
      */
+    if (!decisionChecked) {
+      decisionChecked = true
+      if (!options?.internalAssistant && !options?.reviewBotId && !executionOwner && !isExchange && session.mode === 'agent' && settings.quickDecision) {
+        const hint = await quickDecisionHint({ settings, request: lastUserMessage(session), cwd: session.cwd, signal }).catch(() => null)
+        if (signal.aborted) return
+        const current = getSession(session.id), original = getBot(bot.id)
+        if (!current || current.archived || !current.botIds.includes(bot.id) || !original || original.archived) return
+        if (hint) extras.push('Routing advice is optional. Keep your configured model and apply the user request, permissions and available tools yourself.\n' + untrustedToolText('quick_decision', JSON.stringify(hint)))
+      }
+    }
     const given: { extras: string[]; replyTo: string | null } = { extras, replyTo }
     extras = []
     replyTo = null

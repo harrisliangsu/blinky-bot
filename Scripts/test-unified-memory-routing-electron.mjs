@@ -20,7 +20,10 @@ assert.equal(JSON.parse(extractFile(asar, 'package.json').toString()).blinkyBuil
 const sha256 = createHash('sha256').update(await fs.readFile(asar)).digest('hex')
 assert.match(process.env.EXPECTED_ASAR_SHA ?? '', /^[a-f0-9]{64}$/)
 assert.equal(sha256, process.env.EXPECTED_ASAR_SHA, 'Bind this run to the frozen ASAR')
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'blinky-unified-memory-routing-'))
+const root = process.env.BLINKY_ROUTING_ROOT ?? await fs.mkdtemp(path.join(os.tmpdir(), 'blinky-unified-memory-routing-'))
+if (process.env.BLINKY_ROUTING_ROOT) await fs.mkdir(root, { recursive: false })
+const routingOnly = process.env.BLINKY_ROUTING_ONLY === '1'
+const uiOnly = process.env.BLINKY_ROUTING_UI_ONLY === '1'
 const data = path.join(root, 'data'), evidence = process.env.EVIDENCE_DIR ?? path.join(root, 'evidence')
 await Promise.all(['bots','sessions','memory','tasks'].map(name => fs.mkdir(path.join(data, name), { recursive: true })))
 await fs.mkdir(evidence, { recursive: true })
@@ -114,7 +117,7 @@ function installFixture(allowedOrigin) {
 const freePort = () => new Promise(resolve => { const server = net.createServer(); server.listen(0, '127.0.0.1', () => { const port = server.address().port; server.close(() => resolve(port)) }) })
 let app, ui, main, logs = '', launches = 0
 const rendererErrors = []
-const result = { root, evidence, executable, asarSha256: sha256, realElectron: true, actualAccount: false, actualKeychain: false, provider: 'loopback synthetic OpenAI-compatible HTTP', checks: [], shutdowns: [] }
+const result = { root, evidence, executable, asarSha256: sha256, realElectron: true, actualAccount: false, actualKeychain: false, provider: 'loopback synthetic OpenAI-compatible HTTP', variant: uiOnly ? 'routing-ui-only' : routingOnly ? 'routing-only' : 'memory-and-routing', checks: [], shutdowns: [] }
 async function wait(expression, timeout = 30_000) {
   const end = Date.now() + timeout
   while (Date.now() < end) { const value = await ui.evaluate(expression); if (value) return value; if (app.exitCode !== null || app.signalCode !== null) throw Error('The isolated Preview exited'); await delay(100) }
@@ -178,15 +181,17 @@ async function saveMemory(text, kind, shared) {
   await wait(`window.openbot.bots.memory(${JSON.stringify(botId)}).then(entries=>entries.some(entry=>entry.text===${JSON.stringify(text)}))`)
 }
 async function closeDetails() { if (await ui.evaluate(`!!document.querySelector('#ob-bot-details')`)) await click('[aria-label="关闭 Bot 详情"]') }
-async function configureRouting(enabled) {
+async function configureRouting(enabled, captureName) {
   await closeDetails(); await key(',', { code: 'Comma', windowsVirtualKeyCode: 188, modifiers: 4 })
   await wait(`!!document.querySelector('#ob-set-tab-bots')`); await click('#ob-set-tab-bots')
   await wait(`!!document.querySelector('[aria-label="判断模型连接"]')`)
   await select('[aria-label="判断模型连接"]', enabled ? backendId : '')
   if (enabled) { await wait(`!!document.querySelector('[aria-label="派发判断模型"]')`); await select('[aria-label="派发判断模型"]', sideModel) }
   await wait(`window.openbot.settings.get().then(s=>${enabled ? `s.quickDecision?.modelId===${JSON.stringify(sideModel)}` : 's.quickDecision===null'})`)
-  await screenshot(enabled ? 'routing-configured' : 'routing-disabled')
+  const layout = await ui.evaluate(`(()=>{const m=document.querySelector('.ob-modal');return{viewport:[innerWidth,innerHeight],theme:document.documentElement.dataset.theme,pageOverflow:document.documentElement.scrollWidth-innerWidth,modalOverflow:m.scrollWidth-m.clientWidth}})()`)
+  await screenshot(captureName ?? (enabled ? 'routing-configured' : 'routing-disabled'))
   await key('Escape', { windowsVirtualKeyCode: 27 }); await wait(`!document.querySelector('[role=dialog]')`)
+  return layout
 }
 async function send(tag) {
   const before = await ui.evaluate(`window.openbot.sessions.get(${JSON.stringify(sessionId)}).then(s=>s.messages.length)`), start = wire.length
@@ -200,7 +205,23 @@ async function send(tag) {
 }
 
 try {
-  await launch(); await openMemory()
+  await launch()
+  if (uiOnly) {
+    result.layouts = []
+    for (const [theme, width, height] of [['light',1120,800],['dark',740,740]]) {
+      await ui.evaluate(`window.openbot.settings.update({theme:${JSON.stringify(theme)}})`)
+      await wait(`document.documentElement.dataset.theme===${JSON.stringify(theme)}`)
+      await main.evaluate(`process.getBuiltinModule('module').createRequire(process.execPath)('electron').BrowserWindow.getAllWindows()[0].setSize(${width},${height})`)
+      const layout = await configureRouting(true, 'routing-' + theme + '-' + width)
+      result.layouts.push(layout)
+      assert.ok(layout.pageOverflow <= 1 && layout.modalOverflow <= 1, JSON.stringify(layout))
+    }
+    assert.equal(wire.some(row=>row.model===sideModel), false, 'Editing routing settings alone must not run inference')
+    result.checks.push('light-wide and dark-narrow routing settings', 'no horizontal overflow', 'Escape returns to chat', 'settings edits do not start inference')
+  } else {
+  let saved
+  if (!routingOnly) {
+  await openMemory()
   await saveMemory('UNIFIED_MEMORY_PROFILE prefers concise verification reports.', 'profile', false)
   await saveMemory('UNIFIED_MEMORY_JOURNAL records a synthetic dated checkpoint.', 'journal', false)
   await saveMemory('UNIFIED_MEMORY_SHARED uses a shared synthetic preference.', 'profile', true)
@@ -209,13 +230,14 @@ try {
   assert.ok(await ui.evaluate(`document.querySelector('.ob-memory [aria-label="日记"]')?.textContent.includes('UNIFIED_MEMORY_JOURNAL')`))
   assert.ok(await ui.evaluate(`document.querySelector('.ob-memory [aria-label="其他记忆"]')?.textContent.includes('UNIFIED_MEMORY_LEGACY')`))
   assert.match(await ui.evaluate(`document.querySelector('.ob-memory-provenance').textContent`), /Unified Memory Fixture/)
-  const saved = await ui.evaluate(`window.openbot.bots.memory(${JSON.stringify(botId)})`)
+  saved = await ui.evaluate(`window.openbot.bots.memory(${JSON.stringify(botId)})`)
   assert.deepEqual(saved.find(entry => entry.id === legacy.id), legacy)
   assert.ok(saved.some(entry => entry.tags?.includes('journal')))
   assert.ok(saved.some(entry => entry.tags?.includes('profile') && entry.tags?.includes('source:bot:' + botId)))
   await screenshot('memory-groups-light')
   await ui.evaluate(`window.openbot.settings.update({theme:'dark'})`); await wait(`document.documentElement.dataset.theme==='dark'`); await screenshot('memory-groups-dark')
   await closeDetails()
+  }
   assert.equal((await send('UNIFIED_ROUTE_OFF')).filter(row => row.model === sideModel).length, 0)
   await configureRouting(true)
   const valid = await send('UNIFIED_ROUTE_VALID'); assert.equal(valid.filter(row => row.model === sideModel).length, 1)
@@ -226,8 +248,11 @@ try {
   await configureRouting(false)
   assert.equal((await send('UNIFIED_ROUTE_DISABLED')).filter(row => row.model === sideModel).length, 0)
   await configureRouting(true)
-  const recall = await send('UNIFIED_RECALL'); assert.ok(recall.some(row => row.recall?.profile && row.recall.journal && row.recall.legacy && row.recall.shared && !row.recall.foreign))
-  result.checks.push('real memory UI/IPC categories/shared provenance', 'legacy shape preserved', 'actual application-host recall', 'routing side model independent of Bot model', 'invalid/timeout advice falls back', 'disabled routing makes no side call')
+  if (!routingOnly) {
+    const recall = await send('UNIFIED_RECALL'); assert.ok(recall.some(row => row.recall?.profile && row.recall.journal && row.recall.legacy && row.recall.shared && !row.recall.foreign))
+    result.checks.push('real memory UI/IPC categories/shared provenance', 'legacy shape preserved', 'actual application-host recall')
+  }
+  result.checks.push('routing side model independent of Bot model', 'invalid/timeout advice falls back', 'disabled routing makes no side call')
   const safety = await main.evaluate(`globalThis.__unifiedMemoryFixture`); assert.deepEqual(safety, { unexpected: [], dialogs: [] })
   assert.equal(await stop(), true, 'Restart readback requires normal shutdown, not a forced kill')
   // Only our stopped temporary profile is changed, to exercise actual startup inbox delivery.
@@ -238,12 +263,16 @@ try {
   await wait(`window.openbot.tasks.get(${JSON.stringify(hiddenTaskId)}).then(t=>t?.deliveryStatus==='delivered'&&t.review?.outcome==='complete_claimed')`, 40_000)
   assert.equal(wire.slice(wakeStart).filter(row => row.model === sideModel).length, 0, 'An internal result wake must not invoke optional routing')
   assert.ok(wire.slice(wakeStart).some(row => row.model === mainModel))
-  const restored = await ui.evaluate(`window.openbot.bots.memory(${JSON.stringify(botId)})`)
-  assert.deepEqual(restored, saved)
   assert.equal(await ui.evaluate(`window.openbot.settings.get().then(s=>s.quickDecision?.modelId)`), sideModel)
-  const recalledAgain = await send('UNIFIED_RECALL'); assert.ok(recalledAgain.some(row => row.recall?.count === 4))
-  await openMemory(); await screenshot('memory-restored-after-restart')
-  result.checks.push('normal restart retains memory and routing settings', 'pending result hidden wake skips routing', 'actual recall after restart')
+  result.checks.push('normal restart retains routing settings', 'pending result hidden wake skips routing')
+  if (!routingOnly) {
+    const restored = await ui.evaluate(`window.openbot.bots.memory(${JSON.stringify(botId)})`)
+    assert.deepEqual(restored, saved)
+    const recalledAgain = await send('UNIFIED_RECALL'); assert.ok(recalledAgain.some(row => row.recall?.count === 4))
+    await openMemory(); await screenshot('memory-restored-after-restart')
+    result.checks.push('normal restart retains memory', 'actual recall after restart')
+  }
+  }
   assert.deepEqual(await main.evaluate(`globalThis.__unifiedMemoryFixture`), { unexpected: [], dialogs: [] })
   assert.deepEqual(rendererErrors, [])
   assert.equal(wire.some(row => row.fixtureError), false)
