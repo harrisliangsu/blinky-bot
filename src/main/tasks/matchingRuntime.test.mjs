@@ -124,3 +124,21 @@ test('legacy and private context readback stays usable; describing a stopped tas
     assert.equal(f.api.getTask(task.id).status, 'cancelled')
   } finally { await f.close() }
 })
+
+
+test('new-task receipts expose missing context and the exact correction contract without duplicating execution', async()=>{
+  const f=await fixture()
+  try {
+    const ctx={sessionId:f.home.id,botId:f.bot.id,signal:new AbortController().signal,callId:'new-task',host:{delegateTask:f.api.delegateBackgroundTask,manageTask:f.api.manageBackgroundTask,listBots:async()=>[f.api.getBot(f.bot.id)]},requestApproval:async()=>{throw Error('metadata repair must not invent a new permission gate')}}
+    const started=await f.api.delegateTaskTool.handler({prompt:'Synthetic goal',title:'Synthetic task'},ctx)
+    assert.equal(started.ok,true);assert.equal(started.detail.contextSaved,false);assert.match(started.output,/context=\{/);assert.match(started.output,/do not create another task/)
+    const taskId=started.detail.taskId
+    await until(()=>f.state.calls.length===1)
+    const failed=await f.api.manageTaskTool.handler({action:'describe',task_id:taskId,text:'Cannot replace the context object'},ctx)
+    assert.equal(failed.ok,false);assert.match(failed.output,/context, not text/);assert.match(failed.output,/same task_id/)
+    assert.equal(f.api.getTask(taskId).plan.context,undefined)
+    const saved=await f.api.manageTaskTool.handler({action:'describe',task_id:taskId,context:context('Synthetic goal',['synthetic/module'])},ctx)
+    assert.equal(saved.ok,true);assert.equal(f.api.getTask(taskId).plan.context.summary,'Synthetic goal')
+    assert.equal(f.api.listTasks().length,1);assert.equal(f.state.calls.length,1);assert.equal(f.api.getTask(taskId).sessionId,started.detail.sessionId)
+  } finally {await f.close()}
+})

@@ -9,7 +9,7 @@ import { contextForTask, parseTaskContext, validateTaskParent } from './context'
 export async function describeTask(task: AgentTask, context: unknown, tasks: AgentTask[], signal?: AbortSignal): Promise<AgentTask> {
   if (!task.sourceSessionId) throw new TypeError('Inspect the ownership of this legacy task before describing it.')
   if (task.planInvalid) throw new TypeError('The saved task plan is invalid; inspect it before changing its context.')
-  if (context === undefined) throw new TypeError('Provide the complete updated task context.')
+  if (context === undefined) throw new TypeError('manage_task describe requires context: {"summary":"goal and deliverable","categories":["category"],"scope":["work area"],"boundaries":["exclusion"]}. Pass this object in context, not text. No description was changed; use the same task_id.')
   const cwd = task.plan?.sourceCwd ?? getSession(task.sessionId)?.cwd
   if (!cwd) throw new TypeError('The source directory is unavailable.')
   // A legacy description update must retain the existing files and scheduling.

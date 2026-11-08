@@ -35,7 +35,7 @@ const scrub = value => {
 const result = { kind, realLeadModel: true, controlledExecutor: true, manualTaskToolCalls: 0, root, stages: completed }
 try {
   const selectedModel = kind === 'kimi' ? process.env.BLINKY_KIMI_MODEL : undefined
-  profileInfo = JSON.parse(execFileSync('/opt/homebrew/bin/python3.11', ['Scripts/fixtures/prepare-planning-profile.py', '--kind', kind, '--dest', profile, '--source-home', sourceHome, ...(selectedModel ? ['--model', selectedModel] : [])], { cwd: repo, encoding: 'utf8' }))
+  profileInfo = JSON.parse(execFileSync('/opt/homebrew/bin/python3.11', ['Scripts/fixtures/prepare-planning-profile.py', '--kind', kind, '--dest', profile, '--source-home', sourceHome, ...(selectedModel ? ['--model', selectedModel] : []), ...(kind === 'codex' && process.env.BLINKY_TEST_AUTH_REFERENCE === '1' ? ['--reference-auth'] : [])], { cwd: repo, encoding: 'utf8' }))
   result.credentialMode = profileInfo.credentialMode
   result.credentialValuesCopied = profileInfo.credentialValuesCopied
   const config = await fs.readFile(path.join(profile, 'config.toml'), 'utf8')
@@ -72,7 +72,9 @@ try {
   const leadModel = kind === 'kimi' && process.env.BLINKY_BOT_E2E_NATIVE_DEFAULT !== '1' ? profileInfo.model : 'default'
   result.configuredAppModel = leadModel
   await fs.writeFile(path.join(data, 'settings.json'), JSON.stringify({ language: 'zh-CN', theme: 'light', defaultBackendId: kind, defaultModelId: leadModel, memoryExtraction: 'off', notifications: false, notifyOnComplete: false, runRoutinesWhenClosed: false, localExecutionPolicy: 'always-allow', approvalPolicy: 'auto-run', backends }))
-  const bot = { id: 'real-planner', name: 'Real planner ' + kind, description: 'Synthetic workflow verification', systemPrompt: '这是用户授权的隔离任务流验收。所有用户需求和执行产物都是合成数据，独立执行器只按控制信号输出占位文档；根据真实状态协调即可，不扩展成真实业务开发。普通实现决定自主处理。仅使用应用提供的任务工具，不调用原生 shell、读写文件、网络搜索、第三方 MCP 或其他外部工具。不要新建监控任务。', backendId: kind, modelId: leadModel, ...(kind === 'codex' ? { thinking: 'low' } : {}), executionAgent: { backendId: 'codex', modelId: 'fixture-worker' }, followsDefault: false, tools: ['delegate_task'], computerUse: false, computerTarget: { kind: 'local' }, activeConversationId: 'planner-home', emoji: '🧪', color: '#888888', createdAt: 1, updatedAt: 1 }
+  const leadThinking = process.env.BLINKY_BOT_E2E_THINKING || (kind === 'codex' ? 'low' : undefined)
+  result.configuredThinking = leadThinking
+  const bot = { id: 'real-planner', name: 'Real planner ' + kind, description: 'Synthetic workflow verification', systemPrompt: '这是用户授权的隔离任务流验收。所有用户需求和执行产物都是合成数据，独立执行器只按控制信号输出占位文档；根据真实状态协调即可，不扩展成真实业务开发。普通实现决定自主处理。仅使用应用提供的任务工具，不调用原生 shell、读写文件、网络搜索、第三方 MCP 或其他外部工具。不要新建监控任务。', backendId: kind, modelId: leadModel, ...(leadThinking ? { thinking: leadThinking } : {}), executionAgent: { backendId: 'codex', modelId: 'fixture-worker' }, followsDefault: false, tools: ['delegate_task'], computerUse: false, computerTarget: { kind: 'local' }, activeConversationId: 'planner-home', emoji: '🧪', color: '#888888', createdAt: 1, updatedAt: 1 }
   await fs.writeFile(path.join(data, 'bots', bot.id + '.json'), JSON.stringify(bot))
   await fs.writeFile(path.join(data, 'sessions', 'planner-home.json'), JSON.stringify({ id: 'planner-home', title: 'Synthetic requests', cwd: work, mode: 'agent', botIds: [bot.id], activeBotId: bot.id, messages: process.env.BLINKY_BOT_E2E_SEEDED_TASK === '1' ? [{id:'synthetic-communication-goal',role:'user',content:'验收内部沟通：执行者保持运行；Bot 到期询问实际进展与卡点，同一执行会话普通回复。仅合成数据，不外发。',createdAt:1}] : [], todos: [], archived: false, createdAt: 1, updatedAt: 1 }))
   const appPath = executable.slice(0, executable.indexOf('.app/') + 4), asar = path.join(appPath, 'Contents/Resources/app.asar')
@@ -88,22 +90,29 @@ try {
   await main.evaluate(`globalThis.__planningElectron=process.getBuiltinModule('module').createRequire(process.execPath)('electron')`)
   result.runtime = await main.evaluate(`({appPath:__planningElectron.app.getAppPath(),userData:__planningElectron.app.getPath('userData'),electron:process.versions.electron,pid:process.pid})`)
   assert.equal(result.runtime.userData, data)
-  await ui.evaluate(`(()=>{window.__planningEvents=[];window.openbot.on(event=>{window.__planningEvents.push(event);if(event.type==='approval-request'){const r=event.request;const safe=r.kind==='mcp'&&/(?:^|[^a-zA-Z0-9])(?:manage_task|delegate_task|review_task)(?:$|[^a-zA-Z0-9])/.test(r.summary)&&!/(?:恢复任务|"action"\\s*:\\s*"(?:stop|resume)")/.test(r.detail+' '+r.summary);window.openbot.agent.respondToApproval(r.id,safe?'approve':'reject')}})})()`)
+  await ui.evaluate(`(()=>{window.__planningEvents=[];window.openbot.on(event=>{window.__planningEvents.push(event);if(event.type==='approval-request'){const r=event.request;const safe=r.kind==='mcp'&&/(?:^|[^a-zA-Z0-9])(?:manage_task|delegate_task|review_task)(?:$|[^a-zA-Z0-9])/.test(r.summary)&&!/(?:恢复任务|Action:\\s*(?:stop|resume)|"action"\\s*:\\s*"(?:stop|resume)")/.test(r.detail+' '+r.summary);window.openbot.agent.respondToApproval(r.id,safe?'approve':'reject')}})})()`)
   const state = async () => lastState = await ui.evaluate(`Promise.all([window.openbot.tasks.list(),window.openbot.sessions.get('planner-home'),window.openbot.agent.isRunning('planner-home')]).then(([tasks,session,running])=>({tasks,session,running,events:window.__planningEvents}))`)
-  const until = async (fn, ms = 180000) => { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await delay(180) } throw new Error('E2E condition timed out; inspect state.json') }
+  const stageBudgetMs = Number(process.env.BLINKY_BOT_E2E_STAGE_MS || 180000)
+  assert.ok(stageBudgetMs >= 1000 && stageBudgetMs <= 360000)
+  result.stageBudgetMs = stageBudgetMs
+  const until = async (fn, ms = stageBudgetMs) => { const end = Date.now() + ms; while (Date.now() < end) { const value = await fn(); if (value) return value; await delay(180) } throw new Error('E2E condition timed out; inspect state.json') }
   // Supervised CLI tool calls are app events, not message.toolCalls. Preserve
   // the real gateway observations rather than inferring a call from prose.
   const calls = events => events.filter(event => event.type === 'tool-call' && event.sessionId === 'planner-home').map(event => event.call)
   const ask = async (id, text) => {
+    await fs.writeFile(path.join(evidence, id + '-started.json'), JSON.stringify({id,text,at:Date.now(),budgetMs:stageBudgetMs}))
+    console.log(JSON.stringify({stage:id,state:'started'}))
+    const stageStartedAt=Date.now()
     await until(async () => !(await state()).running)
     const before = await state(), messageIds = new Set(before.session.messages.map(message => message.id))
     assert.equal(await ui.evaluate(`window.openbot.agent.send('planner-home',${JSON.stringify(text)})`), true)
     await until(async () => {
       const now = await state()
-      return !now.running && now.session.messages.some(message => !messageIds.has(message.id) && message.role === 'assistant' && !message.streaming && (message.content || message.error))
+      return !now.running && now.session.messages.some(message => !messageIds.has(message.id) && message.role === 'assistant' && !message.internal && !message.uiOnly && !message.streaming && (message.content || message.error))
     })
     const now = await state(), newMessages = now.session.messages.filter(message => !messageIds.has(message.id))
-    const stage = { id, request: text, messages: newMessages, calls: calls(now.events.slice(before.events.length)), tasks: now.tasks }
+    const stage = { id, durationMs: Date.now()-stageStartedAt, request: text, messages: newMessages, calls: calls(now.events.slice(before.events.length)), tasks: now.tasks }
+    console.log(JSON.stringify({stage:id,state:'returned',durationMs:stage.durationMs,calls:stage.calls.length}))
     completed.push(stage); await fs.writeFile(path.join(evidence, id + '.json'), scrub(JSON.stringify(stage, null, 2)))
     assert.ok(!newMessages.some(message => message.error), scrub(JSON.stringify(newMessages.filter(message => message.error))))
     return now.tasks
@@ -212,8 +221,14 @@ try {
     result.persistedTasks = await allFiles()
     result.receipts = JSON.parse(await fs.readFile(path.join(data, 'task-messages', first.id + '.json'), 'utf8'))
     result.workerTrace = (await fs.readFile(trace, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    const originalResult=result.workerTrace.find(row=>row.method==='finish'&&row.taskId===first.id&&row.status==='completed')
+    assert.ok(originalResult)
+    const produced=await fs.readFile(originalResult.file,'utf8')
+    assert.match(produced,/上海/,'The original worker output must actually contain the delivered Shanghai supplement')
+    result.diskReadback={originalResult:originalResult.file,containsSupplement:true,taskFiles:result.persistedTasks.map(t=>({id:t.id,sessionId:t.sessionId,status:t.status,context:t.plan?.context,dependencies:t.plan?.dependencies,workspace:t.workspace}))}
 
-    result.checks = ['normal-user-chat-entry','real-native-bot-selected-tools','descriptions-and-categories-persisted','active-supplement-receipt','independent-goal-separate-workspace','real-dependency-queued-and-released','same-session-continuation','shared-workspace-conflict-serialized','unrelated-executor-preserved','no-existing-task-cancelled']
+
+    result.checks = ['normal-user-chat-entry','real-native-bot-selected-tools','descriptions-and-categories-persisted','active-supplement-receipt','independent-goal-separate-workspace','real-dependency-queued-and-released','same-session-continuation','shared-workspace-conflict-serialized','unrelated-executor-preserved','no-existing-task-cancelled','worker-file-contains-real-delivered-supplement']
   }
   if (kind === 'kimi') {
     result.backendReadiness = await ui.evaluate(`window.openbot.backends.list().then(rows=>rows.filter(row=>row.id==='kimi').map(row=>({id:row.id,status:row.status,cliAuth:row.cliAuth})))`)

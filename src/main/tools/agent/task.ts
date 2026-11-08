@@ -13,16 +13,16 @@ export const manageTaskTool = defineTool({
   parameters: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['list', 'inspect', 'message', 'stop', 'resume', 'report', 'prioritize', 'match', 'describe'], description: 'match: read owned candidate facts for semantic comparison with the new goal in text (no task_id needed). describe: replace a task’s semantic context without changing execution; deliver actual new instructions separately.' },
+      action: { type: 'string', enum: ['list', 'inspect', 'message', 'stop', 'resume', 'report', 'prioritize', 'match', 'describe'], description: 'match requires text with the new goal and reads candidates (no task_id). describe requires task_id AND context: {summary, categories, scope, boundaries}; text cannot replace that object. It saves semantic metadata only, without sending instructions or changing execution.' },
       task_id: { type: 'string', description: 'Exact task id; omitted for list and match.' },
-      text: { type: 'string', description: 'For match: required new user goal, at most 12000 characters; context.summary does not replace text. Otherwise supplemental instruction, authorized remaining work, or brief factual milestone. Never include credentials.' },
+      text: { type: 'string', description: 'For match: required new user goal, at most 12000 characters; context.summary does not replace text. For message/resume/report: the instruction or observation. Not used for describe: pass the complete context object instead. Never include credentials.' },
       request_id: { type: 'string', description: 'Stable idempotency id for message/report. Reuse the same id after a timeout; inspect its receipt.' },
       limit: { type: 'integer', minimum: 1, maximum: 100 },
       before: { type: 'string', description: 'The next cursor returned by a previous list.' },
       priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'], description: 'For prioritize: choose based on the user’s importance/urgency and current work. Only queued tasks can change.' },
       depends_on: { type: 'array', items: { type: 'string' }, description: 'For prioritize: replace queued task dependencies with exact task IDs owned by this lead/source conversation.' },
       reason: { type: 'string', description: 'Short user-grounded reason for changing the queued order or dependencies.' },
-      context: taskContextSchema
+      context: { ...taskContextSchema, description: 'Required for action=describe: the full object {summary, categories, scope, boundaries}, not a string and not text. Optional query context for match. ' + taskContextSchema.description }
     },
     required: ['action']
   },

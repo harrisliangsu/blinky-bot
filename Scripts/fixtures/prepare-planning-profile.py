@@ -11,6 +11,7 @@ parser.add_argument("--kind", choices=["codex", "kimi"], required=True)
 parser.add_argument("--dest", required=True)
 parser.add_argument("--source-home", required=True)
 parser.add_argument("--model", help="An already configured alias; never supplies a credential")
+parser.add_argument("--reference-auth", action="store_true", help="Reference existing Codex auth; do not copy its values")
 args = parser.parse_args()
 source = Path(args.source_home)
 dest = Path(args.dest)
@@ -46,8 +47,11 @@ if args.kind == "codex":
     auth = source / ".codex/auth.json"
     if auth.is_file():
         target = dest / "auth.json"
-        target.write_bytes(auth.read_bytes())
-        target.chmod(0o600)
+        if args.reference_auth:
+            target.symlink_to(auth)
+        else:
+            target.write_bytes(auth.read_bytes())
+            target.chmod(0o600)
     (dest / "config.toml").write_text("\n".join(lines) + "\n")
 else:
     config = tomllib.loads((source / ".kimi-code/config.toml").read_text())
@@ -88,4 +92,4 @@ else:
     lines += table_lines(["models", model], selected)
     (dest / "config.toml").write_text("\n".join(lines) + "\n")
 (dest / "config.toml").chmod(0o600)
-print(json.dumps({"kind": args.kind, "model": model, "provider": provider, "profile": str(dest), "credentialMode": credential_mode if args.kind == "kimi" else "existing-codex-auth", "credentialValuesCopied": args.kind == "codex"}))
+print(json.dumps({"kind": args.kind, "model": model, "provider": provider, "profile": str(dest), "credentialMode": credential_mode if args.kind == "kimi" else "existing-codex-auth-reference" if args.reference_auth else "existing-codex-auth", "credentialValuesCopied": args.kind == "codex" and not args.reference_auth}))

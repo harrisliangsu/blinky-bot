@@ -43,14 +43,20 @@ export const delegateTaskTool = defineTool(schema, async (args, ctx) => {
   const title = optStr(args, 'title')?.trim().slice(0, 200)
   const continueTaskId = optStr(args, 'continue_task_id')?.trim()
   const task: AgentTask = await ctx.host.delegateTask(ctx.sessionId, ctx.botId, target.id, prompt, title, continueTaskId, ctx.signal, args.output_files, args.plan as import('../../../shared/taskPlan').TaskPlanInput | undefined)
+  const contextSaved = Boolean(task.plan?.context)
+  // Old callers remain valid. Make incomplete new-task metadata visible to
+  // the Bot so it can repair the same record rather than silently losing it.
+  const contextNotice = task.sourceSessionId && !continueTaskId && !contextSaved
+    ? '\nTask context was not saved; only a legacy request excerpt is available for later matching. Complete this same record with manage_task action="describe", task_id="' + task.id + '", context={"summary":"goal and deliverable","categories":["category"],"scope":["work area"],"boundaries":["exclusion"]}. Use the actual goal and boundaries; text is not the context object. This updates metadata only, not execution; do not create another task.'
+    : ''
   return {
     callId: ctx.callId ?? '',
     name: NAME,
     ok: true,
     output: task.sourceSessionId
-      ? `${continueTaskId ? 'Continued' : 'Started'} “${task.title}” as an independent background task. Its result will return to this chat. Task ID: ${task.id}${task.acceptance ? '. The application will check the specified files before accepting a completion claim; existence alone does not prove the work is complete.' : ''}`
+      ? `${continueTaskId ? 'Continued' : 'Started'} “${task.title}” as an independent background task. Its result will return to this chat. Task ID: ${task.id}${task.acceptance ? '. The application will check the specified files before accepting a completion claim; existence alone does not prove the work is complete.' : ''}${contextNotice}`
       : `Started “${task.title}” in the teammate bot’s chat. Check that bot’s chat for its result.`,
-    detail: { taskId: task.id, sessionId: task.sessionId, botId: target.id }
+    detail: { taskId: task.id, sessionId: task.sessionId, botId: target.id, contextSaved }
   }
 })
 
