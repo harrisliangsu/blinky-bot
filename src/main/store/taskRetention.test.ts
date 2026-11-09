@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { createTaskRecord, createTaskRecordDurable, listTasks, normaliseTask, setTaskStatus, storeTaskReviewDurable, trimTasks } from './tasks.ts'
 import { flushAll } from './jsonStore.ts'
+import { flushOutcomes } from '../tasks/taskOutcomes'
 
 test('independent execution history remains reachable past the legacy retention limit', async () => {
   const root = await mkdtemp(join(tmpdir(), 'blinky-task-retention-'))
@@ -17,6 +18,7 @@ test('independent execution history remains reachable past the legacy retention 
     trimTasks()
     assert.equal(listTasks().filter((task) => task.sourceSessionId === 'lead').length, 205)
   } finally {
+    await flushOutcomes()
     await flushAll()
     await rm(root, { recursive: true, force: true })
     delete process.env['OPENBOT_DATA_DIR']

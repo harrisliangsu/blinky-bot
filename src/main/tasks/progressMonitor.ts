@@ -13,7 +13,7 @@ export interface ProgressState {
   version: 2; owner: string; phase: ProgressPhase; progress: string; sequence: number
   assessed?: string; pending?: ProgressNotice
 }
-export type ProgressDecision = ({ kind: 'silent' } | { kind: 'milestone'; text: string; evidenceIds: string[] }) & { coordination?: import('./coordination').CoordinationAction }
+export type ProgressDecision = ({ kind: 'silent' } | { kind: 'milestone'; text: string; evidenceIds: string[] } | { kind: 'digest'; lines: string[] }) & { coordination?: import('./coordination').CoordinationAction }
 export interface ProgressPorts {
   snapshots(): ProgressSnapshot[] | Promise<ProgressSnapshot[]>
   read(id: string): Promise<ProgressState | null>
@@ -56,7 +56,7 @@ export class TaskProgressMonitor {
       const required = requiresProgressNotice(s)
       const decision = historical || !required && !s.evidence?.length ? { kind: 'silent' as const } : await this.ports.judge(s)
       if (decision) state.assessed = key
-      const text = decision?.kind === 'milestone' ? decision.text : undefined
+      const text = decision?.kind === 'milestone' ? decision.text : decision?.kind === 'digest' ? decision.lines.join('\n') : undefined
       // Unavailable inference remains unassessed for durable recovery. Never
       // bypass the Bot by forwarding a host template or the Agent's prose.
       if (text && !historical) {

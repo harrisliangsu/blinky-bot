@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { AgentTask, AgentTaskStatus, Session } from '../../shared/types'
 import type { AgentTaskProgress } from '../../shared/activity'
 import { emitTelemetry } from '../telemetry'
+import { recordTaskOutcome } from '../tasks/taskOutcomes'
 import { JsonCollection } from './collection'
 import { dataRoot, safeFileName, tasksDir } from './paths'
 import { readJsonState, writeJsonNow } from './jsonStore'
@@ -261,11 +262,14 @@ export async function saveTaskRuntimeDurable(id: string, patch: Pick<AgentTask, 
 export function setTaskStatus(id: string, status: AgentTaskStatus, error?: string): AgentTask | null {
   const task = collection.get(id)
   if (!task) return null
-  if (['completed', 'failed', 'cancelled'].includes(status) && task.status !== status) emitTelemetry({ kind: 'task.terminal', taskId: id, botId: task.botId, outcome: status, durationMs: Date.now() - task.createdAt })
+  const terminal = ['completed', 'failed', 'cancelled'].includes(status) && task.status !== status
+  if (terminal) emitTelemetry({ kind: 'task.terminal', taskId: id, botId: task.botId, outcome: status, durationMs: Date.now() - task.createdAt })
   const next: AgentTask = { ...task, status, updatedAt: Date.now() }
   if (error) next.error = error.slice(0, 2000)
   else delete next.error
-  return putTask(next)
+  const saved = putTask(next)
+  if (terminal) void recordTaskOutcome(saved ?? next).catch(() => {})
+  return saved
 }
 
 /** Atomically persist the terminal result and its yet-to-be-consumed inbox entry. */

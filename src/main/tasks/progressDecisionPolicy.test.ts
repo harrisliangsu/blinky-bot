@@ -33,3 +33,15 @@ test('a completed notice beyond 500 characters stays unassessed',()=>{
 test('a completed notice must cite same-task evidence ids',()=>{
  assert.equal(parseProgressDecision(JSON.stringify({kind:'milestone',text:'报告在 /tmp/task-workspace/report.md。',evidenceIds:['elsewhere-proof']}),returned),null)
 })
+
+test('a digest bundles up to three urgent lines and follows the same evidence gate',()=>{
+ const digest=parseProgressDecision(JSON.stringify({kind:'digest',lines:['A 等待你确认，请打开任务查看。','B 报告已完成：/tmp/ws/report.md。','C 正在处理“导出”。','D 不该出现'],evidenceIds:['result:task']}),returned)
+ assert.equal(digest?.kind,'digest')
+ assert.equal(digest.lines.length,3)
+ assert.equal(digest.lines[3],undefined)
+ assert.ok(!digest.lines.some(l=>l.includes('不该出现')))
+ const noEvidence=parseProgressDecision(JSON.stringify({kind:'digest',lines:['A 卡住。']}),{...returned,phase:'running',terminal:false,needsAttention:false,evidence:[{id:'same-task-proof',kind:'tool',text:'synthetic evidence'}]})
+ assert.equal(noEvidence,null)
+ const withEvidence=parseProgressDecision(JSON.stringify({kind:'digest',lines:['A 卡住。'],evidenceIds:['same-task-proof']}),{...returned,phase:'running',terminal:false,needsAttention:false,evidence:[{id:'same-task-proof',kind:'tool',text:'synthetic evidence'}]})
+ assert.equal(withEvidence?.kind,'digest')
+})
