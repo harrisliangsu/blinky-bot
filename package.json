@@ -10,7 +10,6 @@
     "local-first",
     "coding-agent",
     "cli",
-    "kanban",
     "skills"
   ],
   "license": "MIT",
