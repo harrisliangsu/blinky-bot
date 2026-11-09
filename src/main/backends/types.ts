@@ -172,6 +172,11 @@ export interface ChatRequest {
    * it. Absent leaves the CLI or provider on its own default.
    */
   thinking?: ThinkingDepth
+  /**
+   * Route this turn over the provider's fast channel. Adapters without a
+   * real fast lane ignore it; adapters that do still validate the model.
+   */
+  fast?: boolean
 }
 
 /**

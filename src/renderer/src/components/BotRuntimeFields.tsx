@@ -3,6 +3,7 @@ import { listedBackends } from '../../../shared/backendSections'
 import type { BackendInfo } from '../../../shared/types'
 import { runtimeModels, runtimeSource } from '../../../shared/botRuntime'
 import { modelAcceptsThinking, thinkingOptions, thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
+import { fastWire, modelAcceptsFast } from '../../../shared/fast'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import './BotRuntimeFields.css'
 
@@ -10,6 +11,7 @@ export interface RuntimeChoice {
   backendId: string
   modelId: string
   thinking?: ThinkingDepth
+  fast?: boolean
 }
 
 interface BotRuntimeFieldsProps {
@@ -18,6 +20,7 @@ interface BotRuntimeFieldsProps {
   backendId: string
   modelId: string
   thinking?: ThinkingDepth
+  fast?: boolean
   onChange: (next: RuntimeChoice) => void
 }
 
@@ -41,6 +44,7 @@ export function BotRuntimeFields({
   backendId,
   modelId,
   thinking,
+  fast,
   onChange
 }: BotRuntimeFieldsProps): ReactNode {
   const copyAll = useSettingsCopy()
@@ -55,6 +59,8 @@ export function BotRuntimeFields({
   // preference stored on the connection (which only seeds new Bots).
   const depths = thinkingOptions(backendId, modelId, current?.models ?? [])
   const depthLabels = copy
+  const fastLane = fastWire(backendId)
+  const fastOk = fastLane !== null && modelAcceptsFast(backendId, modelId)
 
   return (
     <div className="ob-bot-runtime-grid">
@@ -86,7 +92,12 @@ export function BotRuntimeFields({
           onChange={(e) => {
             const next = e.target.value
             const supported = thinkingOptions(backendId, next, current?.models ?? [])
-            onChange({ backendId, modelId: next, ...(thinking && supported.includes(thinking) ? { thinking } : {}) })
+            onChange({
+              backendId,
+              modelId: next,
+              ...(thinking && supported.includes(thinking) ? { thinking } : {}),
+              ...(fast && modelAcceptsFast(backendId, next) ? { fast } : {})
+            })
           }}
         >
           {models.map((model) => (
@@ -122,6 +133,18 @@ export function BotRuntimeFields({
               </option>
             ))}
           </select>
+        </label>
+      ) : null}
+      {fastLane ? (
+        <label className="ob-bot-runtime-fast" title={fastOk ? copy.fastHint : copy.fastUnavailable}>
+          <input
+            type="checkbox"
+            checked={Boolean(fast)}
+            disabled={!fastOk}
+            aria-label={copy.fast}
+            onChange={(e) => onChange({ backendId, modelId, ...(e.target.checked ? { fast: true } : {}) })}
+          />
+          <span>{copy.fast}</span>
         </label>
       ) : null}
     </div>

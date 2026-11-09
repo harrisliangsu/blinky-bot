@@ -103,6 +103,7 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
             backendId={runtime.backendId}
             modelId={runtime.modelId}
             thinking={runtime.thinking}
+            fast={draft.fast}
             onChange={chooseRuntime}
           />
         </section>

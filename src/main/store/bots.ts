@@ -167,6 +167,7 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
     color: typeof value['color'] === 'string' && value['color'] ? value['color'] : '#7c9cff',
     ...avatarFields(value),
     ...bindingFields(alignBinding(value['backendId'], value['modelId'], value['followsDefault'], value['thinking'])),
+    ...(value['fast'] === true ? { fast: true } : {}),
     tools: stringList(value['tools']),
     skills: stringList(value['skills']),
     computerUse: value['computerUse'] === true,

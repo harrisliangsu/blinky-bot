@@ -23,11 +23,18 @@
 .ob-bot-runtime-grid label {
   display: flex;
   align-items: center;
+  gap: var(--ob-space-1);
   flex: 0 1 auto;
   min-width: 0;
   font-size: var(--ob-font-size-xs);
   color: var(--ob-text-tertiary);
   white-space: nowrap;
+}
+.ob-bot-runtime-grid .ob-bot-runtime-fast {
+  cursor: pointer;
+}
+.ob-bot-runtime-grid .ob-bot-runtime-fast input:disabled {
+  cursor: not-allowed;
 }
 .ob-bot-runtime-grid .ob-settings-select {
   field-sizing: content;

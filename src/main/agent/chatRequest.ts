@@ -78,6 +78,7 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
     captureAgentTrace: isTracedBackgroundRun(session.id),
     ...(input.supportsVision === undefined ? {} : { supportsVision: input.supportsVision }),
     ...(bot.thinking ? { thinking: bot.thinking } : {}),
+    ...(bot.fast ? { fast: true } : {}),
     messages,
     // pi and model APIs use this application-owned tool loop; other CLIs use MCP.
     tools: mode === 'orchestrated' && tools?.length ? tools : undefined,

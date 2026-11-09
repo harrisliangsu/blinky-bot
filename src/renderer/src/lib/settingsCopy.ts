@@ -100,6 +100,9 @@ export interface SettingsCopy {
     thinkingMax: string
     thinkingUltra: string
     thinkingUnavailable: string
+    fast: string
+    fastHint: string
+    fastUnavailable: string
     eachBot: string
     eachBotHint: string
     runtimeEmpty: string
@@ -435,6 +438,9 @@ const en: SettingsCopy = {
     thinkingMax: 'Max',
     thinkingUltra: 'Ultra',
     thinkingUnavailable: 'This model has no thinking control.',
+    fast: 'Fast lane',
+    fastHint: 'Route over the provider’s fast channel. Faster responses at a higher price. Hidden when that provider or model has no fast lane.',
+    fastUnavailable: 'This model has no fast lane.',
     eachBot: 'Each Bot',
     eachBotHint: 'Each Bot keeps its own CLI or provider, model, and thinking depth.',
     runtimeEmpty: 'No usable local CLI or provider yet. Add one under Local CLIs & providers.',
@@ -787,6 +793,9 @@ const zh: SettingsCopy = {
     thinkingMax: '最大',
     thinkingUltra: '超高',
     thinkingUnavailable: '这个模型没有思考深度。',
+    fast: '快速通道',
+    fastHint: '走供应商的快速通道，响应更快、费用更高。所选供应商或模型没有快速通道时不显示。',
+    fastUnavailable: '这个模型没有快速通道。',
     eachBot: '每个 Bot',
     eachBotHint: '每个 Bot 单独保存本地 CLI 或供应商、模型和思考深度。',
     runtimeEmpty: '还没有可用的本地 CLI 或供应商。请先在「本地 CLI 与供应商」里添加。',

@@ -114,7 +114,8 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
       backendId: choice.backendId,
       modelId: choice.modelId,
       followsDefault: false,
-      ...(choice.thinking ? { thinking: choice.thinking } : { thinking: undefined })
+      ...(choice.thinking ? { thinking: choice.thinking } : { thinking: undefined }),
+      ...(choice.fast ? { fast: true } : { fast: undefined })
     }))
 
   const save = async (): Promise<void> => {
@@ -149,6 +150,7 @@ export function useBotDraft(bot: Bot | null, onClose: () => void, onSaved: (bot:
       modelId: draft.modelId,
       followsDefault: draft.followsDefault === false ? false : true,
       thinking: (draft.followsDefault === false && draft.thinking ? draft.thinking : '') as ThinkingDepth,
+      ...(draft.fast ? { fast: true } : {}),
       executionAgent: draft.executionAgent,
       // These are no longer editable here. Omitting them on existing Bots
       // preserves live grants and avoids probing an unchanged legacy VM.

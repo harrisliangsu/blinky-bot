@@ -41,6 +41,12 @@ export interface Bot {
    * `followsDefault` is set — Settings' default depth wins then.
    */
   thinking?: ThinkingDepth
+  /**
+   * Route this Bot's conversation model over the provider's fast channel.
+   * Only shown for providers with a real fast lane, and only sent when the
+   * chosen model accepts it; every other backend ignores it.
+   */
+  fast?: boolean
   /** Enabled tool ids; see TOOL_IDS. */
   tools: string[]
   /** Assigned skill ids (`origin:name`), resolved at prompt time. */
