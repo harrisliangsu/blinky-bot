@@ -42,10 +42,10 @@ export function forgetCodexThread(sessionKey: string | undefined): void {
 
 export interface CodexThreadCall {
   method: 'thread/start' | 'thread/resume'
-  params: { threadId?: string; cwd?: string; model?: string; approvalPolicy?: 'never' | 'untrusted' | 'on-request'; sandbox?: 'read-only' | 'workspace-write'; approvalsReviewer?: 'auto_review' | 'user' }
+  params: { threadId?: string; cwd?: string; model?: string; approvalPolicy?: 'never' | 'untrusted' | 'on-request'; sandbox?: 'read-only' | 'workspace-write' | 'danger-full-access'; approvalsReviewer?: 'auto_review' | 'user' }
 }
 
-export function codexThreadCall(input: { threadId?: string; cwd?: string; model?: string; approvalPolicy?: 'never' | 'untrusted' | 'on-request'; sandbox?: 'read-only' | 'workspace-write'; approvalsReviewer?: 'auto_review' | 'user' }): CodexThreadCall {
+export function codexThreadCall(input: { threadId?: string; cwd?: string; model?: string; approvalPolicy?: 'never' | 'untrusted' | 'on-request'; sandbox?: 'read-only' | 'workspace-write' | 'danger-full-access'; approvalsReviewer?: 'auto_review' | 'user' }): CodexThreadCall {
   const safety = { ...(input.approvalPolicy ? { approvalPolicy: input.approvalPolicy } : {}), ...(input.sandbox ? { sandbox: input.sandbox } : {}), ...(input.approvalsReviewer ? { approvalsReviewer: input.approvalsReviewer } : {}) }
   const threadId = durableThreadId(input.threadId)
   if (threadId) return { method: 'thread/resume', params: { threadId, ...safety } }

@@ -64,7 +64,7 @@ export interface ToolHost {
     outputFiles?: unknown,
     plan?: import('../../shared/taskPlan').TaskPlanInput
   ): Promise<AgentTask> | AgentTask
-  reviewTask?(sessionId: string, botId: string, taskId: string, outcome: 'complete_claimed' | 'blocked', summary: string, evidence: string[], signal?: AbortSignal): Promise<AgentTask> | AgentTask
+  reviewTask?(sessionId: string, botId: string, taskId: string, outcome: 'complete_claimed' | 'blocked', summary: string, evidence: string[], signal?: AbortSignal, question?: unknown): Promise<AgentTask> | AgentTask
   manageTask?(sessionId: string, botId: string, command: import('../../shared/activity').AgentTaskCommand, signal?: AbortSignal, confirmResume?: (task: AgentTask) => Promise<boolean>): Promise<Record<string, unknown>>
   requestInput?(sessionId: string, botId: string, questions: unknown, signal: AbortSignal, requestId: string, identitySignal?: AbortSignal): Promise<{ answers: Record<string, string[]>; answeredBy: 'bot' | 'user'; answerBasis?: 'context' | 'implementation'; botAnsweredQuestions: string[]; answerEvidence?: Record<string, import('../../shared/activity').AgentTaskAnswerEvidence> } | null>
   scheduleRoutine?(sessionId: string, botId: string, name: string, instruction: string, cron: string, options?: { tz?: string; earlyMinutes?: number; lateMinutes?: number }): Promise<Routine> | Routine

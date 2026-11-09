@@ -1,3 +1,7 @@
+import { listTaskClarifications } from '../tasks/clarifications'
+import { completionContext, completionInputKey, taskLineage } from '../tasks/completionContext'
+import { resolvedReviewQuestion, cancelReviewQuestions } from '../tasks/reviewQuestions'
+import { withClarificationReview } from '../tasks/clarificationReview'
 import { showDesktopNotification } from '../desktopNotifications'
 import { routineOwnsNotifications } from '../routines/notificationOwnership'
 /**
@@ -187,10 +191,18 @@ export async function receiveAgentResult(sessionId: string, taskId: string, titl
     const id = `agent-result-input-${taskId}`
     const task = getTask(taskId)
     if (!task) throw new Error('The background task is unavailable; its result cannot be reviewed safely.')
+    if(task.sourceSessionId!==sessionId || session.archived || !session.botIds.includes(task.requesterBotId??task.botId))throw new Error('The original task owner is unavailable; no substitute Bot may assess it.')
+    const initialReviewAt=task.review?.recordedAt??0
+    const reply=await resolvedReviewQuestion(task).catch(()=>undefined)
     const objective = taskReviewObjective(task, listTasks())
     if (!session.messages.some((message) => message.id === id)) {
       await addUserMessage(session, agentResultInput(title, result, taskId, objective, task.status, task.acceptance?.files), undefined, false, id, undefined, true)
     }
+    const taskIds=new Set(taskLineage(task,listTasks()).map(item=>item.id))
+    const clarificationRows=await listTaskClarifications().catch(()=>null)
+    const clarifications=(clarificationRows??[]).filter(request=>taskIds.has(request.taskId)&&request.sourceSessionId===sessionId&&request.botId===(task.requesterBotId??task.botId)).map(request=>({id:request.id,taskId:request.taskId,status:request.status,questions:request.questions,answers:request.userAnswers??request.answers,answeredBy:request.answeredBy}))
+    const contextId=`agent-result-context-${taskId}-${completionInputKey(task,session.messages,reply)}`
+    if(!session.messages.some(message=>message.id===contextId))await addUserMessage(session,agentResultInput(title,result,taskId,objective,task.status,task.acceptance?.files,{...completionContext(task,listTasks(),session.messages),clarifications,clarificationHistoryUnavailable:clarificationRows===null,...(reply?{userDecision:{clarificationId:reply.id,questions:reply.questions,answers:reply.userAnswers??reply.answers,answeredBy:reply.answeredBy,meaning:'Canonical user clarification reply, not an action-approval override.'}}:{})}),undefined,false,contextId,undefined,true)
     const persisted = await flushAll()
     if (persisted.failed.length || persisted.stillWriting || !((await sessions.get(sessionId))?.messages.some((message) => message.id === id))) throw new Error('Could not persist the background result safely.')
     cancel.markRecorded(sessionId, controller)
@@ -210,8 +222,8 @@ export async function receiveAgentResult(sessionId: string, taskId: string, titl
       }
       if (controller.signal.aborted) throw new Error('The lead was interrupted before publishing its assessment.')
       const task = getTask(taskId)
-      if (task?.review) {
-        const noticeId = `agent-review-${taskId}`
+      if (task?.review && (!await resolvedReviewQuestion(task).catch(()=>undefined) || task.review.recordedAt>initialReviewAt)) {
+        const noticeId = task.reviewHistory?.length ? `agent-review-${taskId}-${task.review.recordedAt}` : `agent-review-${taskId}`
         const appended = !activeSession.messages.some((message) => message.id === noticeId)
         if (appended) {
           // The Bot writes the user summary. Detailed evidence and file hashes
@@ -229,18 +241,24 @@ export async function receiveAgentResult(sessionId: string, taskId: string, titl
     // A crash can occur after recording a decision but before its receipt. Do
     // not run the lead again and potentially repeat side effects in that case.
     if (await finishRecordedReview()) return true
-    for (let attempt = 0; attempt < 3; attempt++) {
-      failure = undefined
-      await iterate(session, controller.signal, { internalAssistant: true, reviewBotId: task.requesterBotId ?? task.botId })
+    // The Agent owns tool iterations. The task loop observes durable outcomes.
+    // A new missing-assessment observation gets a targeted contract correction;
+    // the same unchanged failure is then held, never treated as completion.
+    const missingAssessments=new Set<string>()
+    while(!controller.signal.aborted){
+      failure=undefined
+      await withClarificationReview(sessionId, taskId, task.requesterBotId ?? task.botId, () => iterate(session!, controller.signal, { internalAssistant: true, reviewBotId: task.requesterBotId ?? task.botId }))
       if (await finishRecordedReview()) return true
       if (failure) throw new Error(`The lead could not review the result: ${failure}`)
-      if (attempt < 2) {
-        await addUserMessage(session, `The result for task ${taskId} still has no recorded assessment or continuation. Check the user's complete objective and actual evidence. Continue the same task with delegate_task if work remains; otherwise call review_task with a concrete outcome and evidence or blocker.`, undefined, false, undefined, undefined, true)
-        const saved = await flushAll()
-        if (saved.failed.length || saved.stillWriting) throw new Error('The review request could not be saved.')
-      }
+      const current=getTask(taskId),fresh=await sessions.get(sessionId)
+      if(!current||!fresh)throw new Error('The task review source is unavailable.')
+      const signature=completionInputKey(current,fresh.messages,await resolvedReviewQuestion(current).catch(()=>undefined))
+      if(missingAssessments.has(signature))throw new Error('The owning Bot repeated an unrecorded assessment without new evidence; execution result retained.')
+      missingAssessments.add(signature)
+      await addUserMessage(session,`The last consideration of task ${taskId} produced no durable task assessment or continuation. This is an observed protocol failure, not evidence of task completion or a reason to ask the user. Recheck actual effects before any retry. Compare the original goal, latest user corrections, attempts and evidence; use delegate_task with the same continue_task_id for authorized remaining work, or review_task for an evidenced outcome/real obstacle. A necessary user decision can use review_task blocked with one question, leaving independent work free. Do not repeat external effects or expand scope.`,undefined,false,`agent-review-contract-${taskId}-${signature}`,undefined,true)
+      const saved=await flushAll();if(saved.failed.length||saved.stillWriting)throw new Error('The assessment correction could not be saved.')
     }
-    throw new Error('The lead did not record a task assessment or continuation after repeated review attempts.')
+    throw new Error('The task review was stopped without completing its assessment.')
   } finally {
     stopListening()
     approval.cancelPending(sessionId, 'turn ended')
@@ -304,6 +322,7 @@ async function receiveDraftReceipt(sessionId: string, receiverBotId: string, id:
 
 /** Abort in-flight streams and child processes, and reject anything awaiting approval. */
 export async function stopSession(sessionId: string): Promise<void> {
+  cancelReviewQuestions(undefined,sessionId)
   cancelHumanHelpForSession(sessionId)
   const wasRunning = cancel.abort(sessionId, 'stopped by user')
   approval.cancelPending(sessionId, 'stopped by user')
@@ -343,5 +362,6 @@ export function shutdown(): void {
   // `runningSessionIds`. Left alone, the agent CLI each one spawned survives
   // the quit: children lead their own process group, by design.
   stopAllExtraction()
+  cancelReviewQuestions()
   cancel.abortAll('application closing')
 }

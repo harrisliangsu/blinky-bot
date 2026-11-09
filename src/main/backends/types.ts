@@ -131,6 +131,8 @@ export interface ChatRequest {
    * permissive than what the user chose in OpenBOT.
    */
   approvalPolicy?: string
+  /** Explicitly authorized independent executor only; never inferred from auto-run. */
+  executionAccess?: 'full-access'
   /**
    * Folder this turn runs in — the session's working directory.
    *

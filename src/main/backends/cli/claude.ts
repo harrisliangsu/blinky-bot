@@ -82,7 +82,7 @@ export function guardedToolArgs(readOnly: boolean): string[] {
   ]
 }
 
-function buildArgs(
+export function buildArgs(
   req: ChatRequest,
   model: string,
   system: string,
@@ -90,6 +90,10 @@ function buildArgs(
   continuity: string[],
   mcpArgs: string[]
 ): string[] {
+  if (req.executionAccess === 'full-access') {
+    if (req.readOnly || req.restrictNativeWrites || req.coordinatorOnly || req.disableNativeTools) throw new Error('This role cannot use independent full access.')
+    if (extra.some(arg => /^(--permission-mode|--tools|--allowedTools|--disallowedTools|--dangerously-skip-permissions|--allow-dangerously-skip-permissions)(=|$)/.test(arg))) throw new Error('Claude extra arguments cannot override the explicit execution profile.')
+  }
   const args = [
     '--print',
     '--output-format',
@@ -110,9 +114,9 @@ function buildArgs(
    */
   args.push(
     '--permission-mode',
-    req.readOnly ? READ_ONLY_PERMISSION_MODE : permissionMode(req.approvalPolicy)
+    req.readOnly ? READ_ONLY_PERMISSION_MODE : req.executionAccess === 'full-access' ? 'bypassPermissions' : permissionMode(req.approvalPolicy)
   )
-  args.push(...guardedToolArgs(req.readOnly === true))
+  args.push(...(req.executionAccess === 'full-access' && !req.readOnly ? ['--tools', 'default', '--disallowedTools', 'AskUserQuestion'] : guardedToolArgs(req.readOnly === true)))
   args.push(...continuity)
   args.push(...modelFlag('--model', { model, cwd: '', extraArgs: [] }))
   if (system) args.push('--append-system-prompt', system)
@@ -210,7 +214,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
       }
       break
     } catch (err) {
-      if (answered || req.signal.aborted || attempt >= MAX_CONTINUITY_RETRIES) throw err
+      if (answered || req.signal.aborted || req.executionAccess === 'full-access' || attempt >= MAX_CONTINUITY_RETRIES) throw err
       if (!resuming && isSessionIdInUse(err)) {
         // Claude Code kept the conversation across the restart; join it rather
         // than failing the first turn of every existing chat.

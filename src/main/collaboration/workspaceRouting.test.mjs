@@ -26,21 +26,22 @@ const choice = { backendId: 'synthetic-routing-provider', modelId: 'synthetic-ro
 const access = { scope: 'workspace', permission: 'control' }
 const call = (who, patch, allowed = () => true) => remoteRpc(who, {}, { channel: 'openbot:settings:update', args: [patch] }, allowed)
 
-test('approved workspace control saves an optional routing choice through the existing settings handler', async () => {
+test('approved workspace control still saves ordinary model preferences through the existing handler', async () => {
   globalThis.__routingRpc = []
-  assert.deepEqual(await call(access, { quickDecision: choice }), { value: { quickDecision: choice } })
-  assert.deepEqual(globalThis.__routingRpc, [{ channel: 'openbot:settings:update', args: [{ quickDecision: choice }] }])
-  assert.deepEqual(await call(access, { quickDecision: null }), { value: { quickDecision: null } })
+  const patch = { defaultBackendId: choice.backendId, defaultModelId: choice.modelId }
+  assert.deepEqual(await call(access, patch), { value: patch })
+  assert.deepEqual(globalThis.__routingRpc, [{ channel: 'openbot:settings:update', args: [patch] }])
 })
 
-test('routing never bypasses view-only, room-only, revoked or sensitive-settings restrictions', async () => {
+test('retired routing cannot be re-enabled remotely, and ordinary preferences keep their access restrictions', async () => {
   globalThis.__routingRpc = []
-  await assert.rejects(call({ ...access, permission: 'view' }, { quickDecision: choice }), { status: 403 })
-  await assert.rejects(call({ ...access, scope: 'room' }, { quickDecision: choice }), { status: 403 })
+  for (const value of [choice, null]) await assert.rejects(call(access, { quickDecision: value }), { status: 403 })
+  await assert.rejects(call({ ...access, permission: 'view' }, { defaultModelId: choice.modelId }), { status: 403 })
+  await assert.rejects(call({ ...access, scope: 'room' }, { defaultModelId: choice.modelId }), { status: 403 })
   let reads = 0
-  await assert.rejects(call(access, { quickDecision: choice }, () => ++reads === 1), { status: 401 })
+  await assert.rejects(call(access, { defaultModelId: choice.modelId }, () => ++reads === 1), { status: 401 })
   for (const field of ['backends', 'localExecutionPolicy', 'automaticReview', 'allowlist']) {
-    await assert.rejects(call(access, { quickDecision: choice, [field]: {} }), { status: 403 })
+    await assert.rejects(call(access, { defaultModelId: choice.modelId, [field]: {} }), { status: 403 })
   }
   assert.deepEqual(globalThis.__routingRpc, [])
 })

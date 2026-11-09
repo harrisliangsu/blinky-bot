@@ -10,9 +10,9 @@ export function noteLocalPermissionSettings(settings: PermissionSettings): void 
 }
 
 /** A settings change revokes an in-flight local operation, including its process group. */
-export function localOperationSignal(parent: AbortSignal, settings?: PermissionSettings): { signal: AbortSignal; dispose: () => void } {
+export function localOperationSignal(parent: AbortSignal, settings?: PermissionSettings, independent = false): { signal: AbortSignal; dispose: () => void } {
   const controller = new AbortController()
-  const fingerprint = (s?: PermissionSettings): string => JSON.stringify([localExecutionPolicy(s), s?.automaticReview, s?.asklist, s?.denylist, s?.semanticPermissionRules, s?.allowlist])
+  const fingerprint = (s?: PermissionSettings): string => JSON.stringify(independent ? [localExecutionPolicy(s), s?.asklist, s?.denylist] : [localExecutionPolicy(s), s?.automaticReview, s?.asklist, s?.denylist, s?.semanticPermissionRules, s?.allowlist])
   const initial = fingerprint(settings)
   const listener = (next: PermissionSettings): void => {
     if (fingerprint(next) !== initial) {

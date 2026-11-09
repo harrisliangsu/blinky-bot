@@ -3,10 +3,11 @@ import type { AgentTaskClarification } from '../../../shared/activity'
 import { TaskClarificationCard } from './TaskClarificationCard'
 
 /** The original conversation owns questions that its Bot could not answer. */
-export function TaskClarificationCards({ sessionId, zh }: { sessionId: string; zh: boolean }): ReactNode {
+export function useTaskClarifications(sessionId: string | undefined): { requests: AgentTaskClarification[]; error: boolean } {
   const [requests, setRequests] = useState<AgentTaskClarification[]>([])
   const [error, setError] = useState(false)
   useEffect(() => {
+    if (!sessionId) { setRequests([]); setError(false); return }
     let active = true
     const received = new Map<string, AgentTaskClarification>()
     const publish = (): void => {
@@ -29,21 +30,19 @@ export function TaskClarificationCards({ sessionId, zh }: { sessionId: string; z
     return () => { active = false; unsubscribe() }
   }, [sessionId])
 
-  const eligible = requests.filter((request) => request.status !== 'answering' && request.answeredBy !== 'bot')
-  const recent = new Set(eligible.filter((request) => request.status !== 'waiting_user').slice(-16).map((request) => request.id))
-  const visible = eligible.filter((request) => request.status === 'waiting_user' || recent.has(request.id))
-  return <>
-    {error ? <p className="ob-msg-error" role="status">{zh ? '暂时无法读取待回答的问题。' : 'Questions could not be loaded.'}</p> : null}
-    {visible.map((request) => <TaskClarificationCard key={request.id} request={request} zh={zh} taskTitle={request.taskTitle ?? (zh ? '当前对话' : 'This conversation')}
-      onCancel={async id => {
-        const result = await window.openbot.tasks.cancelClarification(id)
-        if (!result.ok) throw new Error(result.error)
-        return result.request
-      }}
-      onAnswer={async (id, answers) => {
-        const result = await window.openbot.tasks.answerClarification(id, answers)
-        if (!result.ok) throw new Error(result.error)
-        return result.request
-      }} />)}
-  </>
+  return { requests: requests.filter(request => request.sourceSessionId === sessionId), error }
+}
+
+export function TaskClarificationEntry({ request, zh }: { request: AgentTaskClarification; zh: boolean }): ReactNode {
+  return <TaskClarificationCard request={request} zh={zh}
+    onCancel={async id => {
+      const result = await window.openbot.tasks.cancelClarification(id)
+      if (!result.ok) throw new Error(result.error)
+      return result.request
+    }}
+    onAnswer={async (id, answers) => {
+      const result = await window.openbot.tasks.answerClarification(id, answers)
+      if (!result.ok) throw new Error(result.error)
+      return result.request
+    }} />
 }

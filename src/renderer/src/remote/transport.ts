@@ -292,7 +292,7 @@ export class BrowserTransport implements ApiTransport {
       if (any || groups.has('backends-updated')) calls.push(loadBackends())
       if (any || groups.has('workspace:sessions') || groups.has('session-updated') || groups.has('done')) calls.push(loadSessions())
       if (any || groups.has('task-updated') || groups.has('task-summary-updated') || groups.has('activity-updated') || groups.has('workspace:tasks')) calls.push(loadActivity())
-      if (groups.has('task-clarification-updated')) calls.push(this.api.tasks.clarifications().then(requests => { for (const request of requests) this.emit({ type: 'task-clarification-updated', request }) }))
+      if (any || groups.has('task-clarification-updated')) calls.push(this.api.tasks.clarifications().then(requests => { for (const request of requests) this.emit({ type: 'task-clarification-updated', request }) }))
       await Promise.allSettled(calls)
     }).catch(() => {})
   }

@@ -118,3 +118,22 @@ test('the known approval expiry clears cached content even while the host remain
     assert.equal(lost, 'expired'); assert.equal(transport.api.history.hasMore(access.sessionId), false)
   } finally { transport.stop() }
 })
+
+test('host reset refreshes answered and expired clarifications without needing a new question event', async () => {
+  const calls=[], updates=[]
+  const canonical=[{id:'answered',sourceSessionId:access.sessionId,status:'answered',updatedAt:10,answers:{q:['actual reply']}},{id:'expired',sourceSessionId:access.sessionId,status:'expired',updatedAt:11}]
+  let events=0
+  const identity={signed:async(path,body,_grant,options)=>{
+    if(path==='/api/rpc') {calls.push(body.channel);return {value:body.channel==='openbot:tasks:clarifications'?canonical:true}}
+    if(events++===0)return {revision:1,reset:true,groups:[],sessions:[]}
+    return new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('test shutdown')),{once:true}))
+  },check:async()=>({state:'approved',access})}
+  const transport=new TestTransport(identity,access,()=>{},()=>{})
+  const off=transport.api.on(event=>{if(event.type==='task-clarification-updated')updates.push(event.request)})
+  try{
+    for(let n=0;n<50&&updates.length<2;n++)await wait(5)
+    assert.deepEqual(updates,canonical)
+    assert.equal(calls.filter(channel=>channel==='openbot:tasks:clarifications').length,1)
+    assert.equal(calls.some(channel=>channel.includes('answerClarification')),false)
+  }finally{off();transport.stop()}
+})

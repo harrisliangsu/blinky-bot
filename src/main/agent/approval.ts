@@ -21,6 +21,7 @@ import { redactSecrets } from '../backends/vaultRedaction'
 import { newId } from './ids'
 import { settingsStore } from './settingsGateway'
 import { reviewApproval } from './semanticApproval'
+import { executionApprovalSettings } from './executionAgent'
 import { taskJudgmentScope } from './taskJudgmentScope'
 
 /** Long enough for the user to read the diff; short enough to not hang a session forever. */
@@ -98,7 +99,7 @@ export async function requestApproval(ask: ApprovalAsk): Promise<ApprovalOutcome
 
 async function decideApproval(ask: ApprovalAsk): Promise<ApprovalOutcome> {
   if (ask.signal?.aborted) return { approved: false, reason: 'session stopped before approval' }
-  const settings = await settingsStore.get()
+  const settings = executionApprovalSettings(await settingsStore.get(), ask.sessionId, ask.localExecution ?? isLocalResourceTool(ask.toolName))
   const memory = rememberedFor(ask.sessionId)
   const local = ask.localExecution ?? isLocalResourceTool(ask.toolName)
   if (ask.call && deniedRuleForCall(settings, ask.call)) return { approved: false, reason: 'blocked by a user deny rule' }
@@ -106,7 +107,7 @@ async function decideApproval(ask: ApprovalAsk): Promise<ApprovalOutcome> {
 
   if (verdict.reason === 'semantic review required' && !ask.nativeExplicit) {
     verdict = await reviewApproval({ ...ask, localExecution: local }, settings)
-    const latest = await settingsStore.get()
+    const latest = executionApprovalSettings(await settingsStore.get(), ask.sessionId, ask.localExecution ?? isLocalResourceTool(ask.toolName))
     // No decision is reusable after an edit, cancellation, or permission change.
     if (ask.signal?.aborted) return { approved: false, reason: 'automatic review cancelled' }
     if (JSON.stringify(latest) !== JSON.stringify(settings)) {
@@ -180,7 +181,7 @@ async function decideApproval(ask: ApprovalAsk): Promise<ApprovalOutcome> {
     broadcast({ type: 'approval-request', request })
   })
   // A stale card cannot grant access after a settings change or cancellation.
-  const latest = await settingsStore.get()
+  const latest = executionApprovalSettings(await settingsStore.get(), ask.sessionId, ask.localExecution ?? isLocalResourceTool(ask.toolName))
   if (ask.signal?.aborted || (local && localExecutionPolicy(latest) === 'never-allow') ||
       (ask.call && deniedRuleForCall(latest, ask.call)) ||
       evaluate(latest, ask.toolName, ask.target, memory, false, false, local).outcome === 'deny') {

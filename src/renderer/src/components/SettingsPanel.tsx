@@ -17,7 +17,6 @@ import { SettingsVault } from './SettingsVault'
 import { UserProfileSettings } from './UserProfileSettings'
 import { VoicePreferences } from './VoicePreferences'
 import { DecisionReviewPreference } from './DecisionReviewPreference'
-import { QuickDecisionSettings } from './QuickDecisionSettings'
 import { NotificationDelivery } from './NotificationDelivery'
 import './SettingsPanel.css'
 
@@ -305,7 +304,6 @@ function Bots({ settings }: { settings: Settings }): ReactNode {
       </div>
       <p className="ob-hint">{b.backendHint}</p>
     </Card>
-    <QuickDecisionSettings settings={settings} zh={zh} />
 
     </div>
   )

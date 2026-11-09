@@ -8,6 +8,7 @@ import type { ToolContext } from '../types'
 import { taskContextSchema } from '../../../shared/taskContext'
 
 const NAME = 'delegate_task'
+const planFields = ['priority', 'priority_reason', 'depends_on', 'workspace', 'workspace_reason', 'session_reason', 'context']
 
 export const schema: ToolSchema = {
   name: NAME,
@@ -22,7 +23,7 @@ export const schema: ToolSchema = {
       prompt: { type: 'string', description: 'A self-contained task with the context and expected result.' },
       title: { type: 'string', description: 'Optional short task label.' },
       output_files: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, sha256: { type: 'string' } }, required: ['path'] }, description: 'Optional explicit user-requested output files within the current workspace; at most 10. Existing files also pass existence-only checks.' },
-      plan: { type: 'object', description: 'Include context for each new task: brief goal, free-form categories, scope and exclusions. A continuation inherits context unless replaced. Think about session reuse and workspace separately. Choose priority/dependencies from user goals, urgency and current work. Running tasks are never preempted for priority changes.', properties: {
+      plan: { type: 'object', description: 'Put depends_on, workspace, workspace_reason, priority and context inside this plan object, never at the tool top level. Include context for each new task: brief goal, free-form categories, scope and exclusions. A continuation inherits context unless replaced. Think about session reuse and workspace separately. Choose priority/dependencies from user goals, urgency and current work. Running tasks are never preempted for priority changes.', properties: {
         priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] }, priority_reason: { type: 'string' },
         depends_on: { type: 'array', items: { type: 'string' }, description: 'Existing tasks from this lead/source conversation whose results must be available first.' },
         workspace: { type: 'string', enum: ['auto', 'isolated', 'shared'], description: 'auto isolates independent work; with one completed prerequisite it can reuse that prerequisite workspace. isolated always allocates a separate workspace. shared uses this lead conversation source directory, NOT a prerequisite task directory; requires a specific reason. A continuation retains its own existing workspace.' }, workspace_reason: { type: 'string' }, session_reason: { type: 'string' },
@@ -35,6 +36,9 @@ export const schema: ToolSchema = {
 }
 
 export const delegateTaskTool = defineTool(schema, async (args, ctx) => {
+  const misplaced = planFields.filter(field => Object.hasOwn(args, field))
+  if (misplaced.length) throw new ToolError(`Nothing was started or continued. Move these top-level fields inside plan: ${misplaced.join(', ')}. Use {prompt, title, plan:{depends_on:["task-id"], workspace:"auto", context:{summary:"goal", categories:[], scope:[], boundaries:[]}}}; preserve the actual dependencies and context.`)
+
   if (!ctx.host?.delegateTask) throw new ToolError('Background delegation is unavailable in this runtime.')
   const requested = optStr(args, 'to_bot_id')?.trim()
   const target = requested ? resolveTarget(requested, await listBots(ctx)) : resolveTarget(ctx.botId, await listBots(ctx))

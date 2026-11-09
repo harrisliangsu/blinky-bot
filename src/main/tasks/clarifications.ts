@@ -1,3 +1,5 @@
+import { parseTaskQuestions } from './questionSchema'
+import { clarificationReview } from './clarificationReview'
 /** A clarification first consults settled user context, then asks through a real card. */
 import { createHash, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -16,8 +18,27 @@ import { scrubVaultTranscript } from '../store/vaultPrivacy'
 
 const runtimeId = randomUUID()
 interface Saved { runtimeId: string; request: AgentTaskClarification }
-interface Pending { request: AgentTaskClarification; finish: (answers: Record<string, string[]> | null) => void; signal: AbortSignal; resolutionFingerprint?: string }
+interface Pending { request: AgentTaskClarification; finish: (answers: Record<string, string[]> | null) => void; signal: AbortSignal; responding?: boolean; userAnswers?: Record<string, string[]>; resolutionFingerprint?: string }
 const pending = new Map<string, Pending>()
+// Serialize user questions per owning conversation, without holding the main chat.
+const presentationTails = new Map<string, Promise<void>>()
+const liveQuestions = new Map<string, Promise<Record<string, string[]> | null>>()
+async function presentationSlot(sessionId: string, signal: AbortSignal): Promise<() => void> {
+  const previous = presentationTails.get(sessionId) ?? Promise.resolve()
+  let release!: () => void
+  const done = new Promise<void>(resolve => { release = resolve })
+  const tail = previous.then(() => done)
+  presentationTails.set(sessionId, tail)
+  let abort = (): void => {}
+  const aborted = new Promise<void>(resolve => {
+    abort = resolve
+    if (signal.aborted) resolve()
+    else signal.addEventListener('abort', abort, { once: true })
+  })
+  await Promise.race([previous, aborted])
+  signal.removeEventListener('abort', abort)
+  return () => { release(); void tail.then(() => { if (presentationTails.get(sessionId) === tail) presentationTails.delete(sessionId) }) }
+}
 // A failed terminal write must not resurrect an old waiting card in this process.
 const terminalOverrides = new Map<string, AgentTaskClarification>()
 // Identity lives only for this turn's signal; a restart never replays an answer.
@@ -26,17 +47,7 @@ const turnRequests = new WeakMap<AbortSignal, Map<string, { fingerprint: string;
 const directory = () => join(dataRoot(), 'task-clarifications')
 const file = (id: string) => join(directory(), `${safeFileName(id)}.json`)
 
-export function parseTaskQuestions(raw: unknown): AgentTaskQuestion[] {
-  if (!Array.isArray(raw) || !raw.length || raw.length > 3) throw new TypeError('Provide one to three clarification questions.')
-  const questions = raw.map(value => {
-    if (!value || typeof value !== 'object' || typeof value.id !== 'string' || !value.id.trim() || value.id.length > 160 || typeof value.header !== 'string' || typeof value.question !== 'string' || !value.question.trim() || value.question.length > 6000) throw new TypeError('Invalid clarification question.')
-    if (value.options !== undefined && value.options !== null && (!Array.isArray(value.options) || value.options.length > 10 || value.options.some((option: Record<string, unknown>) => !option || typeof option.label !== 'string' || !option.label.trim() || typeof option.description !== 'string'))) throw new TypeError('Invalid clarification choices.')
-    if (value.kind !== undefined && !['fact', 'implementation', 'preference', 'authorization'].includes(value.kind)) throw new TypeError('Invalid question kind.')
-    return { ...(value.kind ? { kind: value.kind } : {}), id: value.id, header: value.header.slice(0, 120), question: value.question, ...(value.options?.length ? { options: value.options.map((option: { label: string; description: string }) => ({ label: option.label.slice(0, 1000), description: option.description.slice(0, 2000) })) } : {}), ...(value.isOther === true ? { isOther: true } : {}), ...(value.isSecret === true ? { isSecret: true } : {}) }
-  })
-  if (new Set(questions.map(value => value.id)).size !== questions.length) throw new TypeError('Clarification ids must be unique.')
-  return questions
-}
+export { parseTaskQuestions } from './questionSchema'
 
 function publicRequest(request: AgentTaskClarification): AgentTaskClarification {
   return { ...request,
@@ -45,6 +56,7 @@ function publicRequest(request: AgentTaskClarification): AgentTaskClarification 
     ...(request.answerEvidence ? { answerEvidence: Object.fromEntries(Object.entries(request.answerEvidence).map(([id, evidence]) => [id, { ...evidence, ...(evidence.quote ? { quote: scrubVaultTranscript(evidence.quote) } : {}), ...(evidence.reason ? { reason: scrubVaultTranscript(evidence.reason) } : {}) }])) } : {}),
     questions: request.questions.map(question => ({ ...question, header: scrubVaultTranscript(question.header), question: scrubVaultTranscript(question.question), ...(question.options ? { options: question.options.map(option => ({ label: scrubVaultTranscript(option.label), description: scrubVaultTranscript(option.description) })) } : {}) })),
     ...(request.error ? { error: scrubVaultTranscript(request.error) } : {}),
+    ...(request.userAnswers ? { userAnswers: Object.fromEntries(Object.entries(request.userAnswers).map(([id, values]) => [id, values.map(scrubVaultTranscript)])) } : {}),
     ...(request.answers ? { answers: Object.fromEntries(Object.entries(request.answers).map(([id, values]) => [id, values.map(scrubVaultTranscript)])) } : {}) }
 }
 
@@ -61,7 +73,10 @@ async function closeWithoutAnswer(request: AgentTaskClarification, status: 'canc
   const active = pending.get(request.id)
   request.status = status; request.error = error; delete request.persistenceError
   delete request.answers; delete request.answeredBy; delete request.botAnswers; delete request.answerBasis; delete request.answerEvidence
-  terminalOverrides.set(request.id, publicRequest(request))
+  request.updatedAt = Math.max(Date.now(), request.updatedAt + 1)
+  const closed = publicRequest(request)
+  terminalOverrides.set(request.id, closed)
+  broadcast({ type: 'task-clarification-updated', request: closed })
   pending.delete(request.id)
   // Cancellation takes effect even if the filesystem is unavailable.
   active?.finish(null)
@@ -84,6 +99,12 @@ function wasCancelled(request: AgentTaskClarification): boolean { return request
 function stillOwned(request: AgentTaskClarification): boolean {
   const source = getSession(request.sourceSessionId), bot = getBot(request.botId)
   if (!source || source.archived || !source.botIds.includes(request.botId) || !bot || bot.archived) return false
+  if (request.reviewTaskId) {
+    const reviewed = listTasks().find(value => value.id === request.reviewTaskId)
+    return Boolean(reviewed && (request.reviewRecordedAt===undefined || reviewed.review?.outcome==='blocked' && reviewed.review.recordedAt===request.reviewRecordedAt) && reviewed.id === request.taskId && reviewed.sourceSessionId === source.id &&
+      request.executionSessionId === source.id && (reviewed.requesterBotId ?? reviewed.botId) === request.botId &&
+      ['completed', 'failed'].includes(reviewed.status) && !listTasks().some(next => next.continuedFromTaskId === reviewed.id))
+  }
   if (request.sourceSessionId === request.executionSessionId && request.taskId === request.sourceSessionId) return true
   const task = listTasks().find(value => value.id === request.taskId)
   return Boolean(source.mode === 'agent' && task && task.status === 'running' && task.sessionId === request.executionSessionId && (task.requesterBotId ?? task.botId) === request.botId)
@@ -91,14 +112,12 @@ function stillOwned(request: AgentTaskClarification): boolean {
 
 function validateAnswers(request: AgentTaskClarification, raw: unknown): Record<string, string[]> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new TypeError('Provide answers keyed by question id.')
-  const value = raw as Record<string, unknown>, answers: Record<string, string[]> = Object.create(null)
-  if (Object.keys(value).some(key => !request.questions.some(question => question.id === key))) throw new TypeError('An answer refers to an unknown question.')
-  for (const question of request.questions) {
-    const texts = request.botAnswers?.[question.id] ?? value[question.id]
-    if (!Array.isArray(texts) || !texts.length || texts.length > 10 || texts.some(text => typeof text !== 'string' || !text.trim() || text.length > 10_000)) throw new TypeError('Answer every question before continuing.')
-    answers[question.id] = texts.map(text => (text as string).trim())
-  }
-  return answers
+  const value = raw as Record<string, unknown>
+  const next = request.questions.find(question => !request.botAnswers?.[question.id] && !request.userAnswers?.[question.id])
+  if (!next || Object.keys(value).length !== 1 || !Object.hasOwn(value, next.id)) throw new TypeError('Answer the current question first; questions are asked one at a time.')
+  const texts = value[next.id]
+  if (!Array.isArray(texts) || !texts.length || texts.length > 10 || texts.some(text => typeof text !== 'string' || !text.trim() || text.length > 10_000)) throw new TypeError('Provide an answer before continuing.')
+  return { [next.id]: texts.map(text => (text as string).trim()) }
 }
 
 function publicAnswers(request: AgentTaskClarification, answers: Record<string, string[]>): Record<string, string[]> {
@@ -185,13 +204,13 @@ async function answerFromContext(request: AgentTaskClarification, signal: AbortS
 }
 
 /** One logical question per execution turn, including repeated MCP delivery. */
-export function requestTaskClarification(executionSessionId: string, executorBotId: string, rawQuestions: unknown, signal: AbortSignal, requestId?: string, identitySignal: AbortSignal = signal): Promise<Record<string, string[]> | null> {
+export function requestTaskClarification(executionSessionId: string, executorBotId: string, rawQuestions: unknown, signal: AbortSignal, requestId?: string, identitySignal: AbortSignal = signal, reviewTaskId?: string, reviewRecordedAt?: number): Promise<Record<string, string[]> | null> {
   const questions = parseTaskQuestions(rawQuestions)
   const fingerprint = createHash('sha256').update(JSON.stringify(questions)).digest('hex')
   const key = JSON.stringify(['request', executionSessionId, executorBotId, requestId ?? fingerprint])
   const task = listTasks().find(value => value.sessionId === executionSessionId && value.botId === executorBotId && value.status === 'running')
   const lastUserId = (id: string): string => getSession(id)?.messages.filter(value => value.role === 'user' && !value.internal && !value.uiOnly).at(-1)?.id ?? ''
-  const scope = JSON.stringify([lastUserId(executionSessionId), lastUserId(task?.sourceSessionId ?? executionSessionId)])
+  const scope = JSON.stringify([lastUserId(executionSessionId), lastUserId(task?.sourceSessionId ?? executionSessionId), ...(reviewTaskId ? [reviewTaskId] : [])])
   const sameQuestion = JSON.stringify(['question', executionSessionId, executorBotId, scope, fingerprint])
   let requests = turnRequests.get(identitySignal)
   if (!requests) { requests = new Map(); turnRequests.set(identitySignal, requests) }
@@ -203,7 +222,13 @@ export function requestTaskClarification(executionSessionId: string, executorBot
   }
   const repeated = requests.get(sameQuestion)
   if (repeated) { requests.set(key, repeated); return repeated.answer }
-  const answer = openTaskClarification(executionSessionId, executorBotId, questions, signal)
+  const liveKey = JSON.stringify([executionSessionId, executorBotId, scope, fingerprint])
+  let answer = liveQuestions.get(liveKey)
+  if (!answer) {
+    const opened = openTaskClarification(executionSessionId, executorBotId, questions, signal, fingerprint, scope, reviewTaskId, reviewRecordedAt)
+    answer = opened.finally(() => { if (liveQuestions.get(liveKey) === answer) liveQuestions.delete(liveKey) })
+    liveQuestions.set(liveKey, answer)
+  }
   const entry = { fingerprint, scope, answer }
   requests.set(key, entry); requests.set(sameQuestion, entry)
   return answer
@@ -214,13 +239,18 @@ export async function requestToolClarification(...args: Parameters<typeof reques
   return answers ? { answers, ...answerSources.get(answers)! } : null
 }
 
-async function openTaskClarification(executionSessionId: string, executorBotId: string, rawQuestions: unknown, signal: AbortSignal): Promise<Record<string, string[]> | null> {
+async function openTaskClarification(executionSessionId: string, executorBotId: string, rawQuestions: unknown, signal: AbortSignal, fingerprint: string, scope: string, reviewTaskId?: string, reviewRecordedAt?: number): Promise<Record<string, string[]> | null> {
   const questions = parseTaskQuestions(rawQuestions)
   const task = listTasks().find(value => value.sessionId === executionSessionId && value.botId === executorBotId && value.status === 'running')
   // A returned execution session must not be reclassified as a direct Bot chat.
   if (!task && listTasks().some(value => value.sessionId === executionSessionId && value.botId === executorBotId)) return null
   const sourceSessionId = task?.sourceSessionId ?? executionSessionId, botId = task?.requesterBotId ?? task?.botId ?? executorBotId
-  const request: AgentTaskClarification = { id: randomUUID(), taskId: task?.id ?? executionSessionId, sourceSessionId, executionSessionId, botId, taskTitle: task?.title, questions, status: 'answering', createdAt: Date.now(), updatedAt: Date.now() }
+  const previous = await listTaskClarifications().catch(() => null)
+  if (!previous || previous.some(request => request.executionSessionId === executionSessionId && request.botId === botId && request.questionFingerprint === fingerprint && request.contextScope === scope && ['answered', 'cancelled', 'expired'].includes(request.status))) return null
+  const review = reviewTaskId ? {taskId:reviewTaskId,botId:executorBotId} : clarificationReview(executionSessionId)
+  const reviewed = review?.botId === executorBotId ? listTasks().find(value => value.id === review.taskId && value.sourceSessionId === executionSessionId && (value.requesterBotId ?? value.botId) === executorBotId) : undefined
+  if (reviewTaskId && !reviewed) return null
+  const request: AgentTaskClarification = { questionFingerprint: fingerprint, contextScope: scope, ...(reviewed ? { reviewTaskId: reviewed.id, ...(reviewRecordedAt!==undefined?{reviewRecordedAt}: {}) } : {}), id: randomUUID(), taskId: task?.id ?? reviewed?.id ?? executionSessionId, sourceSessionId, executionSessionId, botId, taskTitle: task?.title ?? reviewed?.title, questions, status: 'answering', createdAt: Date.now(), updatedAt: Date.now() }
   if (signal.aborted || !stillOwned(request)) return null
   let finish!: (answers: Record<string, string[]> | null) => void
   let settled = false
@@ -228,10 +258,11 @@ async function openTaskClarification(executionSessionId: string, executorBotId: 
   pending.set(request.id, { request, finish, signal })
   const abort = () => { void closeWithoutAnswer(request, 'cancelled', '工作已停止；本次问题不会自动恢复或重放。') }
   signal.addEventListener('abort', abort, { once: true })
+  let release: (() => void) | undefined
   try {
     await save(request)
     const automatic = task ? await answerFromContext(request, signal).catch(() => null) : null
-    if (signal.aborted || request.status === 'cancelled') return await answer
+    if (signal.aborted || wasCancelled(request)) return await answer
     if (!stillOwned(request)) {
       await closeWithoutAnswer(request, 'expired', '原任务或主 Bot 已不可用。')
     } else {
@@ -243,16 +274,28 @@ async function openTaskClarification(executionSessionId: string, executorBotId: 
         } else finish(automatic.answers)
         return await answer
       }
-      request.status = 'waiting_user'; await save(request)
+      release = await presentationSlot(sourceSessionId, signal)
+      if (signal.aborted || wasCancelled(request)) return await answer
+      if (!stillOwned(request) || automatic && automatic.fingerprint !== contextFingerprint(request)) {
+        await closeWithoutAnswer(request, 'expired', '原任务或已有上下文已更新；旧问题未交给用户。')
+        return await answer
+      }
       const source = getSession(sourceSessionId)
-      if (source) await addNotice(source, getBot(botId), task ? '执行中的工作需要你决定，请在下面的选项中选择或自行填写。' : '需要你补充信息，请在下面的选项中选择或自行填写。', undefined, `task-clarification-${request.id}`, true)
+      request.afterMessageId = source?.messages.filter(message => !message.internal && !message.uiOnly && ['user', 'assistant'].includes(message.role)).at(-1)?.id
+      request.anchorMessageId = `task-clarification-${request.id}`
+      if (source) {
+        const anchor = await addNotice(source, getBot(botId), '', undefined, request.anchorMessageId, true)
+        request.askedAt = anchor.createdAt
+      } else request.askedAt = Date.now()
+      if (signal.aborted || wasCancelled(request) || !stillOwned(request)) return await closeWithoutAnswer(request, 'expired', '原执行已停止，未提供答案。').then(() => null)
+      request.status = 'waiting_user'; await save(request)
     }
     return await answer
   } catch {
     if (request.status !== 'cancelled') await closeWithoutAnswer(request, 'failed', '澄清问题未能安全保存或展示，未提供答案。')
     finish(null)
     return null
-  } finally { pending.delete(request.id); signal.removeEventListener('abort', abort) }
+  } finally { release?.(); pending.delete(request.id); signal.removeEventListener('abort', abort) }
 }
 
 /** LAN clients only need live questions owned by their shared conversation.
@@ -274,6 +317,14 @@ export async function listTaskClarifications(taskId?: string): Promise<AgentTask
     if (['answering', 'waiting_user'].includes(request.status) && (saved.runtimeId !== runtimeId || !stillOwned(request))) {
       request = await closeWithoutAnswer(request, 'expired', '原执行已中断，本次问题已失效；未自动重跑。')
     }
+    // Older records already have a durable source notice. Recover its exact
+    // placement for desktop and remote public pages without rewriting history.
+    if (!request.anchorMessageId) {
+      const messages = getSession(request.sourceSessionId)?.messages ?? []
+      const at = messages.findIndex(message => message.id === `task-clarification-${request.id}`)
+      if (at >= 0) request = { ...request, anchorMessageId: messages[at]!.id, askedAt: messages[at]!.createdAt,
+        afterMessageId: messages.slice(0, at).filter(message => !message.internal && !message.uiOnly && ['user', 'assistant'].includes(message.role)).at(-1)?.id }
+    }
     requests.push(request)
   }
   for (const request of terminalOverrides.values()) if ((!taskId || request.taskId === taskId) && !requests.some(value => value.id === request.id)) requests.push(request)
@@ -284,7 +335,7 @@ export async function listTaskClarifications(taskId?: string): Promise<AgentTask
 export async function answerTaskClarification(id: string, rawAnswers: unknown): Promise<AgentTaskClarification> {
   const active = pending.get(id)
   if (terminalOverrides.has(id)) throw new Error('这次澄清已经关闭或失效；本次回答不会交给执行器。')
-  if (!active || active.signal.aborted || active.request.status !== 'waiting_user' || !stillOwned(active.request)) {
+  if (!active || active.signal.aborted || active.responding || active.request.status !== 'waiting_user' || !stillOwned(active.request)) {
     const saved = await readJsonState<Saved | null>(file(id), null)
     if (saved.value?.request && saved.value.runtimeId === runtimeId && saved.value.request.status === 'answered') return saved.value.request
     throw new Error('这次澄清已失效或正在处理，请核对当前任务状态。')
@@ -293,22 +344,33 @@ export async function answerTaskClarification(id: string, rawAnswers: unknown): 
     await closeWithoutAnswer(active.request, 'expired', '已有上下文已更新，旧自动答案已作废；本次回答未交给执行器。')
     throw new Error('上下文已更新，这次澄清已失效。')
   }
-  const answers = validateAnswers(active.request, rawAnswers)
-  const request = active.request
-  request.status = 'answered'; request.answers = publicAnswers(request, answers); request.answeredBy = 'user'
+  const supplied = validateAnswers(active.request, rawAnswers)
+  const request = active.request, before = { userAnswers: request.userAnswers, answers: request.answers }
+  const userAnswers = { ...active.userAnswers, ...supplied }
+  const answers = { ...request.botAnswers, ...userAnswers }
+  const complete = request.questions.every(question => answers[question.id]?.length)
+  request.userAnswers = Object.fromEntries(request.questions.filter(question => userAnswers[question.id]).map(question => [question.id, question.isSecret ? ['[redacted]'] : userAnswers[question.id]!.map(scrubVaultTranscript)]))
+  request.status = 'answered'; if (complete) request.answers = publicAnswers(request, answers)
+  request.answeredBy = 'user'
   // Claim synchronously before awaiting persistence, so duplicate clicks cannot answer twice.
-  active.request.status = 'answered'
+  active.responding = true
   let safe: AgentTaskClarification
-  try { safe = await save(request) }
+  try {
+    if (!complete) { request.status = 'waiting_user'; delete request.answeredBy }
+    safe = await save(request)
+  }
   catch (error) {
-    if (!active.signal.aborted && request.status === 'answered' && stillOwned(request)) { request.status = 'waiting_user'; delete request.answers; delete request.answeredBy }
+    if (!active.signal.aborted && ['answered', 'waiting_user'].includes(request.status) && stillOwned(request)) { request.status = 'waiting_user'; request.userAnswers = before.userAnswers; request.answers = before.answers; delete request.answeredBy }
     else { await closeWithoutAnswer(request, 'cancelled', '执行已停止；回答未交给执行器。'); active.finish(null) }
+    active.responding = false
     throw error
   }
-  if (active.signal.aborted || request.status !== 'answered' || !stillOwned(request) || (request.botAnswers && active.resolutionFingerprint !== contextFingerprint(request))) {
+  if (active.signal.aborted || !['answered', 'waiting_user'].includes(request.status) || !stillOwned(request) || (request.botAnswers && active.resolutionFingerprint !== contextFingerprint(request))) {
     await closeWithoutAnswer(request, active.signal.aborted || wasCancelled(request) ? 'cancelled' : 'expired', '执行已停止或已失效；回答未交给执行器。'); active.finish(null)
     throw new Error('任务已经停止；本次回答未交给执行器。')
   }
+  active.userAnswers = userAnswers; active.responding = false
+  if (!complete) return safe
   pending.delete(id); active.finish(answers)
   return safe
 }

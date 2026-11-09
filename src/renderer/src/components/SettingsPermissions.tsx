@@ -89,7 +89,7 @@ export function SettingsPermissions({ settings }: { settings: Settings }): React
   }
   return <div className="ob-settings-section ob-permissions-layout">
     <section className="ob-set-card ob-permissions-card ob-permission-heading">
-      <div><h3>{zh?'自动审核':'Automatic review'}</h3><p className="ob-hint">{zh?'新增自然语言规则后，使用所属 Bot 当前模型审核具体操作；无法安全审核或匹配不确定时询问你。关闭后由你确认，规则保留。':'Natural-language rules use the owning Bot’s current model to review the exact action. Unavailable or uncertain review asks you. When off, you confirm actions; rules are retained.'}</p></div>
+      <div><h3>{zh?'Bot 自动审核':'Bot automatic review'}</h3><p className="ob-hint">{zh?'按自然语言规则审核 Bot 操作；不确定时询问你。关闭后由你确认，规则保留。明确选择完全访问的独立 Agent 使用单独执行权限。':'Natural-language rules review Bot actions. Uncertain cases ask you. When off, you confirm actions and rules remain. Independent Agents explicitly granted full access use separate execution permissions.'}</p></div>
       <button type="button" role="switch" aria-label={zh?'自动审核':'Automatic review'} aria-checked={settings.automaticReview!==false}
         className={`ob-switch${settings.automaticReview!==false?' is-on':''}`} disabled={busy}
         onClick={()=>{setBusy(true);setError('');void save({kind:'options',automaticReview:settings.automaticReview===false}).catch(e=>setError(String(e.message))).finally(()=>setBusy(false))}} />

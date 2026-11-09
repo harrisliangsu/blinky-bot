@@ -27,7 +27,7 @@ export interface Bot {
   backendId: string
   modelId: string
   /** Optional independently configured runtime for delegated execution. */
-  executionAgent?: { backendId: string; modelId: string; thinking?: ThinkingDepth }
+  executionAgent?: { backendId: string; modelId: string; thinking?: ThinkingDepth; accessMode?: 'full-access' }
   /** @deprecated Legacy input only. Ignored and removed on load/save. */
   executionAgentDisabled?: boolean
   /**

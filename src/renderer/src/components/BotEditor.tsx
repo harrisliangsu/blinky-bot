@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type MutableRefObject, type ReactNode } from 
 import type { BackendInfo, Bot } from '../../../shared/types'
 import type { BotTemplate } from '../../../shared/botTemplates'
 import { resolveBotBinding } from '../../../shared/botBinding'
+import { supportsFullAccessExecution, executionAccessDescription } from '../../../shared/executionAccess'
 import { supportsExecutionDelegation } from '../../../shared/executionAgentCapabilities'
 import { useAppState } from '../state'
 import { BotRuntimeFields } from './BotRuntimeFields'
@@ -129,8 +130,18 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
           backendId={executionAgent.backendId}
           modelId={executionAgent.modelId}
           thinking={executionAgent.thinking}
-          onChange={(choice) => set('executionAgent', choice)}
+          onChange={(choice) => set('executionAgent', { ...choice, ...(draft.executionAgent?.accessMode ? { accessMode: draft.executionAgent.accessMode } : {}) })}
         />
+        <label className="ob-field"><span>{zh ? 'Agent 执行权限' : 'Agent execution access'}</span>
+          <select className="ob-select" aria-label={zh ? 'Agent 执行权限' : 'Agent execution access'}
+            value={draft.executionAgent?.accessMode ?? 'legacy'} disabled={saving || window.openbot.environment?.kind === 'browser'}
+            onChange={event => set('executionAgent', { backendId: executionAgent.backendId, modelId: executionAgent.modelId, thinking: executionAgent.thinking, ...(event.target.value === 'full-access' ? { accessMode: 'full-access' as const } : {}) })}>
+            <option value="legacy">{zh ? '保留原执行模式' : 'Keep existing execution mode'}</option>
+            <option value="full-access" disabled={!supportsFullAccessExecution(executionAgent.backendId) || draft.computerTarget.kind !== 'local'}>{zh ? '独立完全授权' : 'Independent full access'}</option>
+          </select>
+        </label>
+        <p className="ob-hint">{zh ? '完全访问仅用于新委派的独立 Agent，本机文件和命令不经过 Bot 的自然语言审核；托管限制、系统授权及已拒绝操作仍有效。信息不足时仍先由 Bot 处理澄清。旧任务不会自动升级，撤销会停止在途执行。仅对已接通的 CLI 生效。' : 'Full access applies to newly delegated independent Agents. Local files and commands are separate from Bot rule review; managed restrictions, OS consent and rejected actions remain binding. Clarifications still go to the Bot first. Old tasks are not upgraded; revoking access stops active execution. Applies only to connected CLI profiles.'}</p>
+        <p className="ob-hint">{executionAccessDescription(executionAgent.backendId, zh)}</p>
         {!supportsExecutionDelegation(runtime.backendId) ? <p className="ob-hint" role="status">{zh ? '当前对话 CLI 暂不支持自动派发后台任务。可使用 Codex、Claude Code 或 OpenCode 作为对话 CLI；Kimi Code 仍可作为执行 Agent。' : 'This conversation CLI cannot delegate background work yet. Use Codex, Claude Code or OpenCode for conversation; Kimi Code can still be the execution agent.'}</p> : null}
         </section>
         {backendsError && !backendsLoading ? <p className="ob-hint">{backendsError}</p> : null}

@@ -21,6 +21,12 @@ export interface AgentTaskReview {
   summary: string
   evidence: string[]
   recordedAt: number
+  /** One unresolved user decision; shown through the existing clarification UI. */
+  question?: AgentTaskQuestion
+  /** Canonical reply consumed by this revised assessment. */
+  respondedTo?: string
+  /** Human context at assessment, for reassessment without clock assumptions. */
+  contextKey?: string
   /** Checks actually performed by the application, not proof of the whole goal. */
   verifiedFiles?: Array<{ path: string; sha256?: string }>
 }
@@ -49,7 +55,7 @@ export interface AgentTask {
   sourceSessionId?: string
   /** The lead Bot which delegated work to a teammate in sourceSessionId. */
   requesterBotId?: string
-  executionAgent?: { backendId: string; modelId: string; thinking?: import('./thinking').ThinkingDepth }
+  executionAgent?: { backendId: string; modelId: string; thinking?: import('./thinking').ThinkingDepth; accessMode?: 'full-access' }
   /** The prior execution attempt whose private conversation this one continues. */
   continuedFromTaskId?: string
   acceptance?: AgentTaskAcceptance
@@ -57,14 +63,19 @@ export interface AgentTask {
   acceptanceInvalid?: boolean
   result?: string
   review?: AgentTaskReview
+  reviewHistory?: AgentTaskReview[]
+  /** User context at the time this execution was continued, never permission. */
+  decisionContext?: string
+  /** Delivery/review failure, distinct from execution failure and goal completion. */
+  reviewFailure?: { contextKey: string; message: string }
   deliveryStatus?: 'pending' | 'delivering' | 'delivered' | 'uncertain'
 }
 
 /** Navigation payload: no request, transcript, result or review evidence. */
-export type AgentTaskSummary = Omit<AgentTask, 'prompt' | 'result' | 'review' | 'acceptance'> & { hasReview?: boolean }
+export type AgentTaskSummary = Omit<AgentTask, 'prompt' | 'result' | 'review' | 'reviewHistory' | 'reviewFailure' | 'decisionContext' | 'acceptance'> & { hasReview?: boolean }
 
 export function summariseTask(task: AgentTask): AgentTaskSummary {
-  const { prompt: _prompt, result: _result, review, acceptance: _acceptance, ...summary } = task
+  const { prompt: _prompt, result: _result, reviewHistory: _reviews, reviewFailure: _failure, decisionContext: _context, review, acceptance: _acceptance, ...summary } = task
   return { ...summary, hasReview: Boolean(review) }
 }
 
@@ -111,6 +122,19 @@ export interface AgentTaskClarification {
   /** Original lead Bot, never the currently selected Bot in the interface. */
   botId: string
   taskTitle?: string
+  /** Immutable placement at first user presentation, independent of answer updates. */
+  anchorMessageId?: string
+  afterMessageId?: string
+  askedAt?: number
+  /** Original returned task while the owning Bot is reviewing its result. */
+  reviewTaskId?: string
+  /** Exact assessment revision; stale decisions cannot wake a later review. */
+  reviewRecordedAt?: number
+  /** Partial user replies; never include automatic Bot choices here. */
+  userAnswers?: Record<string, string[]>
+  /** Durable duplicate suppression; only hashed questions and source message IDs. */
+  questionFingerprint?: string
+  contextScope?: string
   questions: AgentTaskQuestion[]
   status: 'answering' | 'waiting_user' | 'answered' | 'cancelled' | 'expired' | 'failed'
   createdAt: number

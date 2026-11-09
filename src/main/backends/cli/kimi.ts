@@ -90,6 +90,7 @@ function turnPrompt(req: ChatRequest, system: string, resumed: boolean): string 
 
 async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<ChatChunk> {
   refuseUngovernedSideCall(KIMI_SPEC.displayName, req)
+  if (req.executionAccess === 'full-access' && (!req.approve || !req.requestInput)) throw new Error('Independent Kimi execution requires its operation and clarification callbacks; print mode is not a substitute.')
   const opts = readCliOptions(cfg, req.cwd)
   const binaryPath = await resolveBinary(KIMI_SPEC, cfg)
   const ctx = runContext(req.model, opts)

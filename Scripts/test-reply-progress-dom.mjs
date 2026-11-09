@@ -31,7 +31,7 @@ const bundled = await build({
   bundle: true, platform: 'node', format: 'esm', write: false, loader: { '.css': 'empty' }, external: ['react', 'react/*', 'react-dom/*'],
   plugins: [{ name: 'isolate-unrelated-surfaces', setup(builder) {
     builder.onResolve({ filter: /^\.\/(?:BotAvatar|GitHubDraftCards|GmailDraftCards|CalendarDraftCards|XDraftCards|SlackDraftCards|TaskClarificationCards)$/ }, args => ({ path: args.path.slice(2), namespace: 'fixture' }))
-    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path === 'BotAvatar' ? `import React from 'react';export function BotAvatar(){return <span className="ob-avatar">B</span>}` : `export function ${args.path}(){return null}`, loader: 'tsx', resolveDir: repo }))
+    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path === 'TaskClarificationCards' ? `export const useTaskClarifications=()=>({requests:[],error:false});export const TaskClarificationEntry=()=>null` : args.path === 'BotAvatar' ? `import React from 'react';export function BotAvatar(){return <span className="ob-avatar">B</span>}` : `export function ${args.path}(){return null}`, loader: 'tsx', resolveDir: repo }))
   } }]
 })
 const file = resolve(temp, 'fixture.mjs')

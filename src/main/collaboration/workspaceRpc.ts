@@ -77,7 +77,7 @@ export function remoteMessageChanges(session: Session, since: number) {
   return { revision: changed.revision, reset: changed.reset, upserts, removed }
 }
 const ordinary = (request: AgentTaskClarification): boolean => request.questions.every(question => !protectedQuestion(question) && ['fact', 'preference', 'implementation'].includes(question.kind ?? ''))
-const allowedSettings = new Set(['theme', 'language', 'vibrant', 'nativeGlass', 'uiScale', 'accent', 'sendShortcut', 'linkOpen', 'expandSteps', 'defaultBackendId', 'defaultModelId', 'defaultThinking', 'defaultMode', 'quickDecision', 'notifications', 'notifyOnTurn'])
+const allowedSettings = new Set(['theme', 'language', 'vibrant', 'nativeGlass', 'uiScale', 'accent', 'sendShortcut', 'linkOpen', 'expandSteps', 'defaultBackendId', 'defaultModelId', 'defaultThinking', 'defaultMode', 'notifications', 'notifyOnTurn'])
 function plain(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new RoomAccessError(400, 'Expected form fields.')
   return value as Record<string, unknown>

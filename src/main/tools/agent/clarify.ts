@@ -5,7 +5,7 @@ import { ToolError } from '../errors'
 
 export const askUserTool = defineTool({
   name: 'ask_user',
-  description: 'Ask a necessary clarification using choices and free text. First inspect available context/tools and decide ordinary reversible details yourself. Agent questions go to their owning Bot first; unresolved preference, fact or authorization questions reach the user. Answers return to this exact execution. This is not action approval. Cancelled/expired means no answer: stop the dependent work, do not re-ask unchanged. Reuse request_id for retries; never turn ordinary replies into questions.',
+  description: 'Ask one necessary clarification at a time using concrete choices and free text. Include completed work, the actual obstacle and its effect when a task is blocked. After the answer, continue the original task. First inspect available context/tools and decide ordinary reversible details yourself. Agent questions go to their owning Bot first; unresolved preference, fact or authorization questions reach the user. Answers return to this exact execution. This is not action approval. Cancelled/expired means no answer: stop the dependent work, do not re-ask unchanged. Reuse request_id for retries; never turn ordinary replies into questions.',
   parameters: { type: 'object', properties: {
     request_id: { type: 'string', description: 'Stable identity for this question; reuse unchanged on transport retry.' },
     questions: { type: 'array', minItems: 1, maxItems: 3, items: { type: 'object', properties: {

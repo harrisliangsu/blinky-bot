@@ -8,6 +8,7 @@ import type { ChatChunk, ChatRequest, ProviderImagePart } from '../types'
 import type { CliRunContext } from './spec'
 import { agentTraceEntry } from './agentTrace'
 import { kimiNativeEnvironment } from './kimiEnvironment'
+import { answerAcpForm, answerAcpQuestion } from './acpQuestions'
 
 interface Run {
   binaryPath: string
@@ -31,6 +32,7 @@ export async function* runGrokAcp(run: Run): AsyncGenerator<ChatChunk> { yield* 
 async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<ChatChunk> {
   const { req, ctx } = run
   const label = provider === 'kimi' ? 'Kimi' : 'Grok'
+  if (req.executionAccess === 'full-access' && (req.readOnly || req.restrictNativeWrites || req.coordinatorOnly || req.disableNativeTools)) throw new Error('This role cannot use independent full access.')
   if (provider === 'grok' && ctx.extraArgs.some((arg) => /^(--always-approve|--permission-mode|--allow|--allowed-tools|--allowedTools)(=|$)/.test(arg))) throw new Error('Grok extra arguments cannot override the application permission policy.')
   if (provider === 'kimi' && ctx.extraArgs.some((arg) => /^(--auto|--yolo|-y)(=|$)/.test(arg))) throw new Error('Kimi extra arguments cannot override the application permission policy.')
   const servers: Obj[] = (req.mcpServers ?? []).flatMap((s): Obj[] => {
@@ -38,10 +40,10 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
     if (s.transport === 'stdio' && s.command) return [{ name: s.name, command: s.command, args: s.args ?? [], env: Object.entries(s.env ?? {}).map(([name, value]) => ({ name, value })) }]
     throw new Error(`${label} ACP cannot use the MCP server ${s.name}: its transport is incomplete`)
   })
-  const probe = provider === 'grok' ? await createGrokPolicyProbe() : undefined
+  const probe = provider === 'grok' ? await createGrokPolicyProbe(req.executionAccess === 'full-access' ? 'bypassPermissions' : 'default') : undefined
   const args = provider === 'kimi'
     ? [...(ctx.model && ctx.model !== 'default' ? ['--model', ctx.model] : []), ...ctx.extraArgs, 'acp']
-    : ['--no-auto-update', '--permission-mode', 'default', ...(ctx.model && ctx.model !== 'default' ? ['--model', ctx.model] : []), ...ctx.extraArgs, 'agent', '--plugin-dir', probe!.pluginDir, 'stdio']
+    : ['--no-auto-update', '--permission-mode', req.executionAccess === 'full-access' ? 'bypassPermissions' : 'default', ...(ctx.model && ctx.model !== 'default' ? ['--model', ctx.model] : []), ...ctx.extraArgs, 'agent', '--plugin-dir', probe!.pluginDir, 'stdio']
   let nativeEnv: NodeJS.ProcessEnv | undefined
   let process: Awaited<ReturnType<typeof spawnLines>>
   try {
@@ -54,6 +56,7 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
   const toolCalls = new Map<string, Obj>()
   let nextId = 0
   let active = false
+  let activeSessionId: string | undefined
   let finished = false
   const write = (value: unknown): void => process.write(`${JSON.stringify(value)}\n`)
   const rpc = (method: string, params: Obj): Promise<Obj> => new Promise((resolve, reject) => {
@@ -74,10 +77,16 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
   }
   const handlePermission = async (id: number | string, params: Obj): Promise<void> => {
     const call = object(params.toolCall)
+    if (params.sessionId !== undefined && params.sessionId !== activeSessionId) {
+      write({ jsonrpc: '2.0', id, result: { outcome: { outcome: 'cancelled' } } }); return
+    }
+    if (call.title === 'AskUserQuestion') {
+      write({ jsonrpc: '2.0', id, result: await answerAcpQuestion(params, () => active && !finished && !req.signal.aborted, req.requestInput) }); return
+    }
     const prior = toolCalls.get(str(call.toolCallId)) ?? {}
     const contents = [...(Array.isArray(call.content) ? call.content : []), ...(Array.isArray(prior.content) ? prior.content : [])].map(object)
     const diff = contents.find((item) => item.type === 'diff')
-    const kind = str(call.kind) || str(prior.kind) || (diff ? 'edit' : '')
+    const kind = str(call.kind) || str(prior.kind) || (diff ? 'edit' : call.title === 'Bash' ? 'execute' : ['WriteFile', 'StrReplaceFile', 'Edit', 'Write'].includes(str(call.title)) ? 'edit' : '')
     // Kimi can omit `kind` entirely for real permission requests. Unknown
     // kinds must still reach the user as a generic forced approval; silently
     // cancelling them makes legitimate actions impossible to authorize.
@@ -109,7 +118,12 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
       // An ACP permission request is an explicit request from the native
       // executor, not an ordinary application tool call. Preserve the request
       // for the user even when ordinary application tools run automatically.
-      const decision = await req.approve({ kind: classification, summary, detail, target, force: true })
+      // Keep Kimi's native scope/guard active and delegate ordinary operation
+      // decisions to the explicitly granted executor, without suppressing questions.
+      const delegated = provider === 'kimi' && req.executionAccess === 'full-access' &&
+        (['execute', 'edit', 'delete', 'move', 'read', 'search', 'fetch'].includes(kind) || ['Bash', 'WriteFile', 'StrReplaceFile', 'ReadFile', 'Edit', 'Write'].includes(title))
+      const decision = await req.approve({ kind: classification, summary, detail, target, force: !delegated })
+      if (req.signal.aborted || finished) return
       const options = Array.isArray(params.options) ? params.options.map(object) : []
       if (decision !== 'reject') selected = options.find((o) => o.kind === 'allow_once')
       else { rejected = true; selected = options.find((o) => o.kind === 'reject_once') ?? options.find((o) => o.kind === 'reject_always') }
@@ -160,6 +174,11 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
             try { write({ jsonrpc: '2.0', id, result: { outcome: { outcome: 'cancelled' } } }) } catch { /* closed */ }
             stopUnapproved(`${label} requested permission`)
           })
+        } else if (provider === 'kimi' && message.method === 'elicitation/create' && (typeof id === 'number' || typeof id === 'string')) {
+          const params = object(message.params)
+          void answerAcpForm(params, () => active && !finished && !req.signal.aborted && params.sessionId === activeSessionId, req.requestInput)
+            .then(result => { if (!req.signal.aborted && !finished) write({ jsonrpc: '2.0', id, result }) })
+            .catch(() => stopUnapproved('Kimi clarification transport failed'))
         } else if (message.method && (typeof id === 'number' || typeof id === 'string')) {
           write({ jsonrpc: '2.0', id, error: { code: -32601, message: 'Unsupported client method' } })
         } else if (typeof id === 'number') {
@@ -178,7 +197,7 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
   })()
   const execute = (async () => {
     try {
-      const init = await rpc('initialize', { protocolVersion: 1, clientCapabilities: {}, clientInfo: { name: 'BlinkyBot', version: '0.3.9' } })
+      const init = await rpc('initialize', { protocolVersion: 1, clientCapabilities: provider === 'kimi' && req.requestInput ? { elicitation: { form: {} } } : {}, clientInfo: { name: 'BlinkyBot', version: '0.3.9' } })
       if (provider === 'grok') {
         const methods = Array.isArray(init.authMethods) ? init.authMethods.map(object).map((entry) => str(entry.id)) : []
         const hasKey = Boolean(run.extraEnv?.XAI_API_KEY || nativeEnv?.XAI_API_KEY)
@@ -200,6 +219,7 @@ async function* runAcp(run: Run, provider: 'kimi' | 'grok'): AsyncGenerator<Chat
         sessionId = str(created.sessionId)
         if (!sessionId) throw new Error(`${label} ACP did not return a session id`)
       }
+      activeSessionId = sessionId
       // Both CLIs accept model flags but their ACP sessions can ignore them.
       // Set and read back the actual session options before sending a prompt.
       const setOption = async (configId: string, value: string): Promise<void> => {

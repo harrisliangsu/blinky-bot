@@ -13,6 +13,9 @@ const previous = process.env.OPENBOT_DATA_DIR
 process.env.OPENBOT_DATA_DIR = root
 globalThis.__taskRuntime = { events: [], send: async () => {}, receive: async () => false, stopped: [] }
 const mocks = {
+  './tasks/progressTurn':`export const taskJudgmentStatus=async()=>null`,
+  './tasks/coordinationPermission':`export const communicationPermissionStatus=async()=>null`,
+  '../agent/backendGateway': 'export const getBackend=async()=>null;export const runSideCall=async()=>{throw Error("Unexpected inference in task orchestration fixture")}',
   '../ipc/broadcast': 'export const broadcast=e=>globalThis.__taskRuntime.events.push(e); export const postActivity=()=>{}',
   './ipc/broadcast': 'export const broadcast=e=>globalThis.__taskRuntime.events.push(e); export const postActivity=()=>{}',
   './ipc/agentRuntime': 'export const loopFn=async name=>name==="sendMessage"?globalThis.__taskRuntime.send:name==="receiveAgentResult"?globalThis.__taskRuntime.receive:async id=>globalThis.__taskRuntime.stopped.push(id)',
@@ -63,7 +66,7 @@ test('task panel keeps a busy home free and returns a private result through one
   globalThis.__taskRuntime.receive = async (id, taskId, _title, result, recorded) => {
     received++
     assert.equal(id, home.id)
-    assert.equal(result, 'executor-result')
+    assert.ok(result.startsWith('executor-result\n\nRetained task workspace: ')); assert.ok(result.includes(api.getTask(taskId).workspace.path))
     await api.reviewBackgroundTask(id, bot.id, taskId, 'complete_claimed', 'Reviewed result', ['The private execution returned its result.'])
     await recorded()
     return true

@@ -14,7 +14,7 @@ import { isReadOnlyMode } from './modes'
 import { requestApproval } from './approval'
 import { analyzeCommand } from '../tools/shell/classify'
 import { mcpBearerToken } from '../store/mcpSecrets'
-import { isCodexCoordinator, isTracedBackgroundRun } from './executionAgent'
+import { isCodexCoordinator, isTracedBackgroundRun, fullAccessExecutor } from './executionAgent'
 import { usesApplicationToolLoop } from '../../shared/executionAgentCapabilities'
 import { requestTaskClarification } from '../tasks/clarifications'
 import { localExecutionPolicy } from '../../shared/localExecution'
@@ -73,6 +73,7 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
   return {
     model: bot.modelId,
     localExecutionSessionId: session.id,
+    ...(session.mode === 'agent' && !taskJudgmentScope(session.id) && fullAccessExecutor(session.id) ? { executionAccess: 'full-access' as const } : {}),
     requestInput: questions => taskJudgmentScope(session.id) ? Promise.reject(new Error('Return the required action as a task decision; do not open a new question from internal consideration.')) : requestTaskClarification(session.id, bot.id, questions, signal),
     captureAgentTrace: isTracedBackgroundRun(session.id),
     ...(input.supportsVision === undefined ? {} : { supportsVision: input.supportsVision }),

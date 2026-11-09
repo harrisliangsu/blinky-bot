@@ -22,7 +22,7 @@ function AnswerField({ question, value, disabled, invalid, zh, onChange }: {
   const options = question.options ?? []
   const custom = !options.length || value.custom
   return <fieldset className="ob-clarification-question" disabled={disabled}>
-    <legend>{question.header ? <span className="ob-clarification-question-header">{question.header}</span> : null}{question.question}</legend>
+    <legend>{question.question}</legend>
     {options.length ? <div className="ob-clarification-options">{options.map((option, index) => <label key={`${index}-${option.label}`} className="ob-clarification-option">
       <input type="radio" name={id} value={option.label} checked={!value.custom && value.option === option.label} onChange={() => onChange({ ...value, custom: false, option: option.label })} />
       <span><span className="ob-clarification-option-title"><b className="ob-clarification-letter" aria-hidden="true">{String.fromCharCode(65 + index)}</b>{option.label}</span>{option.description ? <small>{option.description}</small> : null}</span>
@@ -38,15 +38,15 @@ function AnswerField({ question, value, disabled, invalid, zh, onChange }: {
   </fieldset>
 }
 
-function ClarificationBody({ request, zh, taskTitle, onAnswer, onCancel }: TaskClarificationCardProps): ReactNode {
+function ClarificationBody({ request, zh, onAnswer, onCancel }: TaskClarificationCardProps): ReactNode {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [receipt, setReceipt] = useState<AgentTaskClarification | null>(null)
   const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false), [attempted, setAttempted] = useState(false)
   const alive = useRef(true), submitting = useRef(false), form = useRef<HTMLFormElement>(null)
-  const heading = useId()
   const current = receipt && receipt.updatedAt >= request.updatedAt ? receipt : request
   const waiting = current.status === 'waiting_user'
-  const questions = current.questions.filter(question => !current.botAnswers?.[question.id])
+  const userQuestions = current.questions.filter(question => !current.botAnswers?.[question.id])
+  const questions = userQuestions.filter(question => !current.userAnswers?.[question.id]).slice(0, 1)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
     if (!waiting) { setDrafts({}); setFailed(false) }
@@ -67,8 +67,8 @@ function ClarificationBody({ request, zh, taskTitle, onAnswer, onCancel }: TaskC
     try {
       const next = await onAnswer(current.id, Object.fromEntries(questions.map(question => [question.id, [answerFor(question)]])))
       if (!alive.current) return
-      if (next.id !== current.id || next.status === 'waiting_user' || next.status === 'answering') { setFailed(true); return }
-      setReceipt(next)
+      if (next.id !== current.id || next.status === 'answering' || next.status === 'waiting_user' && !next.userAnswers?.[questions[0]!.id]) { setFailed(true); return }
+      setReceipt(next); setDrafts({}); setAttempted(false)
       if (next.status !== 'answered') setFailed(false)
     } catch { if (alive.current) setFailed(true) }
     finally { submitting.current = false; if (alive.current) setBusy(false) }
@@ -80,31 +80,20 @@ function ClarificationBody({ request, zh, taskTitle, onAnswer, onCancel }: TaskC
     catch { if (alive.current) setFailed(true) }
     finally { submitting.current = false; if (alive.current) setBusy(false) }
   }
-  const status = current.status === 'answered'
-    ? (zh ? (current.answeredBy === 'bot' ? 'Bot 已根据上下文回答。' : '回答已接收。') : (current.answeredBy === 'bot' ? 'The Bot answered using the conversation context.' : 'Answer received.'))
-    : current.status === 'cancelled' ? (zh ? '此问题已取消，未提供回答。' : 'This question was cancelled. No answer was supplied.')
-      : current.status === 'expired' ? (zh ? '这个问题已失效，请等待新的问题。' : 'This question has expired. Wait for a new question.')
-        : current.status === 'failed' ? (zh ? '这个问题当前无法处理，请等待更新。' : 'This question cannot be processed. Wait for an update.')
-          : busy ? (zh ? '正在提交回答…' : 'Submitting answer…') : (zh ? '请补充信息，以便继续。' : 'Add the information needed to continue.')
-  return <section className="ob-task-clarification" aria-labelledby={heading} data-task-clarification-id={current.id} onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation() }}>
-    <header><h3 id={heading}>{waiting ? (zh ? '需要你补充' : 'Your input is needed') : (zh ? '补充信息' : 'Additional information')}</h3>{taskTitle ? <p className="ob-clarification-task">{taskTitle}</p> : null}</header>
-    <p className="ob-clarification-status" role="status" aria-live="polite">{status}</p>
-    {waiting && current.botResolutionUnavailable ? <p className="ob-clarification-status" role="status" data-bot-resolution-unavailable={current.botResolutionUnavailable}>{zh
-      ? current.botResolutionUnavailable === 'permission-required' ? 'Bot 的内部判断需要本机执行权限，当前未运行。请直接回答此问题；这不会授予文件或执行权限。'
-        : current.botResolutionUnavailable === 'native-tools-unavailable' ? '当前 Bot 的原生 CLI 无法保证关闭本机工具，未运行自动判断。请直接回答此问题；现有权限保持有效。'
-          : current.botResolutionUnavailable === 'local-execution-denied' ? '当前权限禁止本机执行，Bot 未运行内部判断。请直接回答此问题；这不会更改权限。'
-            : 'Bot 暂时无法完成内部判断，请直接回答此问题。'
-      : current.botResolutionUnavailable === 'permission-required' ? 'The Bot could not run its internal judgment without local execution approval. Answer this question directly; this does not grant file or execution permission.'
-        : current.botResolutionUnavailable === 'native-tools-unavailable' ? 'This Bot’s native CLI cannot guarantee disabling local tools, so automatic judgment did not run. Answer directly; existing permissions still apply.'
-          : current.botResolutionUnavailable === 'local-execution-denied' ? 'Local execution is denied, so the Bot did not run its internal judgment. Answer directly; permissions are unchanged.'
-            : 'The Bot could not complete its internal judgment. Please answer directly.'}</p> : null}
+  const status = current.status === 'cancelled' ? (zh ? '已取消，未提供回答。' : 'Cancelled; no answer supplied.')
+    : current.status === 'expired' ? (zh ? '已过期，未提供回答。' : 'Expired; no answer supplied.')
+      : current.status === 'failed' ? (zh ? '问题未能完成，未提供回答。' : 'The question failed; no answer supplied.') : ''
+  const history = userQuestions.filter(question => current.userAnswers?.[question.id] || current.status === 'answered')
+  return <section className="ob-task-clarification" aria-label={zh ? '问题与回答' : 'Question and answer'} data-task-clarification-id={current.id} onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation() }}>
+    {history.length ? <dl className="ob-clarification-answers">{history.map(question => <div key={question.id}><dt>{question.question}</dt><dd>{question.isSecret ? (zh ? '敏感回答已隐藏' : 'Sensitive answer hidden') : (current.userAnswers?.[question.id] ?? current.answers?.[question.id])?.join(' · ') || (zh ? '未记录回答' : 'No answer recorded')}</dd></div>)}</dl> : null}
+    {status ? <p className="ob-clarification-status" role="status">{status}</p> : null}
     {current.persistenceError ? <div><p className="ob-clarification-error" role="alert">{current.persistenceError}</p>{onCancel && current.status === 'cancelled' ? <button type="button" className="ob-btn" disabled={busy} onClick={() => { void cancel() }}>{zh ? '重试保存关闭记录' : 'Retry saving closure'}</button> : null}</div> : null}
     {waiting ? <form ref={form} onSubmit={event => { void submit(event) }} aria-busy={busy}>
       {questions.map(question => <AnswerField key={question.id} question={question} zh={zh} value={drafts[question.id] ?? EMPTY} disabled={busy} invalid={attempted && !answerFor(question)} onChange={value => { setDrafts(previous => ({ ...previous, [question.id]: value })); setFailed(false) }} />)}
       {!questions.length ? <p role="alert" className="ob-clarification-error">{zh ? '当前问题不可用，请等待更新。' : 'No question is available. Wait for an update.'}</p> : null}
       {failed ? <p role="alert" className="ob-clarification-error">{zh ? '回答尚未被接收，请重试。你的输入已保留。' : 'The answer was not received. Try again; your input has been kept.'}</p> : null}
       <div className="ob-clarification-actions">{onCancel ? <button type="button" className="ob-btn" disabled={busy} onClick={() => { void cancel() }}>{zh ? '取消问题' : 'Cancel question'}</button> : null}<button type="submit" className="ob-btn ob-btn-primary" disabled={busy || !questions.length}>{busy ? (zh ? '正在提交…' : 'Submitting…') : (zh ? '提交回答' : 'Submit answer')}</button></div>
-    </form> : <dl className="ob-clarification-answers">{current.questions.map(question => <div key={question.id}><dt>{question.question}</dt><dd>{question.isSecret ? (zh ? '敏感回答已隐藏' : 'Sensitive answer hidden') : current.answers?.[question.id]?.join(' · ') || (zh ? '未记录回答' : 'No answer recorded')}</dd></div>)}</dl>}
+    </form> : current.status !== 'answered' ? <div>{userQuestions.filter(question => !current.userAnswers?.[question.id]).map(question => <p key={question.id}>{question.question}</p>)}</div> : null}
   </section>
 }
 

@@ -164,7 +164,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
 
   const latestUser = [...req.messages].reverse().find((message) => message.role === 'user')
   const images = latestUser && req.supportsVision !== false ? imagePartsOf(latestUser.content) : []
-  if (req.approve || req.mcpServers?.length || images.length) {
+  if (req.executionAccess === 'full-access' || req.approve || req.mcpServers?.length || images.length) {
     const opts = readCliOptions(cfg, req.cwd), ctx = runContext(req.model, opts)
     const body = turnPrompt(req, Boolean(resumeId)).trim(), system = systemPromptOf(req.messages).trim()
     const prompt = [system, body || (images.length ? '[Image attached]' : '')].filter(Boolean).join('\n\n')

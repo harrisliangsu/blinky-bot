@@ -1,3 +1,4 @@
+import { supportsFullAccessExecution } from '../../shared/executionAccess'
 import { createHash, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { AgentTask, AgentTaskStatus, Session } from '../../shared/types'
@@ -10,6 +11,7 @@ import { isThinkingDepth } from '../../shared/thinking'
 import { parseSavedAcceptance } from '../tasks/acceptance'
 import { parseSavedTaskPlan } from '../tasks/planning'
 import { parseSavedTaskWorkspace } from '../tasks/workspaces'
+import { parseTaskQuestions } from '../tasks/questionSchema'
 import type { TaskPlan, TaskWorkspace } from '../../shared/taskPlan'
 
 const collection = new JsonCollection<AgentTask>(tasksDir, normaliseTask)
@@ -59,6 +61,17 @@ function recoverTask(task: AgentTask, entry: RecoveryEntry): AgentTask {
  */
 const MAX_FINISHED_TASKS = 200
 
+function parseReview(raw: unknown, acceptance: AgentTask['acceptance'] | null): AgentTask['review'] | undefined {
+  if (!raw || typeof raw!=='object' || Array.isArray(raw)) return
+  const review=raw as Record<string,unknown>
+  if (!['complete_claimed','blocked'].includes(String(review.outcome)) || typeof review.summary!=='string' || !Array.isArray(review.evidence) || !Number.isFinite(review.recordedAt)) return
+  let question: import('../../shared/types').AgentTaskQuestion | undefined
+  if (review.question!==undefined) { try { question=parseTaskQuestions([review.question])[0] } catch { return } }
+  return {outcome:review.outcome as 'complete_claimed'|'blocked',summary:review.summary.slice(0,10000),evidence:review.evidence.filter((item):item is string=>typeof item==='string').slice(0,20).map(item=>item.slice(0,2000)),recordedAt:Number(review.recordedAt),
+    ...(question?{question}:{}),...(typeof review.respondedTo==='string'?{respondedTo:review.respondedTo}:{}),...(typeof review.contextKey==='string'?{contextKey:review.contextKey}:{}),
+    ...(acceptance&&Array.isArray(review.verifiedFiles)?{verifiedFiles:parseSavedAcceptance({root:acceptance.root,files:review.verifiedFiles})?.files??[]}: {})}
+}
+
 export function normaliseTask(raw: unknown): AgentTask | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const value = raw as Record<string, unknown>
@@ -85,9 +98,12 @@ export function normaliseTask(raw: unknown): AgentTask | null {
     ...(typeof value['continuedFromTaskId'] === 'string' ? { continuedFromTaskId: value['continuedFromTaskId'] } : {}),
     ...(acceptance ? { acceptance } : {}),
     ...((value['acceptance'] !== undefined && !acceptance) || value['acceptanceInvalid'] === true ? { acceptanceInvalid: true } : {}),
-    ...(agent && typeof agent['backendId'] === 'string' && typeof agent['modelId'] === 'string' ? { executionAgent: { backendId: agent['backendId'], modelId: agent['modelId'], ...(isThinkingDepth(agent['thinking']) ? { thinking: agent['thinking'] } : {}) } } : {}),
+    ...(agent && typeof agent['backendId'] === 'string' && typeof agent['modelId'] === 'string' ? { executionAgent: { backendId: agent['backendId'], modelId: agent['modelId'], ...(isThinkingDepth(agent['thinking']) ? { thinking: agent['thinking'] } : {}), ...(agent['accessMode'] === 'full-access' && supportsFullAccessExecution(agent['backendId']) ? { accessMode: 'full-access' as const } : {}) } } : {}),
     ...(typeof value['result'] === 'string' ? { result: value['result'].slice(0, 30000) } : {}),
-    ...(review && (review['outcome'] === 'complete_claimed' || review['outcome'] === 'blocked') && typeof review['summary'] === 'string' && Array.isArray(review['evidence']) && typeof review['recordedAt'] === 'number' ? { review: { outcome: review['outcome'], summary: review['summary'].slice(0, 10000), evidence: review['evidence'].filter((item): item is string => typeof item === 'string').slice(0, 20).map((item) => item.slice(0, 2000)), recordedAt: review['recordedAt'], ...(acceptance && Array.isArray(review['verifiedFiles']) ? { verifiedFiles: parseSavedAcceptance({ root: acceptance.root, files: review['verifiedFiles'] })?.files ?? [] } : {}) } } : {}),
+    ...(parseReview(review,acceptance) ? { review: parseReview(review,acceptance)! } : {}),
+    ...(Array.isArray(value['reviewHistory']) ? { reviewHistory: value['reviewHistory'].flatMap(item => { const parsed=parseReview(item,acceptance);return parsed?[parsed]:[] }) } : {}),
+    ...(typeof value['decisionContext']==='string' ? {decisionContext:value['decisionContext']} : {}),
+    ...(value['reviewFailure'] && typeof value['reviewFailure']==='object' && typeof (value['reviewFailure'] as Record<string,unknown>).contextKey==='string' && typeof (value['reviewFailure'] as Record<string,unknown>).message==='string' ? {reviewFailure:value['reviewFailure'] as AgentTask['reviewFailure']} : {}),
     ...(['pending', 'delivering', 'delivered', 'uncertain'].includes(value['deliveryStatus'] as string) ? { deliveryStatus: value['deliveryStatus'] as AgentTask['deliveryStatus'] } : {})
   }
 }
@@ -193,7 +209,7 @@ export function trimTasks(): Session[] {
   return archived
 }
 
-type TaskExtra = Pick<AgentTask, 'sourceSessionId' | 'requesterBotId' | 'executionAgent' | 'continuedFromTaskId' | 'acceptance' | 'acceptanceInvalid' | 'plan' | 'planInvalid' | 'workspace' | 'sessionChoice'>
+type TaskExtra = Pick<AgentTask, 'sourceSessionId' | 'requesterBotId' | 'executionAgent' | 'continuedFromTaskId' | 'acceptance' | 'acceptanceInvalid' | 'plan' | 'planInvalid' | 'workspace' | 'sessionChoice' | 'decisionContext'>
 function newTaskRecord(botId: string, sessionId: string, prompt: string, title: string, extra?: TaskExtra): AgentTask {
   const now = Date.now()
   return { id: randomUUID(), botId, sessionId, prompt: prompt.slice(0, 100_000), title: title.slice(0, 200) || 'Background task', status: 'queued', createdAt: now, updatedAt: now, ...extra }
@@ -210,7 +226,7 @@ export async function createTaskRecordDurable(botId: string, sessionId: string, 
 }
 
 /** Call under the task's orchestration lock so cancellation/updates stay ordered. */
-export async function saveTaskRuntimeDurable(id: string, patch: Pick<AgentTask, 'plan' | 'workspace' | 'sessionChoice'>): Promise<AgentTask> {
+export async function saveTaskRuntimeDurable(id: string, patch: Pick<AgentTask, 'plan' | 'workspace' | 'sessionChoice' | 'reviewFailure'>): Promise<AgentTask> {
   const current = collection.get(id)
   if (!current) throw new Error('The task no longer exists.')
   const next = { ...current, ...patch, updatedAt: Date.now() }
@@ -251,7 +267,7 @@ export async function storeTaskReviewDurable(id: string, review: NonNullable<Age
   for (let attempt = 0; attempt < 20; attempt++) {
     const task = collection.get(id)
     if (!task) return null
-    const next = { ...task, review, updatedAt: Date.now() }
+    const next = { ...task, review, reviewFailure:undefined, ...(task.review && JSON.stringify(task.review)!==JSON.stringify(review) ? {reviewHistory:[...(task.reviewHistory??[]),task.review]} : {}), updatedAt: Date.now() }
     await writeJsonNow(join(tasksDir(), `${safeFileName(id)}.json`), next)
     if (collection.get(id) === task) return putTask(next)
   }

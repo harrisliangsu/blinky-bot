@@ -1,3 +1,4 @@
+import { clarificationTimeline } from '../lib/clarificationTimeline'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
 import { showsJump } from '../lib/stickyScroll'
@@ -16,7 +17,7 @@ import { GmailDraftCards } from './GmailDraftCards'
 import { CalendarDraftCards } from './CalendarDraftCards'
 import { XDraftCards } from './XDraftCards'
 import { SlackDraftCards } from './SlackDraftCards'
-import { TaskClarificationCards } from './TaskClarificationCards'
+import { TaskClarificationEntry, useTaskClarifications } from './TaskClarificationCards'
 import { ReplyProgress } from './ReplyProgress'
 import type { Bot } from '../../../shared/types'
 import { imagePreviewSrc } from './imageAttachments'
@@ -89,7 +90,11 @@ export function Transcript(): ReactNode {
 
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
   const multiBot = (session?.botIds.length ?? 0) > 1
-  const { visible, hidden } = tailWindow(messageIds, limit, id=>!store.getMessage(id)?.internal)
+  const { requests: clarificationRequests, error: clarificationError } = useTaskClarifications(session?.id)
+  const more = !!session && window.openbot.history?.hasMore(session.id) === true
+  const timeline = clarificationTimeline(messageIds.flatMap(id => { const message = store.getMessage(id); return message ? [message] : [] }), clarificationRequests, more)
+  const entries = new Map(timeline.map(entry => [entry.id, entry]))
+  const { visible, hidden } = tailWindow(timeline.map(entry => entry.id), limit, id => { const entry = entries.get(id); return !!entry && ('request' in entry || !store.getMessage(entry.messageId)?.internal) })
 
   const toBottom = useCallback(
     () => {
@@ -103,7 +108,7 @@ export function Transcript(): ReactNode {
   // when a turn arrives, and the list must still follow it down.
   useLayoutEffect(() => {
     pin()
-  }, [pin, messageIds, localApprovals[0]?.id])
+  }, [pin, messageIds, clarificationRequests, localApprovals[0]?.id])
 
   useEffect(() => {
     // A different chat starts at its newest turn, and rewinds the window: the
@@ -113,7 +118,6 @@ export function Transcript(): ReactNode {
   }, [session?.id, toBottom])
 
   useLayoutEffect(restorePrepend, [limit, messageIds, restorePrepend])
-  const more = !!session && window.openbot.history?.hasMore(session.id) === true
   const earlier = async () => {
     if (earlierBusy.current) return
     preservePrepend()
@@ -145,15 +149,17 @@ export function Transcript(): ReactNode {
 
           <EarlierMessages hidden={hidden} more={more} loading={loadingEarlier} onShow={() => void earlier()} />
 
-          {visible.map((id) => (
-            <MessageView key={id} id={id} bots={botMap} multiBot={multiBot} expandSteps={settings?.expandSteps === true} />
-          ))}
+          {visible.map(id => {
+            const entry = entries.get(id)!
+            return 'request' in entry ? <TaskClarificationEntry key={id} request={entry.request} zh={settings?.language !== 'en'} />
+              : <MessageView key={id} id={entry.messageId} bots={botMap} multiBot={multiBot} expandSteps={settings?.expandSteps === true} />
+          })}
+          {clarificationError ? <p className="ob-msg-error" role="status">{settings?.language !== 'en' ? '暂时无法读取问题记录。' : 'Question history could not be loaded.'}</p> : null}
 
           {queue?.items.filter((item) => !messageIds.includes(item.id) || item.status === 'interrupted').map((item) => <PendingMessage key={item.id} item={item} queue={queue} known={messageIds.includes(item.id)} />)}
 
           {localApprovals[0] ? <ApprovalDialog key={localApprovals[0].id} request={localApprovals[0]} queued={localApprovals.length - 1} onDecide={(decision) => void respondToApproval(localApprovals[0].id, decision)} /> : null}
 
-          {session ? <TaskClarificationCards key={`clarify-${session.id}`} sessionId={session.id} zh={settings?.language !== 'en'} /> : null}
           {session ? <GitHubDraftCards key={session.id} sessionId={session.id} /> : null}
           {session ? <GmailDraftCards key={`gmail-${session.id}`} sessionId={session.id} /> : null}
           {session ? <CalendarDraftCards key={`calendar-${session.id}`} sessionId={session.id} /> : null}

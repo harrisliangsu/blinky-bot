@@ -29,7 +29,7 @@ import {
   isTurnEnd
 } from './codexEvents'
 import { type CodexPoolIdentity, codexPoolKey } from './codexPool'
-import { codexSafety } from './codexSafety'
+import { codexSafety, codexSandboxPolicy, confirmsFullAccess } from './codexSafety'
 import { allowCoordinatorGatewayCall, answerCodexUserInput } from './codexElicitation'
 import type { CliRunContext } from './spec'
 import { codexTurnItems, materializeCodexImages, turnImages, MAX_TURN_IMAGES } from './cliImages'
@@ -285,12 +285,15 @@ async function handshake(live: WarmCodex, run: AppServerRun): Promise<void> {
     started = await withDeadline(live.peer.request<ThreadStarted>(call.method, call.params), HANDSHAKE_TIMEOUT_MS, call.method)
     live.primed = Boolean(oldThread)
   } catch (error) {
-    if (!oldThread || run.req.signal.aborted) throw error
+    // A full-access resume error may be a managed refusal. Do not turn it
+    // into a fresh request on another thread, even for a stale binding.
+    if (!oldThread || run.req.signal.aborted || safety.sandbox === 'danger-full-access') throw error
     forgetCodexThread(run.req.sessionKey)
     call = codexThreadCall({ cwd: run.ctx.cwd, model: run.ctx.model, ...safety })
     started = await withDeadline(live.peer.request<ThreadStarted>(call.method, call.params), HANDSHAKE_TIMEOUT_MS, call.method)
     live.primed = false
   }
+  if (safety.sandbox === 'danger-full-access' && !confirmsFullAccess(started)) throw new Error('Codex did not confirm the explicitly selected full-access executor profile. Managed policy may restrict it; this run was not started.')
   const threadId = threadIdOf(started)
   if (!threadId) throw new Error('codex app-server did not return a thread id')
   if (safety.approvalsReviewer === 'auto_review' && (started.approvalsReviewer !== 'auto_review' || started.approvalPolicy !== 'on-request' || !isPlainObject(started.sandbox) || started.sandbox.type !== 'workspaceWrite' || started.sandbox.networkAccess !== false)) throw new Error('Codex did not confirm sandboxed automatic approval review. Update Codex or choose an interactive approval policy; this run was not started.')
@@ -389,8 +392,7 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
         ...(run.ctx.model && run.ctx.model !== 'default' ? { model: run.ctx.model } : {}),
         approvalPolicy: codexSafety(run.req).approvalPolicy,
         ...(codexSafety(run.req).approvalsReviewer ? { approvalsReviewer: codexSafety(run.req).approvalsReviewer } : {}),
-        sandboxPolicy: codexSafety(run.req).sandbox === 'workspace-write'
-          ? { type: 'workspaceWrite', writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false } : { type: 'readOnly', networkAccess: false },
+        sandboxPolicy: codexSandboxPolicy(codexSafety(run.req).sandbox),
         // Per-turn override. A project config can ignore the thread config key,
         // and older servers ignore an effort they do not know.
         ...(run.ctx.effort ? { effort: run.ctx.effort } : {})

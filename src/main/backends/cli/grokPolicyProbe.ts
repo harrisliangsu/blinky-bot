@@ -12,7 +12,7 @@ export interface GrokPolicyProbe {
   cleanup(): Promise<void>
 }
 
-export async function createGrokPolicyProbe(): Promise<GrokPolicyProbe> {
+export async function createGrokPolicyProbe(expectedMode: 'default' | 'bypassPermissions' = 'default'): Promise<GrokPolicyProbe> {
   const root = await mkdtemp(join(tmpdir(), 'blinky-grok-policy-'))
   const pluginDir = join(root, 'plugin'), markerPath = join(root, 'mode.json'), helper = join(root, 'report.cjs')
   try {
@@ -30,7 +30,7 @@ export async function createGrokPolicyProbe(): Promise<GrokPolicyProbe> {
         while (Date.now() < deadline) {
           try {
             const value = JSON.parse(await readFile(markerPath, 'utf8')) as { event?: unknown; mode?: unknown; sessionId?: unknown }
-            if (value.event !== 'session_start' || value.sessionId !== sessionId || value.mode !== 'default') throw new Error('Grok did not confirm its normal permission mode; the turn was not started.')
+            if (value.event !== 'session_start' || value.sessionId !== sessionId || value.mode !== expectedMode) throw new Error('Grok did not confirm its normal permission mode; the turn was not started.')
             return
           } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error

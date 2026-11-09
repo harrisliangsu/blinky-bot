@@ -48,7 +48,7 @@ test('actual execution gate rejects false/abort and marks a start only immediate
  assert.deepEqual(globalThis.__leadRace.executed,['a'])
  await writeFile(resolve('docs/test-evidence/intelligence-webhook-start-gate.json'),JSON.stringify({integrated:true,callbackBeforeActualTurn:true,falseDoesNotExecute:true,abortDoesNotExecute:true,ordinaryChatUnchanged:true},null,2))
 })
-test('optional routing advice reaches the chosen Bot without replacing its model or starting another executor',async()=>{
+test('retired quickDecision settings never invoke hidden routing or replace the chosen Bot model',async()=>{
  const s=fixture();s.mode='agent';s.botIds=['a'];globalThis.__leadRace.latest={id:'home',activeBotId:'a',botIds:['a'],mode:'agent'}
  Object.assign(globalThis.__leadRace.bots[0],{modelId:'frozen-lead-model',thinking:'high'})
  globalThis.__leadRace.bots=globalThis.__leadRace.bots.slice(0,1)
@@ -58,36 +58,7 @@ test('optional routing advice reaches the chosen Bot without replacing its model
  assert.deepEqual(globalThis.__leadRace.executed,['a'])
  assert.equal(globalThis.__leadRace.lastInput.bot.modelId,'frozen-lead-model')
  assert.equal(globalThis.__leadRace.lastInput.bot.thinking,'high')
- assert.match(JSON.stringify(globalThis.__leadRace.lastInput),/Routing advice is optional/)
- assert.match(JSON.stringify(globalThis.__leadRace.lastInput),/quick_decision/)
- assert.equal(globalThis.__leadRace.quickDecisionCalls,1)
-})
-
-test('routing stays outside read-only, internal review and multi-Bot turns',async()=>{
- for(const mode of ['ask','plan','internal','review','exchange']){
-  const s=fixture();s.mode=mode==='ask'||mode==='plan'?mode:'agent'
-  s.botIds=mode==='exchange'?['a','b']:['a']
-  globalThis.__leadRace.latest={...s,activeBotId:'a'}
-  if(mode!=='exchange')globalThis.__leadRace.bots=globalThis.__leadRace.bots.slice(0,1)
-  globalThis.__leadRace.settings={quickDecision:{backendId:'advice',modelId:'small'}}
-  await actual.iterate(s,new AbortController().signal,mode==='internal'?{internalAssistant:true}:mode==='review'?{internalAssistant:true,reviewBotId:'a'}:undefined)
-  assert.equal(globalThis.__leadRace.quickDecisionCalls,0,mode)
- }
-})
-
-test('a routing wait cannot execute for a removed Bot or archived conversation',async()=>{
- for(const change of ['bot-removed','membership-removed','archived','cancelled']){
-  const s=fixture(),controller=new AbortController();s.mode='agent';s.botIds=['a']
-  const state=globalThis.__leadRace
-  state.bots=state.bots.slice(0,1);state.latest={...s,activeBotId:'a'}
-  state.settings={quickDecision:{backendId:'advice',modelId:'small'}}
-  state.beforeAdviceReturn=async()=>{
-   if(change==='bot-removed')state.bots=[]
-   if(change==='membership-removed')state.latest.botIds=[]
-   if(change==='archived')state.latest.archived=true
-   if(change==='cancelled')controller.abort()
-  }
-  await actual.iterate(s,controller.signal)
-  assert.equal(state.quickDecisionCalls,1,change);assert.deepEqual(state.executed,[],change)
- }
+ assert.equal(globalThis.__leadRace.quickDecisionCalls,0)
+ assert.doesNotMatch(JSON.stringify(globalThis.__leadRace.lastInput.extras),/Routing advice is optional|quick_decision/)
+ assert.deepEqual(globalThis.__leadRace.settings.quickDecision,{backendId:'advice',modelId:'small'})
 })

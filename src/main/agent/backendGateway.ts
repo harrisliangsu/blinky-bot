@@ -1,3 +1,4 @@
+import { supportsFullAccessExecution } from '../../shared/executionAccess'
 /**
  * Access to the backend registry, which is an optional peer module: when it is not part
  * of the build the loop reports "backend unavailable" instead of failing to load.
@@ -16,6 +17,7 @@ import { requestApproval } from './approval'
 import { evaluate } from './approvalPolicy'
 import { localOperationSignal } from '../localExecution'
 import { matchesAnyDeny } from './patterns'
+import { executorAccessSignal } from './executionAgent'
 import { onSettingsChanged } from '../settings'
 
 export async function getBackend(id: string): Promise<Backend | null> {
@@ -146,6 +148,10 @@ export async function openChatStream(
       } finally { unsubscribe() }
     })()
   }
+  if (req.executionAccess === 'full-access' && (!supportsFullAccessExecution(backend.id) || req.coordinatorOnly || req.readOnly || req.restrictNativeWrites || req.disableNativeTools)) throw new Error('This target does not support the selected full-access execution profile.')
+  const executorSignal = req.executionAccess === 'full-access' && req.localExecutionSessionId ? executorAccessSignal(req.localExecutionSessionId) : undefined
+  if (executorSignal) req = { ...req, signal: AbortSignal.any([req.signal, executorSignal]) }
+  req.signal.throwIfAborted()
   if (backend.kind === 'agent-cli' && !usesApplicationToolLoop(backend.id)) {
     const settings = await settingsStore.get()
     if (localExecutionPolicy(settings) === 'never-allow') throw new Error(LOCAL_EXECUTION_REFUSAL)
@@ -166,7 +172,7 @@ export async function openChatStream(
         'Approval covers this native CLI task, including its own file, search and execution tools. Internal calls cannot all be intercepted. Explicit permission requests still receive separate review. Rejecting does not start this task.'
     })
     if (!outcome.approved) throw new Error(`本轮原生 CLI 任务未获批准。 / Native CLI task was not approved: ${outcome.reason}`)
-    const operation = localOperationSignal(req.signal, settings)
+    const operation = localOperationSignal(req.signal, settings, req.executionAccess === 'full-access')
     return (async function* () {
       try {
         for await (const chunk of backend.chat({ ...req, signal: operation.signal }, cfg)) {

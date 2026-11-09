@@ -153,6 +153,7 @@ test('owned tool evidence needs exact session/tool/call identity and remains an 
   f.state.answer = factReply('reports/observed', 'own-tool', 'reports/observed')
   const first = f.api.requestTaskClarification(t.sessionId, f.bot.id, [factQuestion], new AbortController().signal)
   const r = await waiting(f); await f.api.cancelTaskClarification(r.id); assert.equal(await first, null)
+  append(f, f.home.id, { id: 'user-recheck', role: 'user', content: '继续核实已有观察中的输出目录。', createdAt: 4 })
   f.state.answer = factReply('reports/observed', 'own-tool', 'reports/observed', { sourceKind: 'tool', sessionId: t.sessionId, toolName: 'list_dir', callId: 'own-call' })
   const answer = await f.api.requestToolClarification(t.sessionId, f.bot.id, [factQuestion], new AbortController().signal)
   assert.deepEqual(plain(answer.answers), { directory: ['reports/observed'] })

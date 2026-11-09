@@ -3,5 +3,5 @@ export function mustDelegateTool(input: { iteration: number; delegated: boolean;
   if (input.delegated || !input.executorConfigured || !input.delegationEnabled || input.iteration <= 2) return false
   // These coordinate the task or communicate with the user; they are not
   // another unit of local execution work.
-  return !['delegate_task', 'manage_task', 'review_task', 'decision_review', 'request_help', 'todo_write', 'remember', 'recall'].includes(input.tool)
+  return !['delegate_task', 'manage_task', 'review_task', 'ask_user', 'decision_review', 'request_help', 'todo_write', 'remember', 'recall'].includes(input.tool)
 }

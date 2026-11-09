@@ -9,8 +9,11 @@ import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const mocks={
+  './tasks/progressTurn':`export const taskJudgmentStatus=async()=>null`,
+  './tasks/coordinationPermission':`export const communicationPermissionStatus=async()=>null`,
   electron:`export class BrowserWindow{constructor(){throw Error('Window creation forbidden')}static getAllWindows(){return []}static getFocusedWindow(){return null}}export class Notification{static isSupported(){return false}constructor(){throw Error('Native notification forbidden')}}export const app={getPath(){throw Error('Formal data fallback forbidden')}};export const safeStorage={isEncryptionAvailable:()=>false,encryptString(){throw Error('Credentials forbidden')},decryptString(){throw Error('Credentials forbidden')}}`,
   './backendGateway':`export const getBackendInfo=async()=>{await globalThis.__webhookChain.beforeBackend?.();return {kind:'api'}};export const getBackend=async()=>{throw Error('Hidden backend discovery forbidden')};export const runSideCall=async()=>{throw Error('Model side calls forbidden')}`,
+  '../agent/backendGateway':`export const getBackend=async()=>null;export const runSideCall=async()=>{throw Error('Unexpected inference in returned-review fixture')}`,
   './turn':`export const runTurn=input=>globalThis.__webhookChain.backend(input)`,
   './supervisedTurn':`export const runSupervisedTurn=input=>globalThis.__webhookChain.backend(input)`,
   './mcpGateway':`export const cancelGatewayDetach=()=>{};export const detachGateway=async()=>{};export const scheduleGatewayDetach=()=>{}`,
@@ -20,6 +23,7 @@ const mocks={
   '../tools/agent/help':`export const cancelHumanHelpForSession=()=>{}`,
   '../backends/chatTiming':`export const traceChatTiming=()=>{}`,
   '../native/stdioBridge':`export const sendNativeEvent=e=>globalThis.__webhookChain.events.push(e);export const registerNativeHandler=()=>{}`,
+  './app/window':`export const focusOrCreateWindow=()=>{throw Error('Window focus forbidden')}`,
   '../app/window':`export const focusOrCreateWindow=()=>{throw Error('Window focus forbidden')}`,
   '../backends/cli/codexAppServer':`export const steerCodexTurn=async()=>{throw Error('Real CLI steering forbidden')}`,
   '../ipc/agentRuntime':`export const loopFn=async name=>globalThis.__webhookChain.api?.[name]??null`,

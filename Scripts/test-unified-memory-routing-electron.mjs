@@ -51,16 +51,7 @@ const provider = http.createServer(async (request, response) => {
     const extraction = messages.some(item => item.role === 'system' && textOf(item.content).includes('You maintain the long-term memory of an assistant.'))
     const row = { model: body.model, tag, tools: (body.tools ?? []).map(item => item.function?.name), lastRole: last?.role, purpose: extraction ? 'memory-extraction' : body.model === sideModel ? 'routing-advice' : 'lead-turn' }
     wire.push(row)
-    if (body.model === sideModel) {
-      assert.equal(body.tools, undefined, 'Routing advice must be tool-free')
-      if (userText.includes('UNIFIED_ROUTE_TIMEOUT')) {
-        held.add(response)
-        const timer = setTimeout(() => { held.delete(response); completion(response, { content: '{"route":"inline","reason":"Late fixture response"}' }) }, 13_000)
-        timer.unref(); response.on('close', () => { clearTimeout(timer); held.delete(response); row.aborted = !response.writableEnded })
-        return
-      }
-      return completion(response, { content: userText.includes('UNIFIED_ROUTE_INVALID') ? 'not valid routing JSON' : '{"route":"inline","reason":"Synthetic routing suggestion only"}' })
-    }
+    assert.notEqual(body.model, sideModel, 'A configured legacy routing preference must never request another model')
     assert.equal(body.model, mainModel, 'The Bot must keep its own model')
     if (extraction) { assert.equal(body.tools, undefined); return completion(response, { content: '[]' }) }
     if (last?.role === 'tool') {
@@ -92,7 +83,7 @@ const ids = [...new Set([...catalog.matchAll(/\{\s*id:\s*'([^']+)'/g)].map(match
 const backends = Object.fromEntries(ids.map(id => [id, { enabled: false, added: false }]))
 backends[backendId] = { enabled: true, added: true, providerName: 'Unified synthetic provider', providerProtocol: 'openai', baseUrl: origin + '/v1', credentialOrigin: origin, defaultModelId: mainModel }
 await fs.writeFile(path.join(data, 'backend-secrets.json'), JSON.stringify({ version: 1, keys: { [backendId]: Buffer.from('FIXTURE:' + [...fixtureKey].reverse().join('')).toString('base64') } }), { mode: 0o600 })
-await fs.writeFile(path.join(data, 'settings.json'), JSON.stringify({ theme: 'light', language: 'zh-CN', defaultBackendId: backendId, defaultModelId: mainModel, defaultMode: 'agent', approvalPolicy: 'auto-run', memoryExtraction: 'off', quickDecision: null, notifications: false, notifyOnTurn: false, runRoutinesWhenClosed: false, runInBackground: false, launchAtLogin: false, backends }))
+await fs.writeFile(path.join(data, 'settings.json'), JSON.stringify({ theme: 'light', language: 'zh-CN', defaultBackendId: backendId, defaultModelId: mainModel, defaultMode: 'agent', approvalPolicy: 'auto-run', memoryExtraction: 'off', quickDecision: { backendId, modelId: sideModel }, notifications: false, notifyOnTurn: false, runRoutinesWhenClosed: false, runInBackground: false, launchAtLogin: false, backends }))
 await fs.writeFile(path.join(data, 'bots', botId + '.json'), JSON.stringify({ id: botId, name: 'Unified Memory Fixture', backendId, modelId: mainModel, systemPrompt: 'Synthetic local-only verification. No external actions.', tools: ['remember','delegate_task'], executionAgent: { backendId, modelId: mainModel }, computerUse: false, computerTarget: { kind: 'local' }, activeConversationId: sessionId, createdAt: 1, updatedAt: 1 }))
 await fs.writeFile(path.join(data, 'sessions', sessionId + '.json'), JSON.stringify({ id: sessionId, title: 'Unified memory fixture', cwd: root, botIds: [botId], activeBotId: botId, mode: 'agent', messages: [], todos: [], archived: false, createdAt: 1, updatedAt: 1 }))
 const legacy = { id: 'legacy-memory', botId, text: 'UNIFIED_MEMORY_LEGACY remains an unclassified saved note.', source: 'user', createdAt: 1 }
@@ -181,15 +172,13 @@ async function saveMemory(text, kind, shared) {
   await wait(`window.openbot.bots.memory(${JSON.stringify(botId)}).then(entries=>entries.some(entry=>entry.text===${JSON.stringify(text)}))`)
 }
 async function closeDetails() { if (await ui.evaluate(`!!document.querySelector('#ob-bot-details')`)) await click('[aria-label="关闭 Bot 详情"]') }
-async function configureRouting(enabled, captureName) {
+async function inspectRetiredRouting(captureName) {
   await closeDetails(); await key(',', { code: 'Comma', windowsVirtualKeyCode: 188, modifiers: 4 })
   await wait(`!!document.querySelector('#ob-set-tab-bots')`); await click('#ob-set-tab-bots')
-  await wait(`!!document.querySelector('[aria-label="判断模型连接"]')`)
-  await select('[aria-label="判断模型连接"]', enabled ? backendId : '')
-  if (enabled) { await wait(`!!document.querySelector('[aria-label="派发判断模型"]')`); await select('[aria-label="派发判断模型"]', sideModel) }
-  await wait(`window.openbot.settings.get().then(s=>${enabled ? `s.quickDecision?.modelId===${JSON.stringify(sideModel)}` : 's.quickDecision===null'})`)
+  assert.equal(await ui.evaluate(`!!document.querySelector('[aria-label="判断模型连接"],[aria-label="派发判断模型"]')`), false, 'Retired settings must have no editable entry')
+  assert.deepEqual(await ui.evaluate(`window.openbot.settings.get().then(s=>s.quickDecision)`), { backendId, modelId: sideModel }, 'Opening settings must preserve old data without enabling it')
   const layout = await ui.evaluate(`(()=>{const m=document.querySelector('.ob-modal');return{viewport:[innerWidth,innerHeight],theme:document.documentElement.dataset.theme,pageOverflow:document.documentElement.scrollWidth-innerWidth,modalOverflow:m.scrollWidth-m.clientWidth}})()`)
-  await screenshot(captureName ?? (enabled ? 'routing-configured' : 'routing-disabled'))
+  await screenshot(captureName ?? 'retired-routing-absent')
   await key('Escape', { windowsVirtualKeyCode: 27 }); await wait(`!document.querySelector('[role=dialog]')`)
   return layout
 }
@@ -212,12 +201,12 @@ try {
       await ui.evaluate(`window.openbot.settings.update({theme:${JSON.stringify(theme)}})`)
       await wait(`document.documentElement.dataset.theme===${JSON.stringify(theme)}`)
       await main.evaluate(`process.getBuiltinModule('module').createRequire(process.execPath)('electron').BrowserWindow.getAllWindows()[0].setSize(${width},${height})`)
-      const layout = await configureRouting(true, 'routing-' + theme + '-' + width)
+      const layout = await inspectRetiredRouting('retired-routing-' + theme + '-' + width)
       result.layouts.push(layout)
       assert.ok(layout.pageOverflow <= 1 && layout.modalOverflow <= 1, JSON.stringify(layout))
     }
-    assert.equal(wire.some(row=>row.model===sideModel), false, 'Editing routing settings alone must not run inference')
-    result.checks.push('light-wide and dark-narrow routing settings', 'no horizontal overflow', 'Escape returns to chat', 'settings edits do not start inference')
+    assert.equal(wire.some(row=>row.model===sideModel), false, 'Opening settings must not run inference')
+    result.checks.push('retired routing entry absent in light-wide and dark-narrow settings', 'no horizontal overflow', 'Escape returns to chat', 'opening settings does not start inference')
   } else {
   let saved
   if (!routingOnly) {
@@ -238,21 +227,15 @@ try {
   await ui.evaluate(`window.openbot.settings.update({theme:'dark'})`); await wait(`document.documentElement.dataset.theme==='dark'`); await screenshot('memory-groups-dark')
   await closeDetails()
   }
-  assert.equal((await send('UNIFIED_ROUTE_OFF')).filter(row => row.model === sideModel).length, 0)
-  await configureRouting(true)
-  const valid = await send('UNIFIED_ROUTE_VALID'); assert.equal(valid.filter(row => row.model === sideModel).length, 1)
-  const invalid = await send('UNIFIED_ROUTE_INVALID'); assert.equal(invalid.filter(row => row.model === sideModel).length, 1)
-  const started = Date.now(), timed = await send('UNIFIED_ROUTE_TIMEOUT'); assert.equal(timed.filter(row => row.model === sideModel).length, 1)
-  assert.ok(Date.now() - started >= 7500, 'The real bounded advice wait must elapse before fallback')
-  result.routingTimeoutMs = Date.now() - started
-  await configureRouting(false)
-  assert.equal((await send('UNIFIED_ROUTE_DISABLED')).filter(row => row.model === sideModel).length, 0)
-  await configureRouting(true)
+  await inspectRetiredRouting()
+  for (const tag of ['UNIFIED_ROUTE_LEGACY', 'UNIFIED_ROUTE_FOLLOWUP']) {
+    assert.equal((await send(tag)).filter(row => row.model === sideModel).length, 0, 'Ordinary lead turns must ignore configured legacy routing')
+  }
   if (!routingOnly) {
     const recall = await send('UNIFIED_RECALL'); assert.ok(recall.some(row => row.recall?.profile && row.recall.journal && row.recall.legacy && row.recall.shared && !row.recall.foreign))
     result.checks.push('real memory UI/IPC categories/shared provenance', 'legacy shape preserved', 'actual application-host recall')
   }
-  result.checks.push('routing side model independent of Bot model', 'invalid/timeout advice falls back', 'disabled routing makes no side call')
+  result.checks.push('configured legacy routing makes zero side calls', 'ordinary and follow-up turns retain the chosen Bot model')
   const safety = await main.evaluate(`globalThis.__unifiedMemoryFixture`); assert.deepEqual(safety, { unexpected: [], dialogs: [] })
   assert.equal(await stop(), true, 'Restart readback requires normal shutdown, not a forced kill')
   // Only our stopped temporary profile is changed, to exercise actual startup inbox delivery.
@@ -261,10 +244,10 @@ try {
   const wakeStart = wire.length
   await launch()
   await wait(`window.openbot.tasks.get(${JSON.stringify(hiddenTaskId)}).then(t=>t?.deliveryStatus==='delivered'&&t.review?.outcome==='complete_claimed')`, 40_000)
-  assert.equal(wire.slice(wakeStart).filter(row => row.model === sideModel).length, 0, 'An internal result wake must not invoke optional routing')
+  assert.equal(wire.slice(wakeStart).filter(row => row.model === sideModel).length, 0, 'An internal result wake must not invoke retired routing')
   assert.ok(wire.slice(wakeStart).some(row => row.model === mainModel))
   assert.equal(await ui.evaluate(`window.openbot.settings.get().then(s=>s.quickDecision?.modelId)`), sideModel)
-  result.checks.push('normal restart retains routing settings', 'pending result hidden wake skips routing')
+  result.checks.push('normal restart preserves inert legacy settings', 'pending result hidden wake makes no side call')
   if (!routingOnly) {
     const restored = await ui.evaluate(`window.openbot.bots.memory(${JSON.stringify(botId)})`)
     assert.deepEqual(restored, saved)

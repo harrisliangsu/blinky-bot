@@ -32,7 +32,7 @@ test('ungrounded suggestions fall through to a real card; duplicate answers neve
     let request
     await until(async () => { [request] = await f.api.listTaskClarifications(task.id); return request?.status === 'waiting_user' })
     await until(() => f.state.events.some(value => value.type === 'task-clarification-updated' && value.request.status === 'waiting_user'))
-    await assert.rejects(f.api.answerTaskClarification(request.id, {}), /Answer every/)
+    await assert.rejects(f.api.answerTaskClarification(request.id, {}), /Answer the current question/)
     const response = await f.api.answerTaskClarification(request.id, { directory: ['reports/confirmed'] })
     assert.equal(response.status, 'answered'); assert.equal(response.answeredBy, 'user')
     assert.deepEqual(JSON.parse(JSON.stringify(await waiting)), { directory: ['reports/confirmed'] })

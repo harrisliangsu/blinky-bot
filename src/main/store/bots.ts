@@ -1,3 +1,4 @@
+import { supportsFullAccessExecution } from '../../shared/executionAccess'
 /**
  * Bots — personas with their own prompt, tools and memory.
  * One `bots/<id>.json` per bot; starter personas live in `starterBots.ts`.
@@ -7,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { access, writeFile } from 'node:fs/promises'
 import { avatarFields } from '../../shared/botAvatars'
+import { revokeExecutorAccess } from '../agent/executionAgent'
 import { supportsExecutionDelegation } from '../../shared/executionAgentCapabilities'
 import { join } from 'node:path'
 import { resolveBotBinding, snapshotBotBinding, type BotBinding } from '../../shared/botBinding'
@@ -180,7 +182,7 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
   if (execution && typeof execution === 'object' && !Array.isArray(execution)) {
     const config = execution as Record<string, unknown>
     if (typeof config['backendId'] === 'string' && config['backendId'].trim() && typeof config['modelId'] === 'string' && config['modelId'].trim()) {
-      bot.executionAgent = { backendId: config['backendId'].trim().slice(0, 200), modelId: config['modelId'].trim().slice(0, 200), ...(isThinkingDepth(config['thinking']) ? { thinking: config['thinking'] } : {}) }
+      bot.executionAgent = { backendId: config['backendId'].trim().slice(0, 200), modelId: config['modelId'].trim().slice(0, 200), ...(isThinkingDepth(config['thinking']) ? { thinking: config['thinking'] } : {}), ...(config['accessMode'] === 'full-access' && supportsFullAccessExecution(String(config['backendId']).trim()) ? { accessMode: 'full-access' as const } : {}) }
     }
   }
   // Legacy Bots with delegation enabled predate the independent executor
@@ -439,7 +441,8 @@ export function createBot(partial: Partial<Bot> = {}): Bot {
     createdAt: now,
     updatedAt: now
   }
-  if (partial.executionAgent) bot.executionAgent = partial.executionAgent
+  if (partial.executionAgent?.accessMode === 'full-access' && !supportsFullAccessExecution(partial.executionAgent.backendId)) throw new TypeError('This CLI does not support the selected independent execution profile.')
+  if (partial.executionAgent) bot.executionAgent = { ...partial.executionAgent }
   if (!bot.executionAgent && bot.tools.includes('delegate_task') && supportsExecutionDelegation(bot.backendId)) {
     bot.executionAgent = { backendId: bot.backendId, modelId: bot.modelId, ...(bot.thinking ? { thinking: bot.thinking } : {}) }
   }
@@ -456,6 +459,7 @@ export function duplicateBot(id: string): Bot | null {
   return createBot({
     ...source,
     name: `${source.name} copy`,
+    ...(source.executionAgent ? { executionAgent: { ...source.executionAgent, accessMode: undefined } } : {}),
     archived: false,
     pinned: false,
     computerUse: isolated ? false : source.computerUse,
@@ -474,6 +478,8 @@ export function updateBot(id: string, patch: Partial<Bot>): Bot | null {
     createdAt: existing.createdAt,
     updatedAt: Date.now()
   }
+  if (next.executionAgent?.accessMode === 'full-access' && !supportsFullAccessExecution(next.executionAgent.backendId)) throw new TypeError('This CLI does not support the selected independent execution profile.')
+  if (existing.executionAgent?.accessMode === 'full-access' && JSON.stringify(next.executionAgent) !== JSON.stringify(existing.executionAgent)) revokeExecutorAccess(id)
   if (patch.tools) next.tools = stringList(patch.tools)
   if (JSON.stringify(next.tools) !== JSON.stringify(existing.tools)) {
     toolRevisions.set(id, botToolsRevision(id) + 1)

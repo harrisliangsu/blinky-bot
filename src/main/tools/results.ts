@@ -8,6 +8,7 @@ import { describeError } from './errors'
 import { isLocalResourceTool, LOCAL_READ_TOOLS, LOCAL_EXECUTION_REFUSAL, localExecutionPolicy } from '../../shared/localExecution'
 import { settingsOf } from './settings'
 import { localOperationSignal } from '../localExecution'
+import { executionApprovalSettings, executorAccessSignal, fullAccessExecutor } from '../agent/executionAgent'
 import { deniedRuleForCall, denyRefusal, evaluate, targetForCall } from '../agent/approvalPolicy'
 import type { Tool, ToolContext } from './types'
 
@@ -56,8 +57,12 @@ export function defineTool(
             const denied = deniedRuleForCall(ctx.settings, { id: ctx.callId ?? '', name: schema.name, args })
             if (denied) return fail(ctx, schema.name, denyRefusal(schema.name, denied))
           }
-          const operation = localOperationSignal(ctx.signal, ctx.settings)
+          const independent = fullAccessExecutor(ctx.sessionId)
+          const accessSignal = independent ? executorAccessSignal(ctx.sessionId) : undefined
+          const operation = localOperationSignal(accessSignal ? AbortSignal.any([ctx.signal, accessSignal]) : ctx.signal, ctx.settings, independent)
           dispose = operation.dispose
+          const refreshSettings = ctx.getSettings
+          if (ctx.settings) ctx = { ...ctx, settings: executionApprovalSettings(ctx.settings, ctx.sessionId, true), ...(refreshSettings ? { getSettings: () => executionApprovalSettings(refreshSettings(), ctx.sessionId, true) } : {}) }
           const applicationApproval = ctx.requestApproval
           ctx = { ...ctx, signal: operation.signal, requestApproval: async (request) => {
             if (operation.signal.aborted) return false
@@ -87,6 +92,7 @@ export function defineTool(
           }
         }
         const result = await run(args ?? {}, ctx)
+        if (ctx.signal.aborted) return fail(ctx, schema.name, 'Stopped while this tool was running.')
         return {
           ...result,
           callId: result.callId || ctx.callId || '',

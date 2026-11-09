@@ -1,3 +1,7 @@
+import { listTaskClarifications } from './tasks/clarifications'
+import { completionContext, completionInputKey, repeatedContinuation, taskLineage } from './tasks/completionContext'
+import { resolvedReviewQuestion, queueReviewQuestion, cancelReviewQuestions } from './tasks/reviewQuestions'
+import { parseTaskQuestions } from './tasks/questionSchema'
 /** Background-task orchestration shared by the renderer and delegate_task. */
 
 import type { AgentTask } from '../shared/types'
@@ -118,18 +122,39 @@ async function withTaskDecision<T>(id: string, work: () => Promise<T>): Promise<
   try { return await work() } finally { release(); if (decisions.get(id) === current) decisions.delete(id) }
 }
 
+async function refreshTaskReview(taskId: string): Promise<void> {
+  const task=getTask(taskId),source=task?.sourceSessionId&&getSession(task.sourceSessionId)
+  if (!task || !source || source.archived || !['completed','failed'].includes(task.status) || taskExecutionWasInterrupted(task) || task.review?.outcome==='complete_claimed' || listTasks().some(next=>next.continuedFromTaskId===task.id)) return
+  const answered=await resolvedReviewQuestion(task)
+  const input=completionInputKey(task,source.messages,answered)
+  if(task.reviewFailure?.contextKey===input)return
+  const contextChanged=task.deliveryStatus==='uncertain' && task.reviewFailure && task.reviewFailure.contextKey!==input
+  if ((!answered&&!contextChanged)||task.deliveryStatus==='pending'||task.deliveryStatus==='delivering') return
+  const fresh=getTask(taskId)
+  if (!fresh || fresh.review!==task.review || fresh.status!==task.status) return
+  updateTaskDelivery(taskId,'pending');await durable();announce(getTask(taskId))
+  void drainTaskInbox(source.id)
+}
+
 /** Results survive restart. Only pending (never uncertain) receipts are retried. */
 export function installTaskInbox(): void {
   if (inboxInstalled) return
   inboxInstalled = true
   onAgentEvent((event) => {
+    if (event.type === 'task-clarification-updated' && event.request.reviewTaskId && event.request.status==='answered' && event.request.answeredBy==='user') void refreshTaskReview(event.request.reviewTaskId).catch(()=>{})
     if (event.type === 'done') void drainTaskInbox(event.sessionId)
-    if (event.type === 'session-updated') void drainTaskInbox(event.session.id)
+    if (event.type === 'session-updated') {
+      for (const task of listTasks()) if (task.sourceSessionId===event.session.id && task.deliveryStatus==='uncertain' && task.reviewFailure) void refreshTaskReview(task.id).catch(()=>{})
+      void drainTaskInbox(event.session.id)
+    }
     if (event.type === 'message-queue-updated' && !event.queue.items.length) void drainTaskInbox(event.queue.sessionId)
   })
   const snapshot = listTasks()
   const continued = new Set(snapshot.filter(task => task.continuedFromTaskId).map(task => JSON.stringify([task.continuedFromTaskId, task.sourceSessionId])))
   for (const task of snapshot) {
+    if (task.review?.outcome==='blocked') {
+      void refreshTaskReview(task.id).catch(()=>{})
+    }
     if (task.sourceSessionId && task.deliveryStatus === 'pending') void drainTaskInbox(task.sourceSessionId)
     else if (task.sourceSessionId && task.deliveryStatus === 'uncertain' && task.status !== 'cancelled') {
       const decided = Boolean(task.review) || continued.has(JSON.stringify([task.id, task.sourceSessionId]))
@@ -159,7 +184,7 @@ async function drainTaskInbox(sessionId: string): Promise<void> {
     await durable().catch((error) => console.error('[openbot/inbox] could not save unavailable source', error))
     return
   }
-  if (source.activeBotId !== (task.requesterBotId ?? task.botId) || source.mode !== 'agent') return
+  if (!source.botIds.includes(task.requesterBotId ?? task.botId) || !getBot(task.requesterBotId ?? task.botId) || getBot(task.requesterBotId ?? task.botId)?.archived || source.mode !== 'agent') return
   inboxActive.add(sessionId)
   let reserved = false
   let invoked = false
@@ -179,7 +204,7 @@ async function drainTaskInbox(sessionId: string): Promise<void> {
     if (isStartCancelled(sessionId)) throw new Error('Result delivery was stopped before the lead started.')
     releaseRoutineNotifications = await manageRoutineTaskResult(task.id, sessionId)
     const receiver = getSession(sessionId)
-    if (!receiver || receiver.archived || receiver.mode !== 'agent' || receiver.activeBotId !== (task.requesterBotId ?? task.botId)) {
+    if (!receiver || receiver.archived || receiver.mode !== 'agent' || !receiver.botIds.includes(task.requesterBotId ?? task.botId)) {
       announce(updateTaskDelivery(task.id, !receiver || receiver.archived ? 'uncertain' : 'pending'))
       await durable()
       return
@@ -194,11 +219,19 @@ async function drainTaskInbox(sessionId: string): Promise<void> {
   } catch (error) {
     console.error('[openbot/inbox] could not confirm result delivery', error)
     announce(updateTaskDelivery(task.id, 'uncertain'))
+    const latest=getTask(task.id),failedSource=getSession(sessionId)
+    if(latest&&failedSource){
+      const failedReply=await resolvedReviewQuestion(latest).catch(()=>undefined)
+      await withTaskDecision(`task:${task.id}`,()=>saveTaskRuntimeDurable(task.id,{reviewFailure:{contextKey:completionInputKey(latest,failedSource.messages,failedReply),message:'The owning Bot could not record its task assessment.'}})).catch(console.error)
+      const noticeId=`agent-review-unavailable-${task.id}`
+      if(!failedSource.messages.some(message=>message.id===noticeId))await addNotice(failedSource,getBot(task.requesterBotId??task.botId),'执行结果已保留，但负责 Bot 尚未完成复核，不能确认任务已完成。',undefined,noticeId).catch(console.error)
+    }
     await durable().catch(console.error)
   } finally {
     if (reserved) releaseStart(sessionId)
     if (reserved && !invoked && !isRunning(sessionId)) broadcast({ type: 'done', sessionId })
     releaseRoutineNotifications()
+    await refreshTaskReview(task.id).catch(()=>{})
     inboxActive.delete(sessionId)
     if (!isRunning(sessionId) && listTasks().some((item) => item.sourceSessionId === sessionId && item.deliveryStatus === 'pending')) setTimeout(() => void drainTaskInbox(sessionId), 500).unref?.()
   }
@@ -302,13 +335,15 @@ async function createDelegatedTask(
       if (!currentSource.botIds.includes(previous.botId) || !getBot(previous.botId) || getBot(previous.botId)?.archived) throw new TypeError('The original execution Bot is no longer available in this conversation.')
       const body = prompt.trim().slice(0, 100_000)
       if (!body) throw new TypeError('A continuation needs the remaining work.')
+      const decisionContext=completionInputKey({ ...previous, id:'context',result:undefined,review:undefined },currentSource.messages)
+      if (repeatedContinuation(previous,listTasks(),body,decisionContext)) throw new TypeError('The same execution plan returned the same evidence without new user context. Reinspect the failure and change the approach within existing authority; ask a concrete question only if the user must decide. Do not blindly retry or expand the goal.')
       if (countQueuedTasks() >= MAX_QUEUED_TASKS || countQueuedTasks(previous.botId) >= MAX_QUEUED_TASKS_PER_BOT) throw new TypeError('Too many background tasks are already waiting in the queue.')
       const continuation = 'Continue the previously delegated task in this same conversation. Previous actions may already have happened; inspect the actual state before repeating any command, file change, or external effect. Remaining work:\n\n' + body
       const sourceGeneration = queueSuspensionGeneration(sourceSessionId), stopGeneration = taskStopGenerations.get(previous.id) ?? 0
       const changedWorkspace = planInput?.workspace !== undefined && planInput.workspace !== 'auto'
       const sourceCwd = planInput?.workspace === 'isolated' ? previous.workspace?.path ?? getSession(previous.sessionId)?.cwd ?? currentSource.cwd : previous.plan?.sourceCwd ?? getSession(previous.sessionId)?.cwd ?? currentSource.cwd
       const plan = previous.plan || planInput ? parseTaskPlan(planInput, sourceCwd, sourceSessionId, fromBotId, listTasks(), previous) : undefined
-      const task = await createTaskRecordDurable(previous.botId, previous.sessionId, continuation, title?.trim().slice(0, 200) || previous.title, { sourceSessionId, ...(previous.requesterBotId ? { requesterBotId: previous.requesterBotId } : {}), ...(previous.executionAgent ? { executionAgent: { ...previous.executionAgent } } : {}), ...(previous.acceptance ? { acceptance: previous.acceptance } : {}), continuedFromTaskId: previous.id, ...(plan ? { plan } : {}), ...(!changedWorkspace && previous.workspace ? { workspace: previous.workspace } : {}), sessionChoice: { mode: 'continue', previousTaskId: previous.id, reason: plan?.sessionReason ?? 'Continue the same task in its original execution conversation.' } })
+      const task = await createTaskRecordDurable(previous.botId, previous.sessionId, continuation, title?.trim().slice(0, 200) || previous.title, { sourceSessionId, ...(previous.requesterBotId ? { requesterBotId: previous.requesterBotId } : {}), ...(previous.executionAgent ? { executionAgent: { ...previous.executionAgent } } : {}), ...(previous.acceptance ? { acceptance: previous.acceptance } : {}), continuedFromTaskId: previous.id, decisionContext, ...(plan ? { plan } : {}), ...(!changedWorkspace && previous.workspace ? { workspace: previous.workspace } : {}), sessionChoice: { mode: 'continue', previousTaskId: previous.id, reason: plan?.sessionReason ?? 'Continue the same task in its original execution conversation.' } })
       try {
         assertBotAdmission(fromBotId, previous.botId)
         const freshSource = getSession(sourceSessionId), lead = getBot(fromBotId), worker = getBot(previous.botId)
@@ -470,7 +505,7 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
     if (command.action === 'inspect') {
       const session = getSession(current.sessionId)
       const recent = [...(session?.messages ?? []), ...liveMessages(current.sessionId)].filter(value => !value.internal && !value.uiOnly).slice(-12).map(value => ({ id: value.id, role: value.role, content: scrubVaultTranscript((value.displayContent ?? value.content).slice(-6000)), error: value.error ? scrubVaultTranscript(value.error) : undefined, streaming: value.streaming }))
-      return { task: taskForInspection(current), scheduling: dependencyState(current, listTasks()), recent, executionEvidence: executionObservations([...(session?.messages ?? []), ...liveMessages(current.sessionId)],scrubVaultTranscript), automaticJudgment: await taskJudgmentStatus(current.id), automaticCommunication: await communicationPermissionStatus(current.id), todos: session?.todos.map(value => ({ ...value, text: scrubVaultTranscript(value.text) })) ?? [], messages: await taskMessages(current.id), note: 'Progress, tool-reported execution metadata and executor output are observations, not proof of the whole user goal. executionEvidence is same-session, bounded and excludes file/code bodies. automaticJudgment records internal consideration; automaticCommunication records the separate ordinary approval for a mutating task message, including held refusals. Neither is Agent execution or user consent. Inspect relevant task evidence before review_task; do not re-read source code to guess progress.' }
+      return { task: taskForInspection(current), scheduling: dependencyState(current, listTasks()), recent, executionEvidence: executionObservations([...(session?.messages ?? []), ...liveMessages(current.sessionId)],scrubVaultTranscript), clarifications: await listTaskClarifications(current.id), automaticJudgment: await taskJudgmentStatus(current.id), automaticCommunication: await communicationPermissionStatus(current.id), todos: session?.todos.map(value => ({ ...value, text: scrubVaultTranscript(value.text) })) ?? [], messages: await taskMessages(current.id), note: 'Progress, tool-reported execution metadata and executor output are observations, not proof of the whole user goal. executionEvidence is same-session, bounded and excludes file/code bodies. automaticJudgment records internal consideration; automaticCommunication records the separate ordinary approval for a mutating task message, including held refusals. Neither is Agent execution or user consent. Inspect relevant task evidence before review_task; do not re-read source code to guess progress.' }
     }
     const text = command.text?.trim().slice(0, 30_000)
     if (!text || !command.requestId?.trim() || command.requestId.length > 160) throw new TypeError('Provide text and a stable request_id (at most 160 characters); reuse that id when checking delivery after a timeout.')
@@ -522,14 +557,30 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
 }
 
 /** A review is scoped to its lead and records a claim, not objective proof. */
-export async function reviewBackgroundTask(sessionId: string, botId: string, taskId: string, outcome: 'complete_claimed' | 'blocked', summary: string, evidence: string[], signal?: AbortSignal): Promise<AgentTask> {
+export async function reviewBackgroundTask(sessionId: string, botId: string, taskId: string, outcome: 'complete_claimed' | 'blocked', summary: string, evidence: string[], signal?: AbortSignal, rawQuestion?: unknown): Promise<AgentTask> {
   return withTaskDecision(`task:${taskId}`, async () => {
     if (signal?.aborted) throw new Error('The assessment was stopped before it was saved.')
     const task = getTask(taskId)
     if (!task || task.sourceSessionId !== sessionId || (task.requesterBotId ?? task.botId) !== botId || (!task.executionAgent && !task.requesterBotId)) throw new TypeError('That task does not belong to this conversation and bot.')
     if (!['completed', 'failed', 'cancelled'].includes(task.status)) throw new TypeError('The executor has not returned yet.')
-    if (task.review) {
-      if (task.review.outcome !== outcome || task.review.summary !== summary || JSON.stringify(task.review.evidence) !== JSON.stringify(evidence)) throw new TypeError('This task already has a different assessment.')
+    const answered=await resolvedReviewQuestion(task).catch(()=>undefined)
+    const source=getSession(sessionId),owner=getBot(botId)
+    if(!source||source.archived||source.mode!=='agent'||!source.botIds.includes(botId)||!owner||owner.archived)throw new TypeError('The original task owner is no longer available in this conversation.')
+    const userContext=completionInputKey({...task,id:'context',result:undefined,review:undefined},source?.messages??[])
+    const newerUser=task.review?.contextKey ? task.review.contextKey!==userContext : Boolean(source?.messages.some(message=>message.role==='user'&&!message.internal&&!message.uiOnly&&message.createdAt>(task.review?.recordedAt??Infinity)))
+    const question=rawQuestion===undefined?undefined:parseTaskQuestions([rawQuestion])[0]
+    if(question&&(outcome!=='blocked'||!['fact','preference','authorization'].includes(question.kind??'')||question.isSecret))throw new TypeError('Only a genuine unresolved user decision may accompany a blocked assessment; ordinary implementation choices and credentials do not belong here.')
+    if(question){
+      const owned=new Set(taskLineage(task,listTasks()).map(item=>item.id)),lastUser=source.messages.filter(message=>message.role==='user'&&!message.internal&&!message.uiOnly).at(-1)?.id??''
+      const prior=(await listTaskClarifications().catch(()=>[])).find(request=>{
+        if(!owned.has(request.taskId)||request.sourceSessionId!==sessionId||request.botId!==botId||!['answered','cancelled','expired'].includes(request.status))return false
+        let context:unknown;try{context=JSON.parse(request.contextScope??'null')}catch{return false}
+        return Array.isArray(context)&&context[1]===lastUser&&request.questions.some(old=>JSON.stringify([old.question,old.kind,old.options??[]])===JSON.stringify([question.question,question.kind,question.options??[]]))
+      })
+      if(prior)throw new TypeError(`This question is already closed (${prior.status}) in the same user context. Inspect its recorded clarification; do not re-ask under a Bot review or new task ID. Continue independent authorized work or record the real unresolved blocker without inventing an answer.`)
+    }
+    if (task.review && !(task.review.outcome==='blocked' && (answered||newerUser))) {
+      if (task.review.outcome !== outcome || task.review.summary !== summary || JSON.stringify(task.review.evidence) !== JSON.stringify(evidence) || JSON.stringify(task.review.question)!==JSON.stringify(question)) throw new TypeError('This task already has a different assessment.')
       const saved = await storeTaskReviewDurable(taskId, task.review)
       if (!saved) throw new Error('The task no longer exists.')
       return saved
@@ -539,10 +590,14 @@ export async function reviewBackgroundTask(sessionId: string, botId: string, tas
     if (outcome === 'complete_claimed' && task.acceptanceInvalid) throw new TypeError('Saved output checks are invalid; this task cannot be marked complete.')
     const verifiedFiles = outcome === 'complete_claimed' && task.acceptance ? await verifyAcceptance({ ...task.acceptance, root: task.workspace?.path ?? task.acceptance.root }, signal) : undefined
     if (signal?.aborted) throw new Error('The assessment was stopped before it was saved.')
-    const recordedAt = Date.now()
-    const saved = await storeTaskReviewDurable(taskId, { outcome, summary, evidence, recordedAt, ...(verifiedFiles ? { verifiedFiles } : {}) })
+    const freshSource=getSession(sessionId),freshOwner=getBot(botId)
+    if(!freshSource||freshSource.archived||freshSource.mode!=='agent'||!freshSource.botIds.includes(botId)||!freshOwner||freshOwner.archived)throw new TypeError('The task owner changed during assessment; no claim was recorded.')
+    const recordedAt = Math.max(Date.now(),(task.review?.recordedAt??0)+1,(answered?.updatedAt??0)+1)
+    if(task.review)cancelReviewQuestions(taskId)
+    const saved = await storeTaskReviewDurable(taskId, { outcome, summary, evidence, recordedAt, contextKey:userContext, ...(question?{question}:{}), ...(answered?{respondedTo:answered.id}:{}), ...(verifiedFiles ? { verifiedFiles } : {}) })
     if (!saved) throw new Error('The task no longer exists.')
     announce(saved)
+    if(question)queueReviewQuestion(saved,()=>refreshTaskReview(saved.id),signal)
     return saved
   })
 }
@@ -550,6 +605,7 @@ export async function reviewBackgroundTask(sessionId: string, botId: string, tas
 export async function cancelBackgroundTask(id: string): Promise<AgentTask | null> {
   const task = getTask(id)
   if (!task) return null
+  cancelReviewQuestions(task.id)
   taskStopGenerations.set(task.id, (taskStopGenerations.get(task.id) ?? 0) + 1)
   if (!['queued', 'running'].includes(task.status)) {
     if (task.status === 'cancelled' && (runningSessions.has(task.sessionId) || isRunning(task.sessionId))) {
@@ -647,6 +703,7 @@ async function run(task: AgentTask): Promise<void> {
       // Never start an external executor before both task and private thread are durable.
       const persisted = await flushAll()
       if (persisted.failed.length || persisted.stillWriting) throw new Error('Could not persist the background task safely.')
+      if (task.executionAgent?.accessMode === 'full-access' && getBot(task.botId)?.executionAgent?.accessMode !== 'full-access') throw new Error('The execution Agent’s full-access authorization was revoked. This task was not started.')
       if (task.executionAgent) setExecutionAgent(task.sessionId, task.executionAgent, task.botId)
       else if (task.requesterBotId) setTeammateRun(task.sessionId, task.botId)
     }
@@ -670,7 +727,7 @@ async function run(task: AgentTask): Promise<void> {
       if (event.type === 'error' && event.sessionId === task.sessionId) reportedError = event.message
       if (event.type === 'done' && event.sessionId === task.sessionId && event.outcome) reportedOutcome = event.outcome
     })
-    let nextPrompt = workspaceInstructions(workspace) + taskContextInstructions(task, listTasks()) + '\n\n' + task.prompt + '\n\nInternal progress protocol: record a short factual update in this execution conversation at natural safe points for a completed goal-relevant stage, a genuine blocker, or a proposed adjustment, with concrete evidence. The host persists this conversation. Prefer ordinary assistant updates in this persisted execution conversation. Answer Bot inquiries and acknowledge suggestions here without a reporting/MCP tool; the host correlates replies automatically. Proactive manage_task report remains optional under existing permissions for independent material observations; do not request new privileges solely for routine progress. Reports go to the owning Bot for judgment, not directly to the user. Do not report each todo or repeat unchanged status. Long tool execution must not be interrupted just to manufacture a report; update after it returns. Respond to a Bot coordination inquiry or suggestion in this same conversation; use its reply request_id if the report tool is already available; distinguish received, proposed and actually applied changes. Bot suggestions never replace user authorization or approval.'
+    let nextPrompt = workspaceInstructions(workspace) + taskContextInstructions(task, listTasks()) + (task.sourceSessionId ? '\n\nTask completion context (observations, not new authorization):\n'+JSON.stringify(completionContext(task,listTasks(),getSession(task.sourceSessionId)?.messages??[])) : '') + '\n\n' + task.prompt + '\n\nInternal progress protocol: record a short factual update in this execution conversation at natural safe points for a completed goal-relevant stage, a genuine blocker, or a proposed adjustment, with concrete evidence. The host persists this conversation. Prefer ordinary assistant updates in this persisted execution conversation. Answer Bot inquiries and acknowledge suggestions here without a reporting/MCP tool; the host correlates replies automatically. Proactive manage_task report remains optional under existing permissions for independent material observations; do not request new privileges solely for routine progress. Reports go to the owning Bot for judgment, not directly to the user. Do not report each todo or repeat unchanged status. Long tool execution must not be interrupted just to manufacture a report; update after it returns. Respond to a Bot coordination inquiry or suggestion in this same conversation; use its reply request_id if the report tool is already available; distinguish received, proposed and actually applied changes. Bot suggestions never replace user authorization or approval.'
     try {
       for (;;) {
         const batch = await withTaskDecision(`task:${task.id}`, async () => {

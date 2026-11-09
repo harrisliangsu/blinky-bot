@@ -62,12 +62,12 @@ export function useTranscriptScroll(sessionId: string | undefined, ready: boolea
   }, [pin])
 
   useEffect(() => {
-    const sent = (event: Event): void => { if ((event as CustomEvent<string>).detail === sessionId) jump() }
+    const sent = (event: Event): void => { if ((event as CustomEvent<string>).detail === sessionId) pin() }
     const viewport = (): void => { requestAnimationFrame(pin) }
     window.addEventListener('openbot:chat-sent', sent)
     window.visualViewport?.addEventListener('resize', viewport)
     return () => { window.removeEventListener('openbot:chat-sent', sent); window.visualViewport?.removeEventListener('resize', viewport) }
-  }, [sessionId, jump, pin])
+  }, [sessionId, pin])
 
   const onScroll = useCallback(() => {
     const el = scrollerRef.current
@@ -117,7 +117,7 @@ export function useTranscriptScroll(sessionId: string | undefined, ready: boolea
     const el = scrollerRef.current
     if (!el) return
     const top = el.getBoundingClientRect().top
-    const node = Array.from(el.querySelectorAll('.ob-msg')).find(item => item.getBoundingClientRect().bottom > top)
+    const node = Array.from(el.querySelectorAll('.ob-msg, .ob-task-clarification')).find(item => item.getBoundingClientRect().bottom > top)
     if (node) prepend.current = { node, top: node.getBoundingClientRect().top }
     readHistory()
   }, [readHistory])

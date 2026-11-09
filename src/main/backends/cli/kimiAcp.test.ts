@@ -19,12 +19,15 @@ record({args:process.argv.slice(2)}); const send=x=>process.stdout.write(JSON.st
 let waiting=false,promptId;
 readline.createInterface({input:process.stdin}).on('line', line=>{
  const m=JSON.parse(line); record(m);
+ if(m.id===901){send({id:promptId,result:{stopReason:'end_turn'}});return;}
  if(m.id===900){waiting=false;send({method:'session/update',params:{update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text: m.result?.outcome?.optionId==='no'?'permission denied':'permission allowed'}}}});send({id:promptId,result:{stopReason:'end_turn'}});return;}
  if(m.method==='initialize')send({id:m.id,result:{protocolVersion:1,agentCapabilities:{mcpCapabilities:{http:true},promptCapabilities:{image:true}}}});
  else if(m.method==='session/new')send({id:m.id,result:{sessionId:'kimi-acp-test'}});
  else if(m.method==='session/load') { if(enabled('fail-load'))send({id:m.id,error:{code:-32002,message:'load failed'}});else send({id:m.id,result:{}}); }
  else if(m.method==='session/set_config_option')send({id:m.id,result:{configOptions:[{id:m.params.configId,currentValue:enabled('bad-config')?'wrong':m.params.value}]}});
  else if(m.method==='session/prompt') { promptId=m.id; if(enabled('hang'))return;
+   if(enabled('form')){send({id:901,method:'elicitation/create',params:{sessionId:'kimi-acp-test',mode:'form',message:'Which synthetic format?',requestedSchema:{type:'object',properties:{q0:{type:'string',title:'Format',oneOf:[{const:'Markdown'},{const:'Text'}]}}}}});return;}
+   if(enabled('question')){send({id:901,method:'session/request_permission',params:{sessionId:'kimi-acp-test',toolCall:{title:'AskUserQuestion',content:[{type:'content',content:{type:'text',text:'Which synthetic format?'}}]},options:[{kind:'allow_once',optionId:'opaque-first',name:'Markdown'},{kind:'allow_once',optionId:'opaque-second',name:'Text'},{kind:'reject_once',optionId:'skip',name:'Skip'}]}});return;}
    if(enabled('permission-diff')){send({method:'session/update',params:{update:{sessionUpdate:'tool_call',toolCallId:'edit-1',kind:'edit',title:'Edit',content:[{type:'content',content:{type:'text',text:JSON.stringify({path:'/tmp/fixture'})}}]}}});send({id:900,method:'session/request_permission',params:{toolCall:{toolCallId:'edit-1',title:'Edit',content:[{type:'diff',path:'/tmp/fixture',oldText:'before',newText:'after'}]},options:[{kind:'allow_once',optionId:'yes'},{kind:'reject_once',optionId:'no'}]}});return;}
    if(enabled('permission-task')){waiting=true;send({id:900,method:'session/request_permission',params:{toolCall:{title:'mcp__openbot__manage_task',rawInput:{arguments:{action:'report',task_id:'12345678-1234-1234-1234-123456789abc',text:'PRIVATE_SYNTHETIC_REPORT'}}},options:[{kind:'allow_once',optionId:'yes'},{kind:'reject_once',optionId:'no'}]}});return;}
    if(enabled('permission')){waiting=true;send({id:900,method:'session/request_permission',params:{toolCall:{...(enabled('no-kind')?{}:{kind:'edit'}),title:'test edit',rawInput:{path:'/tmp/fixture'}},options:[{kind:'allow_once',optionId:'yes'},{kind:'reject_once',optionId:'no'}]}}); return;}
@@ -211,4 +214,21 @@ test('task MCP approval identifies action and task without exposing report text 
   }}
   assert.deepEqual(await collect(req,f.binary),['permission allowed','done']);assert.equal(approvals,1)
  }finally{await rm(f.root,{recursive:true,force:true})}
+})
+
+
+test('independent Kimi separates operation permission from native questions and keeps default engine scope', {timeout:15000}, async () => {
+ const f=await fixture()
+ try {
+  let approvals=0,questions=0
+  const req:ChatRequest={model:'default',cwd:f.root,executionAccess:'full-access',signal:AbortSignal.timeout(12000),messages:[{role:'user',content:'Synthetic'}],approve:async ask=>{approvals++;assert.equal(ask.force,false);return 'approve'},requestInput:async qs=>{questions++;return {[qs[0]!.id]:['Markdown']}}}
+  await writeFile(join(f.root,'permission'),'');assert.deepEqual(await collect(req,f.binary),['permission allowed','done']);await rm(join(f.root,'permission'))
+  for(const flag of ['form','question']){await writeFile(join(f.root,flag),'');const chunks=await collect(req,f.binary);assert.ok(chunks.includes('done'));await rm(join(f.root,flag))}
+  assert.equal(approvals,1);assert.equal(questions,2)
+  const trace=await readTrace(f.trace)
+  assert.ok(trace.some(x=>x.id===901&&x.result?.action==='accept'&&x.result.content.q0==='Markdown'))
+  assert.ok(trace.some(x=>x.id===901&&x.result?.outcome?.optionId==='opaque-first'))
+  assert.ok(trace.filter(x=>x.method==='session/set_config_option'&&x.params.configId==='mode').every(x=>x.params.value==='default'))
+  assert.ok(trace.filter(x=>x.args).every(x=>!x.args.includes('--auto')&&!x.args.includes('--yolo')))
+ } finally {await flushAll();await rm(f.root,{recursive:true,force:true})}
 })
