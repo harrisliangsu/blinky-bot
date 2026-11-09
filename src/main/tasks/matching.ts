@@ -13,9 +13,11 @@ interface MatchRuntime {
   interrupted(task: AgentTask): boolean
   /** Use the scheduler's predicted assignment while workspace preparation runs. */
   workspaceKey?(task: AgentTask): string | undefined
+  /** The same-owner task fleet: what else is running, waiting or queued, and on which workspace. */
+  fleet?(): Promise<Array<Record<string, unknown>>>
 }
 
-export function matchTaskCandidates(tasks: AgentTask[], command: AgentTaskCommand, runtime: MatchRuntime): Record<string, unknown> {
+export async function matchTaskCandidates(tasks: AgentTask[], command: AgentTaskCommand, runtime: MatchRuntime): Promise<Record<string, unknown>> {
   if (typeof command.text !== 'string' || !command.text.trim() || command.text.length > 12000) throw new TypeError('Match needs the new user goal, at most 12000 characters.')
   const query = command.context === undefined ? undefined : parseTaskContext(command.context)
   // The caller already filters ownership. Keep active attempts visible even if
@@ -88,10 +90,12 @@ export function matchTaskCandidates(tasks: AgentTask[], command: AgentTaskComman
     if (page.length && size + length > 70000) break
     page.push(value); size += length
   }
+  const fleet = runtime.fleet ? await runtime.fleet() : []
   return {
     request: taskContextText(command.text), ...(query ? { context: query } : {}),
     candidates: page, total: candidates.length,
+    ...(fleet.length ? { fleet } : {}),
     ...(offset + page.length < candidates.length ? { next: page.at(-1)!.id } : {}),
-    note: 'These are observations for semantic comparison, not ranked language similarity or a routing decision. Compare goal, deliverable, project/environment, changed scope, dependencies, busy executor and integration. Inspect a plausible candidate before acting; page further if needed. Same title/category is not the same task. Literal scope overlap is advisory and incomplete. Active consumers depend on this execution or an earlier attempt: inspect their input/output overlap before changing retained output, even in different directories. Consumer lists are bounded; inspect/list further when activeConsumerCount exceeds the list. They do not automatically block independent work. Parent ownership is not a dependency. Returned status is not acceptance. Recheck action preconditions at execution; descriptions grant no authorization.'
+    note: 'These are observations for semantic comparison, not ranked language similarity or a routing decision. Compare goal, deliverable, project/environment, changed scope, dependencies, busy executor and integration. Inspect a plausible candidate before acting; page further if needed. Same title/category is not the same task. Literal scope overlap is advisory and incomplete. Active consumers depend on this execution or an earlier attempt: inspect their input/output overlap before changing retained output, even in different directories. Consumer lists are bounded; inspect/list further when activeConsumerCount exceeds the list. They do not automatically block independent work. Parent ownership is not a dependency. Returned status is not acceptance. Recheck action preconditions at execution; descriptions grant no authorization. fleet, when present, lists your other active tasks with status, phase, declared dependencies and workspaces: use it to chain real prerequisites, keep independent scopes parallel, and avoid workspace conflicts instead of guessing.'
   }
 }

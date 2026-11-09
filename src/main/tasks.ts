@@ -39,6 +39,19 @@ import { dependencyState, parseTaskPlan, rankQueuedTasks, validateDependencyGrap
 import { prepareTaskWorkspace, taskWorkspaceKey, workspaceInstructions } from './tasks/workspaces'
 import { forgetBindingsForSession } from './store/providerBindings'
 import { matchTaskCandidates } from './tasks/matching'
+
+/** Bounded fleet view for planning: the same owner's active tasks with phase, dependencies and workspace. */
+async function taskFleetView(ownerBotId: string): Promise<Array<Record<string, unknown>>> {
+  const active = listTasks().filter((task) => (task.requesterBotId ?? task.botId) === ownerBotId && ['queued', 'running'].includes(task.status))
+  return active.slice(0, 8).map((task) => ({
+    taskId: task.id,
+    title: scrubVaultTranscript(task.title).slice(0, 80),
+    status: task.status,
+    phase: task.progress?.phase ?? task.status,
+    dependsOn: task.plan?.dependencies ?? [],
+    workspace: task.workspace?.path ? scrubVaultTranscript(task.workspace.path).slice(0, 120) : undefined
+  }))
+}
 import { describeTask, describedTaskResult } from './tasks/describe'
 import { contextForTask, taskContextInstructions } from './tasks/context'
 
@@ -436,7 +449,7 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
   if (command.action === 'match') {
     const executor = privateExecutorSession(sessionId)
     const visible = listTasks().filter(value => ((value.requesterBotId ?? value.botId) === botId || value.sessionId === sessionId && value.botId === botId) && (!executor || value.sessionId === sessionId) && getSession(value.sourceSessionId ?? value.sessionId)?.botIds.includes(botId))
-    return matchTaskCandidates(visible, command, { sessionId, botId, executor, sourceCwd: getSession(sessionId)?.cwd ?? '', sessionBusy: id => runningSessions.has(id) || isRunning(id), interrupted: taskExecutionWasInterrupted, workspaceKey: task => taskWorkspaceKey(task, visible, getSession(task.sessionId)?.cwd) })
+    return await matchTaskCandidates(visible, command, { sessionId, botId, executor, sourceCwd: getSession(sessionId)?.cwd ?? '', sessionBusy: id => runningSessions.has(id) || isRunning(id), interrupted: taskExecutionWasInterrupted, workspaceKey: task => taskWorkspaceKey(task, visible, getSession(task.sessionId)?.cwd), fleet: async () => taskFleetView(botId) })
   }
   if (command.action === 'list') {
     const executor = privateExecutorSession(sessionId)
