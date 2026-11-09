@@ -40,6 +40,26 @@ export class TaskProgressMonitor {
       return run.finally(() => { if (this.tails.get(snapshot.id) === run) this.tails.delete(snapshot.id) })
     }))
   }
+  /** A digest buys a quiet window: routine milestones from sibling tasks are
+   *  swallowed while it is fresh, because their state was just summarised.
+   *  States that genuinely need the user (waiting_*, failed, cancelled) and
+   *  the digest's own cooldown are never overridden. */
+  private quietWindow(s: ProgressSnapshot, decision: ProgressDecision): ProgressDecision | null {
+    const last = TaskProgressMonitor.lastDigestAt.get(s.owner) ?? 0
+    if (decision.kind === 'digest') {
+      // Cooldown degrades a digest to its most urgent line rather than
+      // silencing the material fact it was carrying.
+      if (Date.now() - last < TaskProgressMonitor.DIGEST_COOLDOWN_MS) return { kind: 'milestone', text: decision.lines[0] ?? '', evidenceIds: [] }
+      TaskProgressMonitor.lastDigestAt.set(s.owner, Date.now())
+      return decision
+    }
+    if (decision.kind === 'milestone' && !requiresProgressNotice(s) && Date.now() - last < TaskProgressMonitor.DIGEST_QUIET_MS) return { kind: 'silent' }
+    return decision
+  }
+  static resetDigestState(): void { TaskProgressMonitor.lastDigestAt.clear() }
+  private static readonly DIGEST_QUIET_MS = 15 * 60 * 1000
+  private static readonly DIGEST_COOLDOWN_MS = 30 * 60 * 1000
+  private static lastDigestAt = new Map<string, number>()
   private async save(id: string, state: ProgressState): Promise<void> {
     await this.ports.write(id, state); this.states.set(id, state)
   }
@@ -54,7 +74,8 @@ export class TaskProgressMonitor {
     if (!state.pending && state.assessed !== key) {
       // Queued/running/todo changes are observations, never automatic milestones.
       const required = requiresProgressNotice(s)
-      const decision = historical || !required && !s.evidence?.length ? { kind: 'silent' as const } : await this.ports.judge(s)
+      let decision = historical || !required && !s.evidence?.length ? { kind: 'silent' as const } : await this.ports.judge(s)
+      if (decision && decision.kind !== 'silent') decision = this.quietWindow(s, decision)
       if (decision) state.assessed = key
       const text = decision?.kind === 'milestone' ? decision.text : decision?.kind === 'digest' ? decision.lines.join('\n') : undefined
       // Unavailable inference remains unassessed for durable recovery. Never
