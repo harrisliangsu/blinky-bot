@@ -38,6 +38,10 @@ export function progressSnapshot(task: AgentTask, reports: AgentTaskMessageRecei
   const executionMessages=getSession(task.sessionId)?.messages??[]
   const evidence: NonNullable<ProgressSnapshot['evidence']> = [
     ...(terminal ? [{ id: `result:${task.id}`, kind: 'report' as const, text: scrubVaultTranscript(task.result ?? task.error ?? task.status).slice(-6000) }] : []),
+    // The judgment turn cannot call tools, so the workspace location and any
+    // app-verified outputs must travel inside the envelope itself; without them
+    // a returned-task notice cannot tell the user where the deliverable lives.
+    ...(terminal && getSession(task.sessionId)?.cwd ? [{ id: `deliverables:${task.id}`, kind: 'report' as const, text: JSON.stringify({ workspaceRoot: scrubVaultTranscript(getSession(task.sessionId)!.cwd), verifiedFiles: (task.review?.verifiedFiles ?? []).map(f => scrubVaultTranscript(f.path)), meaning: 'Task workspace location and host-verified output checks. When the result names produced files, the user-facing return notice should state the real location using these values.' }) }] : []),
     ...executionMessages.filter(m => !m.streaming && !m.internal && !m.uiOnly && (m.role === 'assistant' || m.role === 'tool')).slice(-16).map(m => ({ id: m.id, kind: m.role === 'tool' ? 'tool' as const : 'message' as const, text: scrubVaultTranscript(m.content).slice(-3000) })),
     // Supply the already-recorded independent metadata without requiring the
     // considering Bot to open a tool or read code/files to verify a claim.
