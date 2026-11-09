@@ -51,3 +51,24 @@ test('continuations reject conflicting flat planning fields; legacy plan-less ca
   assert.equal(f.calls[0][5], 'csv')
   assert.equal(f.calls[0][8], undefined)
 })
+
+test('the plan gate rejects a hollow new-task plan before anything is created', async () => {
+  const f = fixture()
+  const missing = await delegateTaskTool.handler({ prompt: 'Ship the report' }, f.ctx)
+  assert.equal(missing.ok, false)
+  assert.match(missing.output, /too vague/)
+  assert.equal(f.calls.length, 0)
+  const vague = await delegateTaskTool.handler({ prompt: 'Ship the report', plan: { context: { summary: 'report', categories: [], scope: [], boundaries: [] } } }, f.ctx)
+  assert.equal(vague.ok, false)
+  assert.match(vague.output, /scope listing/)
+  assert.equal(f.calls.length, 0)
+})
+
+test('the plan gate accepts a complete plan and never blocks continuations', async () => {
+  const f = fixture()
+  const ok = await delegateTaskTool.handler({ prompt: 'Ship the report', plan: { context } }, f.ctx)
+  assert.equal(ok.ok, true)
+  const cont = await delegateTaskTool.handler({ prompt: 'Continue it', continue_task_id: 'task' }, f.ctx)
+  assert.equal(cont.ok, true)
+  assert.equal(f.calls.length, 2)
+})
