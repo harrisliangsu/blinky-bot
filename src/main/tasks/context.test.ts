@@ -24,7 +24,7 @@ test('matching exposes bounded active consumers across producer continuations, w
     ]
     const consumers = Array.from({ length: 15 }, (_, i) => ({ ...consumer, id: 'consumer-' + i, sessionId: 'consumer-exec-' + i }))
     const runtime = { sessionId: 'source', botId: 'bot', sourceCwd: '/project', executor: false, sessionBusy: () => false, interrupted: () => false }
-    const result = await matchTaskCandidates([producer, latest, ...consumers, ...ignored], { action: 'match', text: 'Continue CSV validation', limit: 30 }, runtime) as { candidates: Array<{ id: string; activeConsumerCount: number; activeConsumers: Array<{ id: string; scope: string[]; workspacePath?: string }> }> }
+    const result = matchTaskCandidates([producer, latest, ...consumers, ...ignored], { action: 'match', text: 'Continue CSV validation', limit: 30 }, runtime) as { candidates: Array<{ id: string; activeConsumerCount: number; activeConsumers: Array<{ id: string; scope: string[]; workspacePath?: string }> }> }
     assert.ok(!result.candidates.some(value => value.id === producer.id))
     const facts = result.candidates.find(value => value.id === latest.id)!
     assert.equal(facts.activeConsumerCount, 15, 'multiple attempt dependencies must not duplicate a consumer')
@@ -33,7 +33,7 @@ test('matching exposes bounded active consumers across producer continuations, w
     assert.equal(facts.activeConsumers[0].workspacePath, '/separate-json', 'different directories can still consume prior output')
     assert.ok(facts.activeConsumers.every(value => value.id.startsWith('consumer-')))
     const done = consumers.map(value => ({ ...value, status: 'completed' as const }))
-    const refreshed = await matchTaskCandidates([producer, latest, ...done], { action: 'match', text: 'Continue after consumers return' }, runtime) as { candidates: Array<{ id: string; activeConsumerCount: number }> }
+    const refreshed = matchTaskCandidates([producer, latest, ...done], { action: 'match', text: 'Continue after consumers return' }, runtime) as { candidates: Array<{ id: string; activeConsumerCount: number }> }
     assert.equal(refreshed.candidates.find(value => value.id === latest.id)?.activeConsumerCount, 0)
   } finally { if (previous === undefined) delete process.env.OPENBOT_DATA_DIR; else process.env.OPENBOT_DATA_DIR = previous; await rm(root, { recursive: true, force: true }) }
 })
@@ -71,12 +71,12 @@ test('task contexts are small free-form private hints, with legacy compatibility
     const longTasks = Array.from({ length: 35 }, (_, i) => ({ ...legacy, id: 'long-' + i, sessionId: 'long-exec-' + i, plan: { ...plan, context: longContext } }))
     const runtime = { sessionId: 'source', botId: 'bot', sourceCwd: root, executor: false, sessionBusy: () => false, interrupted: () => false }
     const preparing = [{ ...legacy, id: 'preparing', status: 'running' as const }, { ...legacy, id: 'waiting', status: 'queued' as const }]
-    const conflicts = await matchTaskCandidates(preparing, { action: 'match', text: 'same output directory' }, { ...runtime, workspaceKey: () => 'path:' + root }) as { candidates: Array<{ id: string; sharesWorkspaceWith: string[] }> }
+    const conflicts = matchTaskCandidates(preparing, { action: 'match', text: 'same output directory' }, { ...runtime, workspaceKey: () => 'path:' + root }) as { candidates: Array<{ id: string; sharesWorkspaceWith: string[] }> }
     assert.deepEqual(conflicts.candidates.find(value => value.id === 'waiting')?.sharesWorkspaceWith, ['preparing'])
     let before: string | undefined
     const seen = new Set<string>()
     do {
-      const page = await matchTaskCandidates(longTasks, { action: 'match', text: 'new goal', limit: 30, before }, runtime) as { candidates: Array<{ id: string }>; next?: string }
+      const page = matchTaskCandidates(longTasks, { action: 'match', text: 'new goal', limit: 30, before }, runtime) as { candidates: Array<{ id: string }>; next?: string }
       assert.ok(JSON.stringify(page).length < 100000, 'MCP must receive complete bounded JSON')
       assert.ok(page.candidates.length < 30)
       for (const item of page.candidates) { assert.ok(!seen.has(item.id)); seen.add(item.id) }

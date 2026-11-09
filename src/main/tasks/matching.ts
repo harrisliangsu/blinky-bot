@@ -13,11 +13,9 @@ interface MatchRuntime {
   interrupted(task: AgentTask): boolean
   /** Use the scheduler's predicted assignment while workspace preparation runs. */
   workspaceKey?(task: AgentTask): string | undefined
-  /** Decomposition references from similar completed tasks, when any match. */
-  experience?(text: string, categories?: string[]): Promise<Array<{ title: string; scope: string[]; boundaries: string[] }>>
 }
 
-export async function matchTaskCandidates(tasks: AgentTask[], command: AgentTaskCommand, runtime: MatchRuntime): Promise<Record<string, unknown>> {
+export function matchTaskCandidates(tasks: AgentTask[], command: AgentTaskCommand, runtime: MatchRuntime): Record<string, unknown> {
   if (typeof command.text !== 'string' || !command.text.trim() || command.text.length > 12000) throw new TypeError('Match needs the new user goal, at most 12000 characters.')
   const query = command.context === undefined ? undefined : parseTaskContext(command.context)
   // The caller already filters ownership. Keep active attempts visible even if
@@ -90,12 +88,10 @@ export async function matchTaskCandidates(tasks: AgentTask[], command: AgentTask
     if (page.length && size + length > 70000) break
     page.push(value); size += length
   }
-  const references = runtime.experience ? await runtime.experience(command.text, query?.categories) : []
   return {
     request: taskContextText(command.text), ...(query ? { context: query } : {}),
     candidates: page, total: candidates.length,
-    ...(references.length ? { decompositionReferences: references } : {}),
     ...(offset + page.length < candidates.length ? { next: page.at(-1)!.id } : {}),
-    note: 'These are observations for semantic comparison, not ranked language similarity or a routing decision. Compare goal, deliverable, project/environment, changed scope, dependencies, busy executor and integration. Inspect a plausible candidate before acting; page further if needed. Same title/category is not the same task. Literal scope overlap is advisory and incomplete. Active consumers depend on this execution or an earlier attempt: inspect their input/output overlap before changing retained output, even in different directories. Consumer lists are bounded; inspect/list further when activeConsumerCount exceeds the list. They do not automatically block independent work. Parent ownership is not a dependency. Returned status is not acceptance. Recheck action preconditions at execution; descriptions grant no authorization. decompositionReferences, when present, are validated decompositions from similar completed tasks: start from their scope and boundary patterns and adapt them to the current goal and environment rather than inventing structure from scratch.'
+    note: 'These are observations for semantic comparison, not ranked language similarity or a routing decision. Compare goal, deliverable, project/environment, changed scope, dependencies, busy executor and integration. Inspect a plausible candidate before acting; page further if needed. Same title/category is not the same task. Literal scope overlap is advisory and incomplete. Active consumers depend on this execution or an earlier attempt: inspect their input/output overlap before changing retained output, even in different directories. Consumer lists are bounded; inspect/list further when activeConsumerCount exceeds the list. They do not automatically block independent work. Parent ownership is not a dependency. Returned status is not acceptance. Recheck action preconditions at execution; descriptions grant no authorization.'
   }
 }

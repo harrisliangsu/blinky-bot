@@ -436,7 +436,7 @@ export async function manageBackgroundTask(sessionId: string, botId: string, com
   if (command.action === 'match') {
     const executor = privateExecutorSession(sessionId)
     const visible = listTasks().filter(value => ((value.requesterBotId ?? value.botId) === botId || value.sessionId === sessionId && value.botId === botId) && (!executor || value.sessionId === sessionId) && getSession(value.sourceSessionId ?? value.sessionId)?.botIds.includes(botId))
-    return await matchTaskCandidates(visible, command, { sessionId, botId, executor, sourceCwd: getSession(sessionId)?.cwd ?? '', sessionBusy: id => runningSessions.has(id) || isRunning(id), interrupted: taskExecutionWasInterrupted, workspaceKey: task => taskWorkspaceKey(task, visible, getSession(task.sessionId)?.cwd) })
+    return matchTaskCandidates(visible, command, { sessionId, botId, executor, sourceCwd: getSession(sessionId)?.cwd ?? '', sessionBusy: id => runningSessions.has(id) || isRunning(id), interrupted: taskExecutionWasInterrupted, workspaceKey: task => taskWorkspaceKey(task, visible, getSession(task.sessionId)?.cwd) })
   }
   if (command.action === 'list') {
     const executor = privateExecutorSession(sessionId)
