@@ -53,6 +53,7 @@
     "test:codex-steer": "node --experimental-transform-types --import ./scripts/register-ts.mjs --test src/main/backends/cli/codexSteer.test.ts",
     "test:cli-resume": "node --experimental-transform-types --import ./scripts/register-ts.mjs --test src/main/backends/cli/cliResumeConsumer.test.ts",
     "test:chat-ui": "node Scripts/test-chat-ui.mjs",
+    "test:clarifications": "node --experimental-transform-types --import ./scripts/register-ts.mjs --test src/main/tasks/clarifications.test.mjs src/main/tasks/clarificationLifecycle.test.mjs src/main/tasks/clarificationRouting.test.mjs src/renderer/src/lib/clarificationTimeline.test.ts",
     "test:real-model-probes": "bash Scripts/test-real-model-probes.sh",
     "test:chat-storage": "node --experimental-transform-types --import ./scripts/register-ts.mjs --test src/main/store/agentTasks.test.ts src/main/store/executionAgentMigration.test.ts src/main/agent/sessionWriteFailure.test.ts",
     "predev": "node Scripts/build-speech.mjs"

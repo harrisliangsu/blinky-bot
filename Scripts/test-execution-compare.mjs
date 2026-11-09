@@ -36,8 +36,9 @@ async function acceptance() {
   const check = await new Promise((resolve) => {
     execFile('node', ['-e', `const c=require('${ws}/calc');const assert=require('assert');assert.strictEqual(c.subtract(7,2),5);assert.strictEqual(c.multiply(3,4),12);assert.strictEqual(c.divide(8,2),4);let threw=false;try{c.divide(1,0)}catch{threw=true}assert.ok(threw);console.log('module-ok')`], (error, stdout) => resolve({ ok: !error && stdout.includes('module-ok'), error: String(error) }))
   })
+  const shim = `const assert=require('assert');globalThis.test=(n,f)=>{try{f();console.log('ok '+n)}catch(e){console.log('FAIL '+n+' '+e.message);process.exitCode=1}};globalThis.expect=(v)=>({toBe:(w)=>assert.strictEqual(v,w)});require('./calc.test.js')`
   const tests = await new Promise((resolve) => {
-    execFile('npx', ['jest', '--ci'], { cwd: ws }, (error, stdout, stderr) => resolve({ ok: !error, tail: (stdout + stderr).slice(-400) }))
+    execFile('node', ['-e', shim], { cwd: ws }, (error, stdout) => resolve({ ok: !error && !stdout.includes('FAIL'), tail: stdout.slice(-300) }))
   })
   return { moduleOk: check.ok, testsOk: tests.ok, testsTail: tests.tail }
 }
@@ -61,12 +62,12 @@ if (mode === 'native') {
   await fs.writeFile(path.join(data, 'bots', 'dev.json'), JSON.stringify({ id: 'dev', name: 'Dev', description: '', systemPrompt: 'You are a careful coding assistant.', emoji: '✨', color: '#7c9cff', backendId: 'codex', modelId: 'default', followsDefault: false, tools: [], computerUse: false, computerTarget: { kind: 'local' }, createdAt: 1, updatedAt: 1 }))
   const port = await new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)) }) })
   const electron = path.join(repo, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron')
-  const child = spawn(electron, ['.', `--remote-debugging-port=${port}`, '--remote-allow-origins=*'], { cwd: ws, env: { ...process.env, BLINKY_SMOKE: '1', BLINKY_SMOKE_DIR: data, OPENBOT_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'ignore'] })
+  const child = spawn(electron, [repo, `--remote-debugging-port=${port}`, '--remote-allow-origins=*'], { cwd: ws, env: { ...process.env, BLINKY_SMOKE: '1', BLINKY_SMOKE_DIR: data, OPENBOT_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'ignore'] })
   let wsock; const pending = new Map(); let seq = 0
   const cmd = (m, p = {}) => { const id = ++seq; return new Promise((res, rej) => { pending.set(id, { res, rej }); wsock.send(JSON.stringify({ id, method: m, params: p })) }) }
   const evalJs = async (expression) => { const v = await cmd('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (v.exceptionDetails) throw new Error(v.exceptionDetails.text); return v.result.value }
   const wait = async (expr, ms = 90000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await evalJs(expr)) return; await delay(200) } throw new Error('timeout: ' + expr.slice(0, 60)) }
-  let targets; const end = Date.now() + 30000
+  let targets; const end = Date.now() + 60000
   while (Date.now() < end) { try { targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json(); if (targets.some((t) => t.type === 'page')) break } catch { } await delay(100) }
   const page = targets.find((t) => t.type === 'page'); wsock = new WebSocket(page.webSocketDebuggerUrl); await new Promise((r, j) => { wsock.onopen = r; wsock.onerror = j })
   wsock.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { const x = pending.get(m.id); pending.delete(m.id); m.error ? x.rej(Error(JSON.stringify(m.error))) : x.res(m.result) } }
