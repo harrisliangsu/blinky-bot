@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Bot, SearchResult } from '../../../shared/types'
 import { useFocusTrap } from '../lib/focusTrap'
-import { openBotChat, selectProject, store, useAppState } from '../state'
+import { openBotChat, store, useAppState } from '../state'
 import { IconBot, IconClose, IconRoutine, IconSearch, IconSettings } from './Icons'
 import './CommandPalette.css'
 
@@ -86,13 +86,12 @@ function PaletteDialog({ bots, currentSessionId }: { bots: Bot[]; currentSession
         run: () => void openBotChat(bot.id)
       }))
     const local = needle ? [...actions, ...botItems].filter((i) => i.label.toLowerCase().includes(needle)) : [...actions, ...botItems]
-    const global: PaletteItem[] = searchResults.filter((result) => !result.sessionId || result.sessionId === currentSessionId).map((result) => ({
+    const global: PaletteItem[] = searchResults.filter((result) => !result.projectId && (!result.sessionId || result.sessionId === currentSessionId)).map((result) => ({
       id: `search-${result.id}`,
       label: result.title,
       hint: `${result.kind} · ${result.snippet}`,
       run: () => {
         if (result.sessionId) store.setModal(null)
-        else if (result.projectId) selectProject(result.projectId)
         else if (result.botId) store.setModal('bots', result.botId)
         else if (result.routineId) store.setModal('routines')
       }

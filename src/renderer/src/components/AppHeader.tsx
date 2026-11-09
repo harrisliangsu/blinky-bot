@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { useResolvedTheme } from '../lib/useTheme'
-import { store, updateSettings, useAppState } from '../state'
+import { updateSettings, useAppState } from '../state'
 import { IconMoon, IconSun } from './Icons'
 import { BotAvatar } from './BotAvatar'
 import { useBotChinese } from './BotUiLanguage'
@@ -27,8 +27,6 @@ export function AppHeader({ sidebarOpen, onToggleSidebar, botDetailsOpen, onTogg
         ) : <h1>BlinkyBot</h1>}
       </div>
       <div className="ob-header-right ob-no-drag">
-        <button type="button" className="ob-icon-btn" aria-label={zh ? '打开工作区导航' : 'Open workspace navigation'} title={zh ? '工作区' : 'Workspace'} onClick={() => store.setModal('navigation')}>⋯</button>
-        {window.openbot.environment?.kind !== 'browser' ? <button type="button" className="ob-btn ob-btn-sm" data-connect-device onClick={() => store.setModal('rooms')}>{zh ? '连接设备' : 'Connect device'}</button> : null}
         <button
           type="button"
           className="ob-icon-btn"

@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parseCodexModelPage } from './codexModelList.ts'
+import { parseCodexContextWindows, parseCodexModelPage } from './codexModelList.ts'
+
+test('Codex model context metadata is accepted only for exact valid model IDs and sizes', () => {
+  const windows = parseCodexContextWindows({ models: [
+    { slug: 'model-a', context_window: 500000 },
+    { slug: 'bad id', context_window: 500000 },
+    { slug: 'bad-size', context_window: -1 }
+  ] })
+  assert.deepEqual([...windows], [['model-a', 500000]])
+  assert.equal(parseCodexModelPage({ data: [{ id: 'model-a', contextWindow: 500000 }] }).models[0]?.contextWindow, 500000)
+})
 
 test('model/list becomes picker rows and skips hidden and unsafe ids', () => {
   const page = parseCodexModelPage({

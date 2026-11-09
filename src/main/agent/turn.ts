@@ -35,6 +35,7 @@ import {
 import { broadcastError } from './events'
 import { buildChatRequest } from './chatRequest'
 import { buildContext } from './context'
+import { applicationContextWindow, ContextBudgetError } from './budget'
 import { collapseRepeatedLines } from './repetition'
 import { errorMessage, isAbortError } from './errors'
 import { mergeBuiltins } from './builtins'
@@ -134,7 +135,10 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       memory,
       schemas: mergeBuiltins(schemas, bot.tools ?? []),
       roster,
-      contextWindow: model?.contextWindow,
+      // Codex maintains its native transcript and compacts it itself. Bound the
+      // app's handoff history independently, without mistaking the 8k generic
+      // API fallback for the model's real capacity when its catalog omits it.
+      contextWindow: applicationContextWindow(bot.backendId, model?.contextWindow),
       supportsVision,
       extras: [...(input.extras ?? []), skills, taskProgressContext(session.id, bot.id)].filter((value): value is string => Boolean(value))
     })
@@ -194,6 +198,11 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       if (signal.reason instanceof Error && signal.reason.message === 'superseded by user follow-up') message.internal = true
       await commit(session, message)
       return { status: 'aborted', message, mode }
+    }
+    if (err instanceof ContextBudgetError) {
+      return failTurn(session, message, mode, settings.language === 'zh-CN'
+        ? '当前消息和 Bot 指令超出本次可用的上下文空间，请缩短消息或指令后重试。'
+        : err.message, true)
     }
     const raw = errorMessage(err)
     return failTurn(

@@ -80,7 +80,6 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
 
       <div className="ob-bot-editor-body">
         {!bot && window.openbot.environment?.kind === 'browser' ? <p className="ob-hint">{zh ? '创建后可立即对话。工具和电脑控制权限在 Mac 上设置。' : 'Chat is available after creation. Set tool and computer permissions on the Mac.'}</p> : null}
-        {embedded ? <details className="ob-bot-editor-disclosure"><summary>{zh ? '基本信息' : 'Identity'}</summary>
         <BotEditorIdentity
           emoji={draft.emoji}
           avatarShape={draft.avatarShape}
@@ -94,21 +93,6 @@ export function BotEditor({ bot, backends, backendsLoading, backendsError, onClo
           systemPrompt={draft.systemPrompt}
           onSystemPrompt={(systemPrompt) => set('systemPrompt', systemPrompt)}
         />
-        </details> : <>
-        <BotEditorIdentity
-          emoji={draft.emoji}
-          avatarShape={draft.avatarShape}
-          avatarColor={draft.avatarColor}
-          onAvatar={(shape, color) => { set('avatarShape', shape); set('avatarColor', color) }}
-          name={draft.name}
-          onName={(name) => set('name', name)}
-          color={draft.color}
-          description={draft.description}
-          onDescription={(description) => set('description', description)}
-          systemPrompt={draft.systemPrompt}
-          onSystemPrompt={(systemPrompt) => set('systemPrompt', systemPrompt)}
-        />
-        </>}
 
 
         <section className="ob-bot-editor-section" aria-label={zh ? '对话模型' : 'Conversation model'}>

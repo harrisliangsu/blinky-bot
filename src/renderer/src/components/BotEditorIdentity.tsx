@@ -39,8 +39,6 @@ export function BotEditorIdentity({
         <h4>{zh ? '基本信息' : 'Identity'}</h4>
         <p>{zh ? '为 Bot 设置名称、外观和工作职责。' : 'Give your bot a name, appearance and role.'}</p>
       </div>
-      <div className="ob-bot-avatar-edit-preview"><BotAvatar bot={{ name, emoji, color, avatarShape, avatarColor }} size="lg" /></div>
-      <AvatarPicker shape={avatarShape} color={avatarColor} onChange={onAvatar} />
       <div className="ob-bot-identity">
         <div className="ob-field ob-bot-name-field">
           <label htmlFor="ob-bot-name">{zh ? '名称' : 'Name'}</label>
@@ -70,6 +68,11 @@ export function BotEditorIdentity({
           onChange={(e) => onSystemPrompt(e.target.value)}
         />
       </div>
+      <details className="ob-bot-editor-disclosure">
+        <summary>{zh ? '更换头像' : 'Change avatar'}</summary>
+        <div className="ob-bot-avatar-edit-preview"><BotAvatar bot={{ name, emoji, color, avatarShape, avatarColor }} size="lg" /></div>
+        <AvatarPicker shape={avatarShape} color={avatarColor} onChange={onAvatar} />
+      </details>
     </section>
   )
 }

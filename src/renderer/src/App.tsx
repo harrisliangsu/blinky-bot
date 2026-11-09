@@ -10,10 +10,7 @@ import { BotDetailsPanel } from './components/BotDetailsPanel'
 import { AgentMainSurface, AgentSessionWorkspace } from './components/AgentSessionWorkspace'
 import { CommandPalette } from './components/CommandPalette'
 import { Composer } from './components/Composer'
-import { KanbanBoard } from './components/KanbanBoard'
-import { ProjectEditor } from './components/ProjectEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { ProjectView } from './components/ProjectView'
 import { RightRail } from './components/RightRail'
 import { RoutinePanel } from './components/RoutinePanel'
 import { RoomsPanel } from './components/RoomsPanel'
@@ -22,7 +19,6 @@ import { Sidebar } from './components/Sidebar'
 import { StartupScreen } from './components/StartupScreen'
 import { Toast } from './components/Toast'
 import { Transcript } from './components/Transcript'
-import { WorkspaceNavigation } from './components/WorkspaceNavigation'
 import { Workspace } from './components/Workspace'
 import './App.css'
 
@@ -31,7 +27,7 @@ export default function App(): ReactNode {
   const [botDetailsOpen, setBotDetailsOpen] = useState(false)
   const remoteCompact = (): boolean => window.openbot.environment?.kind === 'browser' && innerWidth < 760
   const [sidebarOpen, setSidebarOpen] = useState(() => !remoteCompact())
-  const { ready, bootError, settings, modal, botDraftId, railOpen, approvals, projectHome, workspace, currentSessionId } =
+  const { ready, bootError, settings, modal, botDraftId, railOpen, approvals, workspace, currentSessionId } =
     useAppState()
 
   useEffect(() => {
@@ -78,7 +74,7 @@ export default function App(): ReactNode {
 
   if (!ready || bootError) return <StartupScreen error={bootError} />
 
-  const elsewhere = approvals.find((request) => request.sessionId !== currentSessionId || projectHome)
+  const elsewhere = approvals.find((request) => request.sessionId !== currentSessionId)
 
   return (
     <ErrorBoundary>
@@ -86,14 +82,11 @@ export default function App(): ReactNode {
     <div className="ob-app">
       {sidebarOpen ? <><button type="button" className="ob-sidebar-backdrop" aria-label={settings?.language === 'en' ? 'Close navigation' : '关闭导航'} onClick={() => setSidebarOpen(false)} /><Sidebar /></> : null}
 
-      <main className={`ob-main${!projectHome && !workspace.open && !elsewhere ? ' is-chat' : ''}`}>
+      <main className={`ob-main${!workspace.open && !elsewhere ? ' is-chat' : ''}`}>
         <AgentMainSurface>
         <AppHeader sidebarOpen={sidebarOpen} onToggleSidebar={() => window.dispatchEvent(new Event('openbot:toggle-sidebar'))} botDetailsOpen={botDetailsOpen} onToggleBotDetails={() => setBotDetailsOpen((open) => !open)} />
         {elsewhere ? <button type="button" className="ob-btn ob-btn-sm ob-approval-elsewhere" onClick={() => void selectSession(elsewhere.sessionId)}>{settings?.language === 'en' ? 'Another conversation needs confirmation' : '有对话需要确认，点击查看'}</button> : null}
-        {/* Selecting a project shows its home here instead of a transcript. */}
-        {projectHome ? (
-          <ProjectView />
-        ) : workspace.open ? (
+        {workspace.open ? (
           /* Several chats at once (Alt+G). The composer stays: it writes to
              whichever pane has focus, which is the app's current session. */
           <>
@@ -112,12 +105,9 @@ export default function App(): ReactNode {
       {railOpen ? <RightRail /> : null}
       {botDetailsOpen ? <BotDetailsPanel onClose={() => setBotDetailsOpen(false)} /> : null}
 
-      {modal === 'navigation' ? <WorkspaceNavigation /> : null}
       {modal === 'settings' ? <SettingsPanel /> : null}
       {modal === 'bots' ? (botDraftId === 'new' || botDraftId?.startsWith('new:') ? <CreateBotDialog key={botDraftId} templateId={botDraftId.startsWith('new:') ? botDraftId.slice(4) : undefined} /> : <BotManager />) : null}
       {modal === 'routines' ? <RoutinePanel /> : null}
-      {modal === 'project' ? <ProjectEditor /> : null}
-      {modal === 'board' ? <KanbanBoard /> : null}
       {modal === 'activity' ? <ActivityPanel /> : null}
       {modal === 'rooms' ? <RoomsPanel /> : null}
       <CommandPalette />

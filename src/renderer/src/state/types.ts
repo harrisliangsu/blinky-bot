@@ -25,7 +25,7 @@ import type { LayoutPreset } from '../lib/paneLayout'
 /** A session minus its message list — messages live in their own registry. */
 export type SessionMeta = Omit<Session, 'messages' | 'todos'>
 
-export type ModalName = 'navigation' | 'settings' | 'bots' | 'routines' | 'palette' | 'project' | 'board' | 'computer' | 'activity' | 'rooms' | null
+export type ModalName = 'settings' | 'bots' | 'routines' | 'palette' | 'project' | 'board' | 'computer' | 'activity' | 'rooms' | null
 
 export interface RecordingUi {
   state: RecordingState

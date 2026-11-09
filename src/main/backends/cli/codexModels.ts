@@ -10,8 +10,12 @@
 
 import { JsonRpcPeer } from '../jsonRpc'
 import { spawnLines } from '../spawnProcess'
+import { hydratedEnv } from '../loginShellEnv'
+import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { isAbsolute, join } from 'node:path'
 import type { ModelInfo } from '../types'
-import { parseCodexModelPage } from './codexModelList'
+import { parseCodexContextWindows, parseCodexModelPage } from './codexModelList'
 
 /** Wall clock for the whole probe, inside detection's own budget. */
 const LIST_BUDGET_MS = 20_000
@@ -95,7 +99,15 @@ async function probeCodexModels(binaryPath: string, cwd: string): Promise<ModelI
       if (!parsed.nextCursor || parsed.nextCursor === cursor) break
       cursor = parsed.nextCursor
     }
-    return models
+    // The app-server picker may omit context size. Use the same Codex home as
+    // the spawned process and enrich only exact model IDs found in its cache.
+    const env = await hydratedEnv()
+    const home = env.HOME?.trim() || homedir()
+    const configured = env.CODEX_HOME?.trim()
+    const root = configured && isAbsolute(configured) ? configured : join(home, '.codex')
+    let windows = new Map<string, number>()
+    try { windows = parseCodexContextWindows(JSON.parse(await readFile(join(root, 'models_cache.json'), 'utf8'))) } catch { /* Discovery still works without cached metadata. */ }
+    return models.map(model => model.contextWindow ? model : { ...model, ...(windows.has(model.id) ? { contextWindow: windows.get(model.id)! } : {}) })
   } finally {
     peer.close(new Error('codex model list closed'))
     handle.kill()

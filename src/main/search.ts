@@ -2,7 +2,6 @@
 
 import type { Message, SearchResult } from '../shared/types'
 import { listBots } from './store/bots'
-import { projectSummaries } from './store/projectSummaries'
 import { listRoutines } from './store/routines'
 import { allSessions } from './store/sessions'
 
@@ -99,11 +98,6 @@ export function searchAll(raw: string, requestedLimit = 50, includeArchived = fa
   for (const bot of listBots()) {
     if (matches(bot.name) || matches(bot.description) || matches(bot.systemPrompt)) {
       add({ id: `bot:${bot.id}`, kind: 'bot', title: visible(bot.name), snippet: excerpt(`${visible(bot.description)}\n${visible(bot.systemPrompt)}`, query), updatedAt: bot.updatedAt, botId: bot.id })
-    }
-  }
-  for (const project of projectSummaries()) {
-    if (matches(project.name) || project.tags.some(matches)) {
-      add({ id: `project:${project.id}`, kind: 'project', title: visible(project.name), snippet: project.tags.map(visible).join(' · '), updatedAt: project.updatedAt, projectId: project.id })
     }
   }
   for (const routine of listRoutines()) {

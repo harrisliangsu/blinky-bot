@@ -46,6 +46,10 @@ if [[ ! -x "$app/Contents/MacOS/BlinkyBot Preview" ]]; then
     echo "Preview app not found: $app" >&2
     exit 1
 fi
+# macOS Notification Center requires a signed app, including local previews.
+# Ad-hoc signing establishes local bundle identity; it is not notarization.
+package_step preview-sign codesign --force --deep --sign - --entitlements build/entitlements.mac.plist "$app"
+codesign --verify --deep --strict "$app"
 ditto "$app" "$work/staging/BlinkyBot Preview.app"
 ln -s /Applications "$work/staging/Applications"
 cat > "$work/staging/Read Me.txt" <<'EOF'

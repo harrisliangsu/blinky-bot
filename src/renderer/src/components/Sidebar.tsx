@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { openSettings, type SettingsSection } from '../lib/settingsNavigation'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { selectProject, store, useAppState } from '../state'
+import { store, useAppState } from '../state'
 import { UserAvatar } from './UserAvatar'
 import { useBotChinese } from './BotUiLanguage'
-import { IconBot, IconClose, IconPlus, IconSearch, IconSettings } from './Icons'
+import { IconBot, IconPlus, IconSearch, IconSettings } from './Icons'
 import { clampSidebarWidth, readSidebarWidth, saveSidebarWidth, sidebarMaxWidth, SIDEBAR_COMPACT_WIDTH, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH } from './sidebarWidth'
 import { SidebarBot } from './SidebarBot'
 import './Sidebar.css'
@@ -41,7 +41,7 @@ function Section({ title, icon, action, children }: SectionProps): ReactNode {
 
 /** Bots — the app's primary navigation. */
 export function Sidebar(): ReactNode {
-  const { sessions, sessionsError, currentSessionId, bots, projects, currentProjectId, settings } = useAppState()
+  const { sessions, sessionsError, currentSessionId, bots, settings } = useAppState()
   const copy = useSettingsCopy()
   const zh = useBotChinese()
   const [query, setQuery] = useState('')
@@ -154,7 +154,6 @@ export function Sidebar(): ReactNode {
     const current = sessions.find((session) => session.id === currentSessionId)
     return new Set(current?.botIds ?? [])
   }, [sessions, currentSessionId])
-  const currentProject = projects.find((p) => p.id === currentProjectId) ?? null
 
   return (
     <aside className={`ob-sidebar${compact ? ' is-compact' : ''}`} aria-label="Navigation" style={{ width }}>
@@ -181,22 +180,6 @@ export function Sidebar(): ReactNode {
       </div> : null}
 
       <div className="ob-side-scroll">
-        {currentProject ? (
-          <p className="ob-side-filter">
-            <span className="ob-side-filter-text">
-              {currentProject.emoji} {currentProject.name} chats
-            </span>
-            <button
-              type="button"
-              className="ob-icon-btn"
-              aria-label={`Stop filtering by ${currentProject.name}`}
-              onClick={() => selectProject(null)}
-            >
-              <IconClose size={11} />
-            </button>
-          </p>
-        ) : null}
-
         <Section
           title={copy.more.bots}
           icon={<IconBot size={12} />}

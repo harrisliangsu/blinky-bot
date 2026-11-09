@@ -50,6 +50,15 @@ if [[ -n "${BLINKY_PACKAGE_OUTPUT:-}" ]]; then
     builder_args+=("-c.directories.output=$BLINKY_PACKAGE_OUTPUT")
 fi
 package_step app npx --no-install electron-builder "${builder_args[@]}"
+if [[ -n "${BLINKY_PACKAGE_OUTPUT:-}" ]]; then
+    app="$BLINKY_PACKAGE_OUTPUT/mac-$(uname -m)/BlinkyBot.app"
+    [[ -d "$app" ]] || app="$BLINKY_PACKAGE_OUTPUT/mac/BlinkyBot.app"
+else
+    app="$(find_blinky_app)"
+fi
+# Local app bundles need a valid signature for macOS Notification Center.
+package_step sign codesign --force --deep --sign - --entitlements build/entitlements.mac.plist "$app"
+codesign --verify --deep --strict "$app"
 if [[ "$app_only" -eq 0 ]]; then
     ./Scripts/dmg.sh --reuse
     package_step zip ./Scripts/zip-app.sh

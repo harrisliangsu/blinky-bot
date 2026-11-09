@@ -24,8 +24,18 @@ const HEAD_BLOCKS = 1
 const MIN_TAIL_BLOCKS = 2
 const SUMMARY_TOKEN_BUDGET = 300
 
+export class ContextBudgetError extends Error {
+  constructor() { super('The current message and instructions exceed the available context budget. Shorten the message or Bot instructions and try again.') }
+}
+
 export function contextWindowOr(window: number | undefined): number {
   return window && window > 1024 ? window : DEFAULT_CONTEXT_WINDOW
+}
+
+/** Bound the application handoff to Codex; the CLI maintains its own history. */
+export function applicationContextWindow(backendId: string, reported?: number): number | undefined {
+  if (backendId !== 'codex') return reported
+  return Math.min(reported && reported > 1024 ? reported : 32768, 32768)
 }
 
 /** Tokens available for everything we send. */
@@ -109,6 +119,7 @@ function fitMessages(
   budget: number
 ): ProviderMessage[] {
   const out = [...messages]
+  const latestUser = out.findLastIndex(message => message.role === 'user')
 
   // The second pass drops the per-message floor: an overrun that survives the
   // first is one the floors themselves are causing, and a prompt the backend
@@ -117,12 +128,18 @@ function fitMessages(
     let used = systemTokens + estimateMessagesTokens(out)
     if (used <= budget) break
     for (let i = 0; i < out.length && used > budget; i++) {
+      // Never silently turn the actual request into an ellipsis. If even the
+      // remaining instructions and request cannot fit, report the failure.
+      if (i === latestUser) continue
       const before = estimateMessageTokens(out[i])
       const target = Math.max(floor, before - (used - budget))
       if (target >= before) continue
       out[i] = shrink(out[i], target)
       used -= before - estimateMessageTokens(out[i])
     }
+  }
+  if (systemTokens + estimateMessagesTokens(out) > budget && latestUser >= 0) {
+    throw new ContextBudgetError()
   }
   return out
 }

@@ -43,7 +43,7 @@ static napi_value update(napi_env env, napi_callback_info info) {
     if (!glass) {
       glass = [[NSClassFromString(@"NSGlassEffectView") alloc] initWithFrame:NSZeroRect];
       glass.style = NSGlassEffectViewStyleRegular;
-      glass.cornerRadius = 14;
+      glass.cornerRadius = 0;
       glass.autoresizingMask = NSViewHeightSizable;
       [host addSubview:glass positioned:NSWindowBelow relativeTo:host.subviews.firstObject];
       [surfaces setObject:glass forKey:native];

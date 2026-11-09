@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AgentTaskSummary } from '../../../shared/types'
 import { loadRoutines, runRoutine, useAppState } from '../state'
-import { BotAvatar } from './BotAvatar'
 import { AgentTaskList } from './AgentTaskList'
 import { useAgentSessionWorkspace } from './AgentSessionWorkspace'
 import { BotEditor } from './BotEditor'
-import { FormDialog } from './FormDialog'
 import { useBotChinese } from './BotUiLanguage'
 import { IconClose } from './Icons'
 import { useReturnFocus } from './returnFocus'
@@ -15,7 +13,6 @@ import './BotDetailsPanel.css'
 export function BotDetailsPanel({ onClose }: { onClose: () => void }): ReactNode {
   useReturnFocus()
   const closeButton = useRef<HTMLButtonElement>(null)
-  const [editing, setEditing] = useState(false)
   const closeEditor = useRef<(() => void) | null>(null)
   useEffect(() => { closeButton.current?.focus({ preventScroll: true }) }, [])
   const { session, bots, settings, backends, backendsLoading, backendsError, tasks, routines, routinesError } = useAppState()
@@ -41,9 +38,8 @@ export function BotDetailsPanel({ onClose }: { onClose: () => void }): ReactNode
   for (const task of tasks) if (!merged.has(task.id) || task.updatedAt >= merged.get(task.id)!.updatedAt) merged.set(task.id, task)
   const scheduled = routines.filter((routine) => routine.botId === bot.id && routine.trigger.kind !== 'manual')
   return <aside id="ob-bot-details" className="ob-bot-details" aria-label={zh ? `${bot.name} 详情` : `${bot.name} details`}>
-    <header className="ob-bot-details-head"><span>{zh ? 'Bot 详情' : 'Bot details'}</span><button ref={closeButton} type="button" className="ob-icon-btn ob-no-drag" onClick={onClose} aria-label={zh ? '关闭 Bot 详情' : 'Close bot details'}><IconClose /></button></header>
+    <header className="ob-bot-details-head"><span>{zh ? 'Bot 详情' : 'Bot details'}</span><button ref={closeButton} type="button" className="ob-icon-btn ob-no-drag" onClick={() => closeEditor.current?.()} aria-label={zh ? '关闭 Bot 详情' : 'Close bot details'}><IconClose /></button></header>
     <div className="ob-bot-details-body">
-      <div className="ob-bot-details-identity"><BotAvatar bot={bot} size="lg" /><h2>{bot.name}</h2>{bot.description ? <p>{bot.description}</p> : null}</div>
       <section className="ob-bot-details-section"><h3>{zh ? 'Agent 任务' : 'Agent tasks'}</h3>
         <AgentTaskList key={bot.id} tasks={[...merged.values()]} botId={bot.id} zh={zh} loading={tasksLoading} error={tasksError} onRetry={() => setRetry(value => value + 1)} onOpen={open} />
       </section>
@@ -51,10 +47,7 @@ export function BotDetailsPanel({ onClose }: { onClose: () => void }): ReactNode
         {routinesError ? <p role="alert">{routinesError}</p> : scheduled.length ? <div className="ob-bot-details-list">{scheduled.map((routine) => <div className="ob-bot-details-routine" key={routine.id}><span><strong>{routine.name}</strong><small>{routine.trigger.kind === 'github_issue' ? `GitHub ${routine.trigger.owner}/${routine.trigger.repo} #${routine.trigger.issueNumber}` : routine.trigger.kind === 'gmail_query' ? `Gmail · ${routine.trigger.query ?? ''}` : routine.trigger.kind === 'webhook' ? 'Webhook' : routine.trigger.cron}{routine.watchError ? ` · ${routine.watchError}` : ''}</small></span><button type="button" className="ob-btn ob-btn-sm" onClick={() => void runRoutine(routine.id)}>{zh ? '运行' : 'Run'}</button></div>)}</div> : <p className="ob-hint">{zh ? '暂无定时任务' : 'No scheduled routines'}</p>}
       </section>
       <section className="ob-bot-details-section"><h3>{zh ? 'Bot 配置' : 'Bot configuration'}</h3>
-        <button type="button" className="ob-btn ob-btn-sm" onClick={() => setEditing(true)}>{zh ? '编辑 Bot' : 'Edit bot'}</button>
-        {editing ? <FormDialog title={zh ? '编辑 Bot' : 'Edit bot'} size="md" onClose={() => closeEditor.current?.()}>
-          <BotEditor key={bot.id} bot={bot} backends={backends} backendsLoading={backendsLoading} backendsError={backendsError} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} escapeCloseRef={closeEditor} inDialog />
-        </FormDialog> : null}
+        <BotEditor key={bot.id} bot={bot} backends={backends} backendsLoading={backendsLoading} backendsError={backendsError} onClose={onClose} onSaved={() => {}} escapeCloseRef={closeEditor} embedded />
       </section>
     </div>
   </aside>
