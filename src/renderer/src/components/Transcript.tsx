@@ -156,7 +156,7 @@ export function Transcript(): ReactNode {
           })}
           {clarificationError ? <p className="ob-msg-error" role="status">{settings?.language !== 'en' ? '暂时无法读取问题记录。' : 'Question history could not be loaded.'}</p> : null}
 
-          {queue?.items.filter((item) => !messageIds.includes(item.id) || item.status === 'interrupted').map((item) => <PendingMessage key={item.id} item={item} queue={queue} known={messageIds.includes(item.id)} />)}
+          {queue?.items.map((item) => <PendingMessage key={item.id} item={item} queue={queue} known={messageIds.includes(item.id)} />)}
 
           {localApprovals[0] ? <ApprovalDialog key={localApprovals[0].id} request={localApprovals[0]} queued={localApprovals.length - 1} onDecide={(decision) => void respondToApproval(localApprovals[0].id, decision)} /> : null}
 

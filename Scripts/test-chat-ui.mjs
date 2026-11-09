@@ -91,7 +91,8 @@ try {
  await submit('stop');
  await wait(`(async()=>{const b=(await window.openbot.bots.list()).find(x=>x.name==='Blinky');const q=await window.openbot.agent.queue(b.activeConversationId);return q.paused && q.items.some(x=>x.text==='after stop' && x.status==='waiting')})()`,30000);
  if(await evalJs(`document.body.innerText.includes('after-stop-ok')`)) throw Error('stopped message ran prematurely');
- await evalJs(`(async()=>{const b=(await window.openbot.bots.list()).find(x=>x.name==='Blinky');await window.openbot.agent.pauseQueue(b.activeConversationId,false)})()`);
+ await wait(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='继续处理')`,30000);
+ await evalJs(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='继续处理').click()`);
  await wait(`document.body.innerText.includes('after-stop-ok')`,30000);
  await wait(`(async()=>{const b=(await window.openbot.bots.list()).find(x=>x.name==='Blinky');return (await window.openbot.agent.queue(b.activeConversationId)).items.length===0})()`,30000);
  const result=await evalJs(`({text:document.body.innerText,hasNewChat:!!document.querySelector('[aria-label*="New chat"]'),composerDisabled:document.querySelector('#ob-prompt').disabled,border:getComputedStyle(document.querySelector('.ob-composer-box')).borderWidth})`);

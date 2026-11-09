@@ -47,11 +47,35 @@ const suspensionGeneration = new Map<string, number>()
 let installed = false
 const retries = new Map<string, ReturnType<typeof setTimeout>>()
 const interruptedForFollowup = new Set<string>()
+/** Steer receipts whose RPC failed mid-turn; verified against the transcript when the turn ends. */
+const uncertainSteers = new Map<string, Set<string>>()
+/** Consecutive live-steer rejections; the turn-end drain is the real fallback. */
+const steerRetries = new Map<string, number>()
+const STEER_RETRY_LIMIT = 25
 
 function retryDelivery(sessionId: string): void {
   if (retries.has(sessionId)) return
   const timer = setTimeout(() => { retries.delete(sessionId); void drainQueue(sessionId) }, 400)
   retries.set(sessionId, timer)
+}
+
+/** Decide steers that timed out mid-turn: an ack records the message with the
+ * receipt id, so transcript presence proves delivery; absence makes a
+ * fresh-turn redelivery through the queue safe. */
+async function reconcileUncertainSteers(sessionId: string): Promise<void> {
+  const pending = uncertainSteers.get(sessionId)
+  if (!pending?.size) return
+  const session = await sessions.get(sessionId)
+  if (!session) { uncertainSteers.delete(sessionId); return }
+  const messageIds = new Set(session.messages.map((message) => message.id))
+  for (const id of [...pending]) {
+    if (!messageIds.has(id)) continue
+    // The steer reached the CLI; only the acknowledgement was lost.
+    pending.delete(id)
+    await finishQueuedMessage(sessionId, id, false)
+    announceQueue(sessionId)
+  }
+  if (!pending.size) uncertainSteers.delete(sessionId)
 }
 
 /** Do not remove the durable delivery record ahead of the transcript write. */
@@ -99,6 +123,7 @@ export function installQueueRuntime(): void {
 
 export async function drainQueue(sessionId: string): Promise<void> {
   if (draining.has(sessionId) || suspended.has(sessionId)) return
+  await reconcileUncertainSteers(sessionId)
   const initial = getMessageQueue(sessionId)
   // A processing receipt belongs to the active turn. It must not be treated
   // as a new follow-up, or the resumed turn repeatedly interrupts itself.
@@ -163,20 +188,30 @@ export async function drainQueue(sessionId: string): Promise<void> {
             }], { supportsVision })[0]!
           })
           if (!accepted) {
+            const attempts = (steerRetries.get(sessionId) ?? 0) + 1
+            steerRetries.set(sessionId, attempts)
             await deferQueuedMessage(sessionId, item.id)
             announceQueue(sessionId)
-            retryDelivery(sessionId)
+            // Polling is only an accelerator; past the cap the active turn's
+            // done event drains the queue and delivers as a fresh turn.
+            if (attempts < STEER_RETRY_LIMIT) retryDelivery(sessionId)
             break
           }
+          steerRetries.delete(sessionId)
           // The live RPC acknowledged actual delivery and the message is durable.
           await finishQueuedMessage(sessionId, item.id, false)
           announceQueue(sessionId)
           continue
         } catch (error) {
-          // A timed-out request may already have reached Codex. Never replay it.
-          await finishQueuedMessage(sessionId, item.id, true)
+          // A timed-out request may already have reached the CLI. Keep the
+          // receipt waiting and verify against the transcript when this turn
+          // ends; presence confirms delivery, absence redelivers safely.
+          await deferQueuedMessage(sessionId, item.id)
+          const pending = uncertainSteers.get(sessionId) ?? new Set<string>()
+          pending.add(item.id)
+          uncertainSteers.set(sessionId, pending)
           announceQueue(sessionId)
-          console.error('[openbot/queue] live delivery was not confirmed', error)
+          console.error('[openbot/queue] live delivery was not confirmed; verifying after the turn ends', error)
           break
         }
       }
@@ -216,6 +251,7 @@ export async function drainQueue(sessionId: string): Promise<void> {
         break
       }
       executing.add(sessionId)
+      steerRetries.delete(sessionId)
       let delivered = false
       void sendMessage(sessionId, item.text, item.attachments, {
         id: item.id,
