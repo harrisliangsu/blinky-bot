@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { dataRoot, safeFileName } from '../store/paths'
 import { readJsonState, writeJsonNow } from '../store/jsonStore'
 import { runTaskJudgmentTurn } from '../agent/taskJudgmentTurn'
+import { emitTelemetry } from '../telemetry'
 import { parseProgressDecision } from './progressDecisionPolicy'
 import type { ProgressDecision, ProgressSnapshot } from './progressMonitor'
 import type { Settings } from '../../shared/types'
@@ -47,7 +48,9 @@ async function consider(s:ProgressSnapshot,input:{sessionId:string;botId:string;
   }
   const state:ProgressTurnState={version:1,owner:s.owner,input:key,permissions:input.permissions,attempt:randomUUID(),state:'prepared',updatedAt:Date.now(),failures:old?.failures??0}
   await writeJsonNow(file(s.id),state)
+  const judgmentStartedAt=Date.now()
   const result=await runTaskJudgmentTurn({...input,taskId:s.id,requestId:state.attempt})
+  emitTelemetry({ kind: 'judgment.completed', taskId: s.id, durationMs: Date.now()-judgmentStartedAt, outcome: result.state })
   const decision=result.state==='ready'&&result.text?parseProgressDecision(result.text.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/,'$1'),s):null
   state.updatedAt=Date.now()
   if(decision){state.state='ready';state.decision=decision;state.failures=0}

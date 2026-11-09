@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { AgentTask, AgentTaskStatus, Session } from '../../shared/types'
 import type { AgentTaskProgress } from '../../shared/activity'
+import { emitTelemetry } from '../telemetry'
 import { JsonCollection } from './collection'
 import { dataRoot, safeFileName, tasksDir } from './paths'
 import { readJsonState, writeJsonNow } from './jsonStore'
@@ -260,6 +261,7 @@ export async function saveTaskRuntimeDurable(id: string, patch: Pick<AgentTask, 
 export function setTaskStatus(id: string, status: AgentTaskStatus, error?: string): AgentTask | null {
   const task = collection.get(id)
   if (!task) return null
+  if (['completed', 'failed', 'cancelled'].includes(status) && task.status !== status) emitTelemetry({ kind: 'task.terminal', taskId: id, botId: task.botId, outcome: status, durationMs: Date.now() - task.createdAt })
   const next: AgentTask = { ...task, status, updatedAt: Date.now() }
   if (error) next.error = error.slice(0, 2000)
   else delete next.error

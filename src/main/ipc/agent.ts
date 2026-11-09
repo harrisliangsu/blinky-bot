@@ -28,6 +28,7 @@ import { getBot } from '../store/bots'
 import { startTurn } from './startTurn'
 import { captureUserPreference } from '../agent/memoryPreferences'
 import { liveMessages } from '../agent/liveMessages'
+import { emitTelemetry } from '../telemetry'
 import { unreadableRecord } from './readFailure'
 import type { Message } from '../../shared/types'
 import { traceChatTiming } from '../backends/chatTiming'
@@ -68,6 +69,7 @@ export function registerAgentIpc(): void {
       const body = asString(text)
       const files = asAttachments(attachments)
       const queue = await enqueueMessage(id, body, files, isQueueSuspended(id))
+      emitTelemetry({ kind: 'queue.enqueued', sessionId: id, size: body.length })
       const queued = queue.items.at(-1)
       if (queued) {
         try {

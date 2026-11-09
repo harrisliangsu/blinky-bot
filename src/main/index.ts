@@ -32,6 +32,7 @@ import { recoverMemoryExtractions } from './agent/memory'
 import { installTaskInbox } from './tasks'
 import { installTaskProgressMonitor, stopTaskProgressMonitor } from './tasks/progressRuntime'
 import { installSemanticMemory } from './agent/semanticMemory'
+import { installTelemetry, stopTelemetry } from './telemetry'
 import { installGitHubDraftInbox } from './connectors/githubDraftInbox'
 import { installGmailDraftInbox } from './connectors/gmailDraftInbox'
 import { installCalendarDraftInbox } from './connectors/calendarDraftInbox'
@@ -120,6 +121,7 @@ if (!claimSingleInstance()) {
       installTaskInbox()
       installTaskProgressMonitor()
       installSemanticMemory()
+      installTelemetry()
       app.once('before-quit', stopTaskProgressMonitor)
       installGitHubDraftInbox()
       installGmailDraftInbox()

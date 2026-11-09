@@ -24,6 +24,7 @@ import { toProviderMessages } from './history'
 import { groupBlocks } from './history'
 import { applyBudget, contextWindowOr, type SemanticRegionSummary } from './budget'
 import { estimateTokens } from './tokens'
+import { emitTelemetry } from '../telemetry'
 
 /** Sessions below this many messages never need a squeezed region. */
 const TRIGGER_MESSAGES = 40
@@ -83,7 +84,9 @@ async function preGenerate(sessionId: string): Promise<void> {
   const cached = await loadSemanticMemory(sessionId)
   if (cached && cached.hash === budgeted.omittedHash) return
 
+  const startedAt = Date.now()
   const summary = await generateSummary(binding.backendId, binding.modelId, budgeted.omittedText, settings)
+  emitTelemetry({ kind: 'memory.semantic_summary', sessionId, durationMs: Date.now() - startedAt, outcome: summary && summary.trim() ? 'ok' : 'empty', size: budgeted.omittedText.length })
   if (!summary || !summary.trim()) return
   const record: StoredSummary = { version: 1, hash: budgeted.omittedHash, summary: summary.trim().slice(0, 4000), updatedAt: Date.now() }
   await writeJsonNow(file(sessionId), record)

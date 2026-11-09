@@ -6,6 +6,7 @@ import { deferQueuedMessage, finishQueuedMessage, getMessageQueue, markQueuedMes
 import { getSession, isSessionMessageDurable } from '../store/sessions'
 import { getBot } from '../store/bots'
 import { steerCodexTurn } from '../backends/cli/codexAppServer'
+import { emitTelemetry } from '../telemetry'
 import { sessions } from './sessionGateway'
 import { addNotice, addUserMessage } from './messages'
 import { toProviderMessages } from './history'
@@ -188,6 +189,7 @@ export async function drainQueue(sessionId: string): Promise<void> {
             }], { supportsVision })[0]!
           })
           if (!accepted) {
+            emitTelemetry({ kind: 'queue.steer_rejected', sessionId, size: steerRetries.get(sessionId) ?? 0 })
             const attempts = (steerRetries.get(sessionId) ?? 0) + 1
             steerRetries.set(sessionId, attempts)
             await deferQueuedMessage(sessionId, item.id)
@@ -198,6 +200,7 @@ export async function drainQueue(sessionId: string): Promise<void> {
             break
           }
           steerRetries.delete(sessionId)
+          emitTelemetry({ kind: 'queue.steer_ack', sessionId })
           // The live RPC acknowledged actual delivery and the message is durable.
           await finishQueuedMessage(sessionId, item.id, false)
           announceQueue(sessionId)
@@ -207,6 +210,7 @@ export async function drainQueue(sessionId: string): Promise<void> {
           // receipt waiting and verify against the transcript when this turn
           // ends; presence confirms delivery, absence redelivers safely.
           await deferQueuedMessage(sessionId, item.id)
+          emitTelemetry({ kind: 'queue.steer_uncertain', sessionId })
           const pending = uncertainSteers.get(sessionId) ?? new Set<string>()
           pending.add(item.id)
           uncertainSteers.set(sessionId, pending)

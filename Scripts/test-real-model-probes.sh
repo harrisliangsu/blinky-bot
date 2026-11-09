@@ -6,6 +6,7 @@
 #   ./Scripts/test-real-model-probes.sh           # both probes
 #   ./Scripts/test-real-model-probes.sh planning  # codex planning semantics only
 #   ./Scripts/test-real-model-probes.sh kimi      # kimi ACP probe only (BLINKY_KIMI_MODEL to pick a model)
+#   ./Scripts/test-real-model-probes.sh loop      # completion-loop semantics only
 #
 # Planning probe: needs the codex CLI logged in.
 # Kimi probe: needs the kimi CLI logged in; set BLINKY_KIMI_MODEL (e.g.
@@ -25,11 +26,19 @@ run_kimi() {
   echo "[probe] kimi acp (${BLINKY_KIMI_MODEL:-default model}) -> $root"
   BLINKY_KIMI_PROBE_ROOT="$root" node --experimental-transform-types --import ./scripts/register-ts.mjs Scripts/probe-kimi-planning-acp.mjs
 }
+run_loop() {
+  # The loop probe creates its own evidence root and requires it to be absent.
+  local root
+  root="$(mktemp -d "${TMPDIR:-/tmp}/blinky-loop-probe.XXXXXX")/evidence"
+  echo "[probe] codex completion-loop semantics -> $root"
+  BLINKY_LOOP_MODEL_ROOT="$root" node --experimental-transform-types --import ./scripts/register-ts.mjs Scripts/test-task-loop-real-model.mjs
+}
 status=0
 case "$which" in
   planning) run_planning || status=1 ;;
   kimi) run_kimi || status=1 ;;
-  both) run_planning || status=1; run_kimi || status=1 ;;
+  loop) run_loop || status=1 ;;
+  both) run_planning || status=1; run_kimi || status=1; run_loop || status=1 ;;
   *) echo "Unknown probe: $which" >&2; exit 2 ;;
 esac
 exit $status
