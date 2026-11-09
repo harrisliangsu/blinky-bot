@@ -254,6 +254,7 @@ export interface SettingsCopy {
   }
   tools: {
     intro: string
+    sync: string
     skillsTitle: string
     skillsIntro: string
     skillsInstall: string
@@ -606,6 +607,7 @@ const en: SettingsCopy = {
   },
   tools: {
     intro: 'MCP servers and skills for every Bot. Apps stays GitHub, Git, and Gmail.',
+    sync: 'Sync',
     skillsTitle: 'Skills',
     skillsIntro: 'Install a folder into the shared directory, then assign it on each Bot.',
     skillsInstall: 'Install',
@@ -959,6 +961,7 @@ const zh: SettingsCopy = {
   },
   tools: {
     intro: '每个 Bot 都能用的 MCP 服务器和技能。应用只放 GitHub、Git 和 Gmail。',
+    sync: '同步',
     skillsTitle: '技能',
     skillsIntro: '安装到共享目录后，再到每个 Bot 上选用。',
     skillsInstall: '安装',
