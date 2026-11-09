@@ -37,10 +37,17 @@ function EmptyTranscript({ hasSession, bot }: { hasSession: boolean; bot?: Bot }
 }
 
 /** Messages waiting for the execution backend are still ordinary chat bubbles. */
+function useTranscriptLanguage(): 'zh' | 'en' {
+  const settings = useAppState().settings
+  return (settings?.language ?? (typeof navigator === 'undefined' ? 'zh-CN' : navigator.language)) === 'zh-CN' ? 'zh' : 'en'
+}
+
 function PendingMessage({ item, queue, known }: { item: QueuedMessage; queue: MessageQueue; known: boolean }): ReactNode {
+  const zh = useTranscriptLanguage()
   return <article className="ob-msg ob-msg-user" aria-label="You">
     <div className="ob-msg-shell">
       {!known && item.text ? <div className="ob-msg-bubble">{item.text}</div> : null}
+      {item.status === 'waiting' ? <small className="ob-msg-queue-state" role="status">{zh === 'zh' ? '排队中，将在当前运行结束后送达' : 'Queued; it will be delivered when the current run finishes'}</small> : null}
       {!known && item.attachments.length ? <div className="ob-msg-pictures">{item.attachments.map((attachment) => {
         const src = imagePreviewSrc(attachment)
         return src ? <img key={attachment.id} className="ob-msg-picture" src={src} alt={attachment.name} /> : <span key={attachment.id}>{attachment.name}</span>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Bot, SearchResult } from '../../../shared/types'
 import { useFocusTrap } from '../lib/focusTrap'
 import { openBotChat, store, useAppState } from '../state'
+import { useBotChinese } from './BotUiLanguage'
 import { IconBot, IconClose, IconRoutine, IconSearch, IconSettings } from './Icons'
 import './CommandPalette.css'
 
@@ -28,6 +29,7 @@ export function CommandPalette(): ReactNode {
 }
 
 function PaletteDialog({ bots, currentSessionId }: { bots: Bot[]; currentSessionId: string | null }): ReactNode {
+  const zh = useBotChinese()
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [cursor, setCursor] = useState(0)
@@ -72,9 +74,9 @@ function PaletteDialog({ bots, currentSessionId }: { bots: Bot[]; currentSession
   const items = useMemo<PaletteItem[]>(() => {
     const needle = query.trim().toLowerCase()
     const actions: PaletteItem[] = [
-      { id: 'act-bots', label: 'Bots', icon: <IconBot size={12} />, run: () => store.setModal('bots') },
-      { id: 'act-routines', label: 'Routines', icon: <IconRoutine size={12} />, run: () => store.setModal('routines') },
-      { id: 'act-settings', label: 'Settings', icon: <IconSettings size={12} />, run: () => store.setModal('settings') }
+      { id: 'act-bots', label: zh ? 'Bot 管理' : 'Bots', icon: <IconBot size={12} />, run: () => store.setModal('bots') },
+      { id: 'act-routines', label: zh ? '例程' : 'Routines', icon: <IconRoutine size={12} />, run: () => store.setModal('routines') },
+      { id: 'act-settings', label: zh ? '设置' : 'Settings', icon: <IconSettings size={12} />, run: () => store.setModal('settings') }
     ]
     const botItems: PaletteItem[] = bots
       .filter((bot) => !bot.archived)
@@ -129,15 +131,15 @@ function PaletteDialog({ bots, currentSessionId }: { bots: Bot[]; currentSession
             ref={inputRef}
             className="ob-palette-input"
             value={query}
-            placeholder="Search messages, files, links, agents and actions…"
-            aria-label="Search all BlinkyBot content"
+            placeholder={zh ? '搜索消息、文件、链接、Agent 和操作…' : 'Search messages, files, links, agents and actions…'}
+            aria-label={zh ? '搜索全部 BlinkyBot 内容' : 'Search all BlinkyBot content'}
             aria-controls="ob-palette-list"
             onChange={(e) => {
               setQuery(e.target.value)
               setCursor(0)
             }}
           />
-          <button type="button" className="ob-icon-btn" aria-label="Close search" title="Close search (Esc)" onClick={() => store.setModal(null)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }}><IconClose size={14} /></button>
+          <button type="button" className="ob-icon-btn" aria-label={zh ? '关闭搜索' : 'Close search'} title="Close search (Esc)" onClick={() => store.setModal(null)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }}><IconClose size={14} /></button>
         </div>
 
         <ul className="ob-palette-list" id="ob-palette-list" role="listbox" aria-label="Results">

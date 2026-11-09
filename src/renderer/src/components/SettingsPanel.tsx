@@ -457,7 +457,7 @@ export function SettingsPanel(): ReactNode {
   const groups: Array<{ label: string; sections: SettingsSection[] }> = [
     { label: lang === 'zh-CN' ? '偏好设置' : 'Preferences', sections: ['general', 'bots', 'profile', 'notifications', 'permissions'] },
     { label: lang === 'zh-CN' ? '连接' : 'Connections', sections: ['backends', 'vault'] },
-    { label: lang === 'zh-CN' ? '关于应用' : 'Application', sections: ['updates', 'about'] }
+    { label: lang === 'zh-CN' ? '应用' : 'Application', sections: ['updates', 'about'] }
   ]
 
   // Apps and tools are workspaces opened from the account menu, not settings
@@ -532,7 +532,7 @@ export function SettingsPanel(): ReactNode {
             </nav>
           </aside>
           {current ? <div ref={scrollRef} onScroll={e => saveSettingsScroll(current, e.currentTarget.scrollTop)} className="ob-set-main" id={`ob-set-panel-${current}`} aria-labelledby={`ob-set-tab-${current}`} data-settings-section={current}>
-            <header className="ob-set-page-head"><h2>{copy.nav[current]}</h2></header>
+            <header className="ob-set-page-head"><h2>{copy.nav[current]}</h2>{current === 'backends' ? <p className="ob-hint">{lang === 'zh-CN' ? '本地 Agent 以已安装的 CLI 为载体，云端 Agent 以 API Key 连接（API Key 对接完善中）。这里的 Agent 指运行载体，与 Bot 委派任务的执行 Agent 不同。' : 'Local Agents run on the CLIs you installed; cloud Agents connect via API Key (API Key onboarding is in progress). Agents here are runtimes, not the execution Agent a Bot delegates to.'}</p> : null}</header>
             {current === 'general' ? <General settings={settings} /> : null}
             {current === 'bots' ? <Bots settings={settings} /> : null}
             {current === 'profile' ? <UserProfileSettings settings={settings} /> : null}

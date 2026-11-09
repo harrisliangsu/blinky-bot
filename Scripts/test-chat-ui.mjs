@@ -112,8 +112,8 @@ try {
  if(await evalJs(blinkyRunning)) throw Error('interrupted message was replayed');
  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',metaKey:true,bubbles:true,cancelable:true}))`);
  await wait(`!!document.querySelector('[aria-label="Command palette"]')`,30000);
- await evalJs(`(()=>{const e=document.querySelector('[aria-label="Search all BlinkyBot content"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Bots');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
- await evalJs(`Array.from(document.querySelectorAll('.ob-palette button')).find(b=>b.textContent.trim()==='Bots').click()`);
+ await evalJs(`(()=>{const e=document.querySelector('[aria-label="搜索全部 BlinkyBot 内容"]')||document.querySelector('[aria-label="Search all BlinkyBot content"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Bot');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+ await evalJs(`Array.from(document.querySelectorAll('.ob-palette button')).find(b=>['Bot 管理','Bots'].includes(b.textContent.trim())).click()`);
  await wait(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='模板')`,30000);
  await evalJs(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='模板').click()`);
  await wait(`!!document.querySelector('.ob-template-grid')`,30000);
