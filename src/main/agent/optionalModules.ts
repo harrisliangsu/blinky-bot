@@ -37,8 +37,10 @@ export interface ToolRegistry {
   runTool(call: ToolCall, context: ToolContext): ToolResult | Promise<ToolResult>
 }
 
-const backendCandidates = import.meta.glob('../backends/registry.ts')
-const toolCandidates = import.meta.glob('../tools/registry.ts')
+// import.meta.glob is a Vite build feature; under plain node (probes, tests)
+// fall back to the source registry module, which exists unbundled.
+const backendCandidates = typeof import.meta.glob === 'function' ? import.meta.glob('../backends/registry.ts') : { '../backends/registry.ts': () => import('../backends/registry.ts') }
+const toolCandidates = typeof import.meta.glob === 'function' ? import.meta.glob('../tools/registry.ts') : { '../tools/registry.ts': () => import('../tools/registry.ts') }
 
 function loader(
   candidates: Record<string, () => Promise<unknown>>

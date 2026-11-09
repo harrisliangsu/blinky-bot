@@ -46,7 +46,10 @@ export async function judgeTaskProgress(snapshot: ProgressSnapshot, signal: Abor
       const afterBot=getBot(bot.id)
       return !combined.aborted&&JSON.stringify(fresh)===before&&afterBot&&JSON.stringify(resolveBotBinding(afterBot,getSettings()))===JSON.stringify(binding)?result:null
     }
-    if(backend.kind==='agent-cli'&&!backend.modelOnlyChat)return await governedTurn()
+    if(backend.kind==='agent-cli'&&!backend.modelOnlyChat)return await Promise.race([
+      governedTurn(),
+      new Promise<null>((resolve) => { if (combined.aborted) resolve(null); else combined.addEventListener('abort', () => resolve(null), { once: true }) })
+    ])
     let unsupportedProfile=false
     const inference = runSideCall(binding.backendId, { model: binding.modelId, thinking: binding.thinking, cwd: source.cwd, readOnly: true, disableNativeTools: true, signal: combined, messages: [
       { role: 'system', content: policy },

@@ -32,7 +32,7 @@ interface GatewayModule {
   noteMessage?(sessionId: string, messageId: string | undefined): unknown
 }
 
-const candidates = import.meta.glob('../gateway/index.ts')
+const candidates = (typeof import.meta.glob === 'function' ? import.meta.glob('../gateway/index.ts') : { ['../gateway/index.ts']: () => import('../gateway/index.ts') })
 
 let cached: Promise<GatewayModule | null> | null = null
 let warned = false

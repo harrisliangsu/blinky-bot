@@ -34,7 +34,7 @@ let cached: Promise<PartialLoop | null> | null = null
  * when it does not, so a missing peer module can never fail the build.
  */
 // @ts-ignore `import.meta.glob` is a Vite build-time transform.
-const candidates = import.meta.glob('../agent/loop.ts') as Record<
+const candidates = (typeof import.meta.glob === 'function' ? import.meta.glob('../agent/loop.ts') : { ['../agent/loop.ts']: () => import('../agent/loop.ts') }) as Record<
   string,
   () => Promise<unknown>
 >
