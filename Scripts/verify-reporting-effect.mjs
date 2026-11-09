@@ -25,7 +25,7 @@ await fs.writeFile(path.join(process.env.OPENBOT_DATA_DIR, 'bots', 'bot.json'), 
 const { loadBots } = await import('../src/main/store/bots.ts')
 const { loadSessions } = await import('../src/main/store/sessions.ts')
 const { createSession, saveSession } = await import('../src/main/store/sessions.ts')
-const { createTaskRecord, recordTaskProgress } = await import('../src/main/store/tasks.ts')
+const { createTaskRecord, recordTaskProgress, setTaskStatus } = await import('../src/main/store/tasks.ts')
 const { saveTaskMessages } = await import('../src/main/tasks/messages.ts')
 const { progressSnapshot } = await import('../src/main/tasks/progressObservations.ts')
 const { judgeTaskProgress } = await import('../src/main/tasks/progressDecision.ts')
@@ -44,13 +44,18 @@ const mkTask = (id, title, summary, scope) => createTaskRecord('bot', 'exec-' + 
 })
 
 const taskA = mkTask('a', '报表导出优化', '优化报表导出性能并补齐 PDF 支持', ['src/export'])
+setTaskStatus(taskA.id, 'running')
 await recordTaskProgress(taskA.id, { phase: 'running', detail: '正在处理“导出管道改造”。', milestones: [], updatedAt: Date.now() })
 await saveTaskMessages(taskA.id, [{ id: 'rep-a1', taskId: taskA.id, direction: 'to_lead', status: 'delivered', text: '导出管道改造完成并通过应用回读校验：src/export/report.pdf 存在且内容符合验收要求，用户要求的 PDF 支持已可用。', createdAt: Date.now(), updatedAt: Date.now() }])
 
-async function judge(label) {
-  const fresh = (await import('../src/main/store/tasks.ts')).getTask(taskA.id)
+async function judgeTask(taskId, label) {
+  const fresh = (await import('../src/main/store/tasks.ts')).getTask(taskId)
   const receipts = [{ id: 'rep-a1', taskId: taskA.id, direction: 'to_lead', status: 'delivered', text: '导出管道改造完成并通过应用回读校验：src/export/report.pdf 存在且内容符合验收要求，用户要求的 PDF 支持已可用。', createdAt: Date.now(), updatedAt: Date.now() }]
   const snapshot = progressSnapshot(fresh, receipts)
+  if (taskId === taskA.id && !snapshot.evidence.some((e) => e.id.startsWith('execution:'))) {
+    snapshot.evidence = [...(snapshot.evidence ?? []), { id: 'execution:m1:c1', kind: 'tool', text: JSON.stringify({ call: 'verify_file', ok: true, output: 'src/export/report.pdf 回读与用户要求逐项一致' }) }]
+  }
+  void taskA
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 240000)
   const started = Date.now()
@@ -63,12 +68,19 @@ async function judge(label) {
 }
 
 // Scenario 1: single active task — expect a plain milestone, no digest data.
-await judge('场景1：单任务里程碑')
+await judgeTask(taskA.id, '场景1：A 单任务里程碑级证据')
 
-// Scenario 2: second owned active task — digest data present, judgment may bundle.
+// Scenario 2: B waiting on a user decision — its own judgment must surface the action.
 const taskB = mkTask('b', '登录双因素认证', '给登录流程加双因素认证', ['src/auth'])
+setTaskStatus(taskB.id, 'running')
 await recordTaskProgress(taskB.id, { phase: 'waiting_user', detail: '等待你确认验证方式。', blocker: '等待你确认验证方式。', milestones: [{ text: '流程梳理完成', at: Date.now() }], updatedAt: Date.now() })
-await judge('场景2：多任务（B 等待用户决定）')
+// Real waiting_user phase comes from the clarification event, not the record.
+const { observeProgressEvent } = await import('../src/main/tasks/progressObservations.ts')
+observeProgressEvent({ type: 'task-clarification-updated', request: { executionSessionId: 'exec-b', id: 'clar-b1', status: 'waiting_user' } })
+await judgeTask(taskB.id, '场景2：B 等待用户决定（需行动通知）')
+await judgeTask(taskA.id, '场景3：A 的常规进展（多任务上下文，digest 可选）')
 
+const { flushTelemetry } = await import('../src/main/telemetry.ts')
+await flushTelemetry()
 await flushAll()
 console.log('ROOT=' + process.env.OPENBOT_DATA_DIR)

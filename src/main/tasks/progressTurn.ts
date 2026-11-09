@@ -52,6 +52,7 @@ async function consider(s:ProgressSnapshot,input:{sessionId:string;botId:string;
   const result=await runTaskJudgmentTurn({...input,taskId:s.id,requestId:state.attempt})
   emitTelemetry({ kind: 'judgment.completed', taskId: s.id, durationMs: Date.now()-judgmentStartedAt, outcome: result.state })
   const decision=result.state==='ready'&&result.text?parseProgressDecision(result.text.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/,'$1'),s):null
+  if(result.state==='ready'&&!decision)emitTelemetry({kind:'judgment.parse_failed',taskId:s.id,outcome:s.phase,size:result.text?.length??0,detail:(result.text??'').slice(0,1000)})
   state.updatedAt=Date.now()
   if(decision){state.state='ready';state.decision=decision;state.failures=0}
   else {

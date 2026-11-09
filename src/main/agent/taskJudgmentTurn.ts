@@ -21,6 +21,7 @@ import { localExecutionPolicy } from '../../shared/localExecution'
 import { clearPendingNote } from './handoff'
 import { clearReplyHistory } from './replyHistory'
 import { stopWarmCodexForSession } from '../backends/cli/codexAppServer'
+import { emitTelemetry } from '../telemetry'
 import { discardEphemeralBindingsForSession, flushProviderBindings } from '../store/providerBindings'
 
 export interface TaskJudgmentResult { state: 'ready' | 'deferred' | 'denied' | 'permission-required' | 'failed'; text?: string }
@@ -62,11 +63,11 @@ export async function runTaskJudgmentTurn(input: { sessionId: string; botId: str
     // The source may have accepted a human follow-up while this hidden turn ran.
     const interrupted=taskJudgmentInterruption(scope,signal.aborted,getMessageQueue(session.id).items.length>0)
     if(interrupted)return {state:interrupted}
-    if(result.status!=='final'||result.message.error||scope.errors.length||scope.attemptedTool) return {state:'failed'}
+    if(result.status!=='final'||result.message.error||scope.errors.length||scope.attemptedTool) { emitTelemetry({ kind: 'judgment.turn_failed', taskId: input.taskId, outcome: 'failed', detail: JSON.stringify({ status: result.status, error: result.message.error ?? null, scopeErrors: scope.errors.length, attemptedTool: scope.attemptedTool }) }); return {state:'failed'} }
     const persisted=await flushAll()
     if(persisted.failed.length||persisted.stillWriting) return {state:'failed'}
     return {state:'ready',text:result.message.displayContent??result.message.content}
-  } catch { return {state:signal.aborted?'deferred':'failed'} }
+  } catch { emitTelemetry({ kind: 'judgment.turn_failed', taskId: input.taskId, outcome: signal.aborted ? 'deferred' : 'failed' }); return {state:signal.aborted?'deferred':'failed'} }
   finally {
     approval.cancelPending(input.sessionId,'internal judgment ended')
     try{
