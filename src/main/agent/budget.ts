@@ -2,15 +2,26 @@
  * Context-window budgeting.
  *
  * The system prompt and the most recent turns are never dropped. When history does not
- * fit, the middle is replaced by a compact extractive summary — the opening request stays
- * (it holds the goal) and the tail stays (it holds the state).
+ * fit, the middle is replaced by a compact summary — the opening request stays
+ * (it holds the goal) and the tail stays (it holds the state). A cached
+ * semantic summary of the omitted region is used when its fingerprint
+ * matches; otherwise the region is condensed extractively. Neither path
+ * calls a model inside the turn.
  */
 
+import { createHash } from 'node:crypto'
 import type { ProviderMessage } from './contracts'
 import { textOf } from './contracts'
 import type { HistoryBlock } from './history'
 import { estimateMessageTokens, estimateMessagesTokens, estimateTokens, fitToTokens } from './tokens'
 import { oneLine } from './text'
+
+/** A cached model-written summary of the omitted history region. */
+export interface SemanticRegionSummary {
+  /** Fingerprint of the exact region this summary replaces. */
+  hash: string
+  summary: string
+}
 
 export const DEFAULT_CONTEXT_WINDOW = 8192
 
@@ -57,12 +68,17 @@ export interface BudgetResult {
   /** How many history messages were replaced by the summary. */
   dropped: number
   estimatedTokens: number
+  /** Fingerprint of the omitted region, when one was omitted. */
+  omittedHash?: string
+  /** Plain-text record of the omitted region, for background summarisation. */
+  omittedText?: string
 }
 
 export function applyBudget(
   blocks: HistoryBlock[],
   systemTokens: number,
-  contextWindow: number
+  contextWindow: number,
+  semantic?: SemanticRegionSummary
 ): BudgetResult {
   const budget = inputBudgetFor(contextWindow)
   const flat = blocks.flatMap((block) => block.messages)
@@ -85,12 +101,30 @@ export function applyBudget(
 
   const omitted = rest.slice(0, rest.length - tail.length)
   const kept = [...head.flatMap((block) => block.messages)]
-  if (omitted.length > 0) kept.push(summaryMessage(omitted))
+  if (omitted.length > 0) {
+    const omittedHash = regionHash(omitted)
+    kept.push(summaryMessage(omitted, omittedHash, semantic))
+  }
   kept.push(...tail.flatMap((block) => block.messages))
 
   const messages = fitMessages(kept, systemTokens, budget)
   const dropped = omitted.reduce((n, block) => n + block.messages.length, 0)
-  return { messages, dropped, estimatedTokens: systemTokens + estimateMessagesTokens(messages) }
+  const result: BudgetResult = { messages, dropped, estimatedTokens: systemTokens + estimateMessagesTokens(messages) }
+  if (omitted.length > 0) {
+    result.omittedHash = regionHash(omitted)
+    result.omittedText = omittedText(omitted)
+  }
+  return result
+}
+
+/** Fingerprint of an omitted region; the cache key for its semantic summary. */
+export function regionHash(omitted: HistoryBlock[]): string {
+  return createHash('sha256').update(JSON.stringify(omitted.flatMap((block) => block.messages.map((message) => [message.role, textOf(message)])))).digest('hex')
+}
+
+function omittedText(omitted: HistoryBlock[]): string {
+  const lines = omitted.flatMap((block) => block.messages.map((message) => `${message.role}: ${textOf(message).slice(0, 1200)}`))
+  return fitToTokens(lines.join('\n'), 6000)
 }
 
 function sumTokens(blocks: HistoryBlock[]): number {
@@ -165,15 +199,20 @@ function shrink(message: ProviderMessage, maxTokens: number): ProviderMessage {
 const TRIMMED_NOTE = '\n[trimmed to fit the context window]'
 
 /**
- * Extractive summary of the omitted middle. No model call, so it cannot fail, cost
- * anything, or send the dropped content anywhere.
+ * Summary of the omitted middle. Uses the cached semantic summary when the
+ * fingerprint matches the exact region being dropped; otherwise condenses
+ * the region extractively. No model call happens here, so it cannot fail,
+ * cost anything, or send the dropped content anywhere.
  */
-function summaryMessage(omitted: HistoryBlock[]): ProviderMessage {
+function summaryMessage(omitted: HistoryBlock[], omittedHash: string, semantic?: SemanticRegionSummary): ProviderMessage {
   const messageCount = omitted.reduce((n, block) => n + block.messages.length, 0)
-  const lines: string[] = [
-    `[Earlier conversation trimmed to fit the context window: ${messageCount} messages omitted.]`,
-    'Condensed record of the omitted part:'
-  ]
+  const header = `[Earlier conversation trimmed to fit the context window: ${messageCount} messages omitted.]`
+  if (semantic && semantic.hash === omittedHash && semantic.summary.trim()) {
+    const content = `${header}\n${semantic.summary.trim()}`
+    return { role: 'system', content: fitToTokens(content, Math.max(SUMMARY_TOKEN_BUDGET, estimateTokens(semantic.summary))) }
+  }
+
+  const lines: string[] = [header, 'Condensed record of the omitted part:']
 
   const perBlock = Math.max(1, Math.floor(SUMMARY_TOKEN_BUDGET / Math.max(1, omitted.length)))
   for (const block of omitted) {

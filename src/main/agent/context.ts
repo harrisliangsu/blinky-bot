@@ -8,7 +8,7 @@
 
 import type { Bot, MemoryEntry, Session, Settings, ToolSchema } from '../../shared/types'
 import type { ProviderMessage } from './contracts'
-import { applyBudget, contextWindowOr } from './budget'
+import { applyBudget, contextWindowOr, type SemanticRegionSummary } from './budget'
 import { groupBlocks, toProviderMessages } from './history'
 import { filterToolsForMode } from './modes'
 import { composeSystemPrompt } from './systemPrompt'
@@ -22,6 +22,8 @@ export interface ContextInput {
   settings: Settings
   /** Memory entries for the active bot, any order. */
   memory: MemoryEntry[]
+  /** Cached semantic summary of the squeezed history region, when it matches. */
+  semantic?: SemanticRegionSummary
   /** Registry schemas plus enabled built-ins, before mode filtering. */
   schemas: ToolSchema[]
   /** Every bot in the session, including this one. */
@@ -71,7 +73,7 @@ export function buildContext(input: ContextInput): BuiltContext {
     speakerNames: input.roster.length > 1 ? nameById(input.roster) : undefined,
     selfBotId: input.bot.id
   })
-  const budgeted = applyBudget(groupBlocks(history), estimateTokens(systemPrompt), contextWindow)
+  const budgeted = applyBudget(groupBlocks(history), estimateTokens(systemPrompt), contextWindow, input.semantic)
 
   return {
     messages: [{ role: 'system', content: systemPrompt }, ...budgeted.messages],

@@ -31,6 +31,7 @@ import { installQueueRuntime } from './agent/messageQueueRuntime'
 import { recoverMemoryExtractions } from './agent/memory'
 import { installTaskInbox } from './tasks'
 import { installTaskProgressMonitor, stopTaskProgressMonitor } from './tasks/progressRuntime'
+import { installSemanticMemory } from './agent/semanticMemory'
 import { installGitHubDraftInbox } from './connectors/githubDraftInbox'
 import { installGmailDraftInbox } from './connectors/gmailDraftInbox'
 import { installCalendarDraftInbox } from './connectors/calendarDraftInbox'
@@ -118,6 +119,7 @@ if (!claimSingleInstance()) {
       void recoverMemoryExtractions().catch((error) => console.error('[openbot/memory] recovery failed', error))
       installTaskInbox()
       installTaskProgressMonitor()
+      installSemanticMemory()
       app.once('before-quit', stopTaskProgressMonitor)
       installGitHubDraftInbox()
       installGmailDraftInbox()

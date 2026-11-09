@@ -35,6 +35,7 @@ import {
 import { broadcastError } from './events'
 import { buildChatRequest } from './chatRequest'
 import { buildContext } from './context'
+import { loadSemanticMemory } from './semanticMemory'
 import { applicationContextWindow, ContextBudgetError } from './budget'
 import { collapseRepeatedLines } from './repetition'
 import { errorMessage, isAbortError } from './errors'
@@ -128,11 +129,13 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       bots.many(session.botIds ?? [])
     ])
     const supportsVision = backendSeesImages(bot.backendId, model)
+    const semanticMemory = await loadSemanticMemory(session.id).catch(() => null)
     const context = buildContext({
       session: hydrateRecentImages(checkpointExecution ? { ...session, messages: session.messages.filter((item) => item.id !== message.id) } : session),
       bot,
       settings,
       memory,
+      ...(semanticMemory ? { semantic: semanticMemory } : {}),
       schemas: mergeBuiltins(schemas, bot.tools ?? []),
       roster,
       // Codex maintains its native transcript and compacts it itself. Bound the
