@@ -29,7 +29,7 @@ export async function judgeTaskProgress(snapshot: ProgressSnapshot, signal: Abor
   try {
     const before = JSON.stringify(recent)
     const policy=PROGRESS_JUDGMENT_PROMPT+'\n'+PUBLISHED_PROGRESS_RULE
-    const observations={goal:scrubVaultTranscript(task.prompt),title:snapshot.title,phase:snapshot.phase,lifecycle:requiresProgressNotice(snapshot),observations:snapshot.evidence,recentConversation:recent,previousReports,coordination,judgingBot:{backend:binding.backendId,model:binding.modelId,thinking:binding.thinking,canMessageExecutor:await toolAllowedForBot(bot,'manage_task')}}
+    const observations={goal:scrubVaultTranscript(task.prompt),title:snapshot.title,phase:snapshot.phase,lifecycle:requiresProgressNotice(snapshot),observations:snapshot.evidence,recentConversation:recent,previousReports,coordination,judgingBot:{backend:binding.backendId,model:binding.modelId,thinking:binding.thinking,canMessageExecutor:await toolAllowedForBot(bot,'manage_task')},...(task.progress?{structuredProgress:task.progress}:{})}
     // Native CLIs use the SAME Bot's ordinary governed turn: existing local
     // execution consent and adapter callbacks still run. No modelOnly failure
     // silently downgrades to print mode, and no identity/profile is copied.

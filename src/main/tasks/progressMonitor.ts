@@ -5,6 +5,8 @@ export interface ProgressEvidence { id: string; kind: 'message' | 'tool' | 'repo
 export interface ProgressSnapshot {
   id: string; owner: string; title: string; phase: ProgressPhase; progress: string; detail: string
   terminal: boolean; needsAttention: boolean; evidence?: ProgressEvidence[]
+  /** Host-maintained structured progress carried with the snapshot. */
+  structured?: import('../../shared/types').AgentTaskProgress
 }
 export interface ProgressNotice { id: string; snapshot: string; text: string }
 export interface ProgressState {

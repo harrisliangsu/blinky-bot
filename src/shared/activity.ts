@@ -69,6 +69,21 @@ export interface AgentTask {
   /** Delivery/review failure, distinct from execution failure and goal completion. */
   reviewFailure?: { contextKey: string; message: string }
   deliveryStatus?: 'pending' | 'delivering' | 'delivered' | 'uncertain'
+  /** Host-maintained structured progress; Bot envelopes and the task list read this directly. */
+  progress?: AgentTaskProgress
+}
+
+/** Structured progress for one task, assembled by the host from lifecycle,
+ *  transport and executor observations; never written by the model. */
+export interface AgentTaskProgress {
+  phase: 'queued' | 'running' | 'waiting_user' | 'waiting_approval' | 'waiting_help' | 'reconnecting' | 'completed' | 'failed' | 'cancelled'
+  /** One line naming the current step or state. */
+  detail: string
+  /** Present while a real blocker needs attention (waiting_* / failed). */
+  blocker?: string
+  /** Recently completed stage markers, newest last. */
+  milestones: Array<{ text: string; at: number }>
+  updatedAt: number
 }
 
 /** Navigation payload: no request, transcript, result or review evidence. */

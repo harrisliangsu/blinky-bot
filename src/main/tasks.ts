@@ -417,7 +417,7 @@ function privateExecutorSession(sessionId: string): boolean {
 }
 
 function taskForInspection(task: AgentTask): AgentTask {
-  return { ...task, ...(task.plan?.context ? { plan: { ...task.plan, context: contextForTask(task).context } } : {}), title: scrubVaultTranscript(task.title), prompt: scrubVaultTranscript(task.prompt), ...(task.result === undefined ? {} : { result: scrubVaultTranscript(task.result) }), ...(task.error === undefined ? {} : { error: scrubVaultTranscript(task.error) }), ...(task.review ? { review: { ...task.review, summary: scrubVaultTranscript(task.review.summary), evidence: task.review.evidence.map(scrubVaultTranscript) } } : {}) }
+  return { ...task, ...(task.plan?.context ? { plan: { ...task.plan, context: contextForTask(task).context } } : {}), title: scrubVaultTranscript(task.title), prompt: scrubVaultTranscript(task.prompt), ...(task.progress ? { progress: task.progress } : {}), ...(task.result === undefined ? {} : { result: scrubVaultTranscript(task.result) }), ...(task.error === undefined ? {} : { error: scrubVaultTranscript(task.error) }), ...(task.review ? { review: { ...task.review, summary: scrubVaultTranscript(task.review.summary), evidence: task.review.evidence.map(scrubVaultTranscript) } } : {}) }
 }
 
 function managedTask(sessionId: string, botId: string, taskId: string): AgentTask {

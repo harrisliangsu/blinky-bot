@@ -28,6 +28,8 @@ export function AgentTaskList({ tasks, botId, zh, loading, error, onRetry, onOpe
       <ul className="ob-agent-task-rows">{group[tab].slice(0, limits[tab]).map(task => <li key={task.id}>
         <button type="button" className="ob-agent-task-open" data-agent-task-id={task.id} onClick={() => onOpen(task)}>
           <strong>{agentText(task.title)}</strong><span data-task-status={task.status}>{taskStatus(task, zh)}</span>
+          {task.progress && task.status === 'running' && task.progress.detail ? <small data-task-progress>{agentText(task.progress.detail)}</small> : null}
+          {task.progress?.blocker ? <small data-task-blocker>{agentText(task.progress.blocker)}</small> : null}
           {task.status === 'completed' && !task.hasReview ? <small>{zh ? '结果待核对' : 'Result awaiting review'}</small> : null}
         </button>
       </li>)}</ul>

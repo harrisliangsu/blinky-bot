@@ -1,7 +1,7 @@
 /** Compact, source-scoped observations for the monitor and Bot context. */
 import { createHash } from 'node:crypto'
 import type { AgentTaskMessageReceipt } from '../../shared/activity'
-import type { AgentEvent, AgentTask } from '../../shared/types'
+import type { AgentEvent, AgentTask, AgentTaskProgress } from '../../shared/types'
 import { getBot } from '../store/bots'
 import { getSession } from '../store/sessions'
 import { listTasks, taskExecutionWasInterrupted } from '../store/tasks'
@@ -58,7 +58,19 @@ export function progressSnapshot(task: AgentTask, reports: AgentTaskMessageRecei
   const progressEvidence=evidence.filter(e=>!e.id.startsWith('delivery:'))
   const progress = createHash('sha256').update(JSON.stringify(terminal ? [task.status, task.result, task.deliveryStatus] : [Array.from(entries?.entries() ?? []), phase === 'running' ? [done.map(t => [t.id, t.text]), current && [current.id, current.text], progressEvidence] : []])).digest('hex')
   const detail = task.status === 'failed' ? taskExecutionWasInterrupted(task) ? '执行已中断，未自动重跑。' : '执行失败，请核对已有结果。' : !terminal && phase === 'running' ? current ? `正在处理“${briefProgressText(scrubVaultTranscript(current.text), 40)}”。` : done.length ? `已反馈“${briefProgressText(scrubVaultTranscript(done.at(-1)!.text), 40)}”完成，待核对。` : '' : ''
-  return { id: task.id, owner: JSON.stringify([task.sourceSessionId, owner, task.sessionId]), title: agentProgressName(scrubVaultTranscript(task.title), scrubVaultTranscript(getSession(task.sessionId)?.title ?? '')), phase, progress, detail, evidence, terminal, needsAttention: ['pending', 'uncertain', 'delivering'].includes(task.deliveryStatus ?? '') }
+  const structured = buildStructuredProgress(task, phase, detail, done)
+  return { id: task.id, owner: JSON.stringify([task.sourceSessionId, owner, task.sessionId]), title: agentProgressName(scrubVaultTranscript(task.title), scrubVaultTranscript(getSession(task.sessionId)?.title ?? '')), phase, progress, structured, detail, evidence, terminal, needsAttention: ['pending', 'uncertain', 'delivering'].includes(task.deliveryStatus ?? '') }
+}
+
+/** Host-maintained structured progress for the task record, Bot envelopes and the UI. */
+function buildStructuredProgress(task: AgentTask, phase: ProgressPhase, detail: string, done: Array<{ text: string }>): AgentTaskProgress {
+  const previous = task.progress?.milestones ?? []
+  const seen = new Set(previous.map((milestone) => milestone.text))
+  const fresh = done.filter((todo) => todo.text && !seen.has(todo.text)).map((todo) => ({ text: briefProgressText(scrubVaultTranscript(todo.text), 80), at: Date.now() }))
+  const milestones = [...previous, ...fresh].slice(-12)
+  const safeDetail = scrubVaultTranscript(detail).slice(0, 400)
+  const blocker = phase.startsWith('waiting_') ? (safeDetail || undefined) : task.status === 'failed' ? (scrubVaultTranscript(task.error ?? '').slice(0, 400) || undefined) : undefined
+  return { phase, detail: safeDetail, ...(blocker ? { blocker } : {}), milestones, updatedAt: Date.now() }
 }
 /** Executors get no sibling snapshot; UI selection cannot change ownership. */
 export function taskProgressContext(sessionId: string, botId: string): string | undefined {

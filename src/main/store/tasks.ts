@@ -2,6 +2,7 @@ import { supportsFullAccessExecution } from '../../shared/executionAccess'
 import { createHash, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { AgentTask, AgentTaskStatus, Session } from '../../shared/types'
+import type { AgentTaskProgress } from '../../shared/activity'
 import { JsonCollection } from './collection'
 import { dataRoot, safeFileName, tasksDir } from './paths'
 import { readJsonState, writeJsonNow } from './jsonStore'
@@ -77,6 +78,7 @@ export function normaliseTask(raw: unknown): AgentTask | null {
   const value = raw as Record<string, unknown>
   if (typeof value['id'] !== 'string' || typeof value['botId'] !== 'string' || typeof value['sessionId'] !== 'string') return null
   const status = statuses.includes(value['status'] as AgentTaskStatus) ? value['status'] as AgentTaskStatus : 'failed'
+  const progress = parseTaskProgress(value['progress'])
   const rawAgent = value['executionAgent']
   const agent = rawAgent && typeof rawAgent === 'object' && !Array.isArray(rawAgent) ? rawAgent as Record<string, unknown> : null
   const rawReview = value['review']
@@ -104,7 +106,28 @@ export function normaliseTask(raw: unknown): AgentTask | null {
     ...(Array.isArray(value['reviewHistory']) ? { reviewHistory: value['reviewHistory'].flatMap(item => { const parsed=parseReview(item,acceptance);return parsed?[parsed]:[] }) } : {}),
     ...(typeof value['decisionContext']==='string' ? {decisionContext:value['decisionContext']} : {}),
     ...(value['reviewFailure'] && typeof value['reviewFailure']==='object' && typeof (value['reviewFailure'] as Record<string,unknown>).contextKey==='string' && typeof (value['reviewFailure'] as Record<string,unknown>).message==='string' ? {reviewFailure:value['reviewFailure'] as AgentTask['reviewFailure']} : {}),
-    ...(['pending', 'delivering', 'delivered', 'uncertain'].includes(value['deliveryStatus'] as string) ? { deliveryStatus: value['deliveryStatus'] as AgentTask['deliveryStatus'] } : {})
+    ...(['pending', 'delivering', 'delivered', 'uncertain'].includes(value['deliveryStatus'] as string) ? { deliveryStatus: value['deliveryStatus'] as AgentTask['deliveryStatus'] } : {}),
+    ...(progress ? { progress } : {})
+  }
+}
+
+const PROGRESS_PHASES = ['queued', 'running', 'waiting_user', 'waiting_approval', 'waiting_help', 'reconnecting', 'completed', 'failed', 'cancelled'] as const
+
+function parseTaskProgress(raw: unknown): AgentTask['progress'] | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const value = raw as Record<string, unknown>
+  if (!PROGRESS_PHASES.includes(value['phase'] as typeof PROGRESS_PHASES[number]) || typeof value['detail'] !== 'string') return null
+  const milestones = Array.isArray(value['milestones']) ? value['milestones'].flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const entry = item as Record<string, unknown>
+    return typeof entry['text'] === 'string' && entry['text'].trim() && Number.isFinite(entry['at']) ? [{ text: entry['text'].slice(0, 200), at: Number(entry['at']) }] : []
+  }).slice(-12) : []
+  return {
+    phase: value['phase'] as AgentTaskProgress['phase'],
+    detail: value['detail'].slice(0, 400),
+    ...(typeof value['blocker'] === 'string' && value['blocker'].trim() ? { blocker: value['blocker'].slice(0, 400) } : {}),
+    milestones,
+    updatedAt: Number(value['updatedAt']) || Date.now()
   }
 }
 
@@ -261,6 +284,18 @@ export function cancelAgentTask(id: string): AgentTask | null {
 export function updateTaskDelivery(id: string, deliveryStatus: NonNullable<AgentTask['deliveryStatus']>): AgentTask | null {
   const task = collection.get(id)
   return task ? putTask({ ...task, deliveryStatus, updatedAt: Date.now() }) : null
+}
+
+/** Atomically persist the host-maintained structured progress; no-ops when the
+ *  exact value is already stored so periodic scans do not churn the disk. */
+export async function recordTaskProgress(id: string, progress: AgentTask['progress']): Promise<AgentTask | null> {
+  if (!progress) return null
+  const current = collection.get(id)
+  if (!current) return null
+  if (current.progress && JSON.stringify({ ...current.progress, updatedAt: 0 }) === JSON.stringify({ ...progress, updatedAt: 0 })) return current
+  const next: AgentTask = { ...current, progress, updatedAt: Date.now() }
+  await writeJsonNow(join(tasksDir(), `${safeFileName(id)}.json`), next)
+  return putTask(next)
 }
 
 export async function storeTaskReviewDurable(id: string, review: NonNullable<AgentTask['review']>): Promise<AgentTask | null> {

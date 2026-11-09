@@ -4,7 +4,7 @@ import { onAgentEvent } from '../agent/events'
 import { addNotice } from '../agent/messages'
 import { sessions } from '../agent/sessionGateway'
 import { getBot } from '../store/bots'
-import { getTask, listTasks } from '../store/tasks'
+import { getTask, listTasks, recordTaskProgress } from '../store/tasks'
 import { dataRoot, safeFileName } from '../store/paths'
 import { readJsonState, writeJsonNow, flushAll } from '../store/jsonStore'
 import { TaskProgressMonitor, PROGRESS_SCAN_MS, progressKey, type ProgressState, type ProgressSnapshot, type ProgressDecision } from './progressMonitor'
@@ -22,7 +22,11 @@ export function installTaskProgressMonitor(): void {
   if (stop) return
   let closed = false
   const controller = new AbortController()
-  const snapshotFor = async (task: NonNullable<ReturnType<typeof getTask>>) => progressSnapshot(task, await taskMessages(task.id))
+  const snapshotFor = async (task: NonNullable<ReturnType<typeof getTask>>) => {
+    const snapshot = await progressSnapshot(task, await taskMessages(task.id))
+    if (snapshot?.structured) void recordTaskProgress(snapshot.id, snapshot.structured).catch(() => {})
+    return snapshot
+  }
   const path = (id: string) => join(dataRoot(), 'task-progress', `${safeFileName(id)}.json`)
   const readCoordination = async (id:string):Promise<CoordinationState|null> => {
       const result = await readJsonState<CoordinationState | null>(join(dataRoot(),'task-coordination',`${safeFileName(id)}.json`),null)
