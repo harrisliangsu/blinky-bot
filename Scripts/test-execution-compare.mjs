@@ -36,7 +36,7 @@ async function acceptance() {
   const check = await new Promise((resolve) => {
     execFile('node', ['-e', `const c=require('${ws}/calc');const assert=require('assert');assert.strictEqual(c.subtract(7,2),5);assert.strictEqual(c.multiply(3,4),12);assert.strictEqual(c.divide(8,2),4);let threw=false;try{c.divide(1,0)}catch{threw=true}assert.ok(threw);console.log('module-ok')`], (error, stdout) => resolve({ ok: !error && stdout.includes('module-ok'), error: String(error) }))
   })
-  const shim = `const assert=require('assert');globalThis.test=(n,f)=>{try{f();console.log('ok '+n)}catch(e){console.log('FAIL '+n+' '+e.message);process.exitCode=1}};globalThis.expect=(v)=>({toBe:(w)=>assert.strictEqual(v,w)});require('./calc.test.js')`
+  const shim = `const assert=require('assert');globalThis.test=(n,f)=>{try{f();console.log('ok '+n)}catch(e){console.log('FAIL '+n+' '+e.message);process.exitCode=1}};globalThis.expect=(v)=>({toBe:(w)=>assert.strictEqual(v,w),toEqual:(w)=>assert.deepStrictEqual(v,w),toBeCloseTo:(w,p=2)=>assert.ok(Math.abs(v-w)<Math.pow(10,-p)/2,v+' not close to '+w),toThrow:(cls)=>{let t=false;try{if(typeof v!=='function')assert.fail('expect(fn).toThrow');v()}catch(e){t=true;if(cls&&!(e instanceof cls))throw e}if(!t)assert.fail('expected throw')}});require('./calc.test.js')`
   const tests = await new Promise((resolve) => {
     execFile('node', ['-e', shim], { cwd: ws }, (error, stdout) => resolve({ ok: !error && !stdout.includes('FAIL'), tail: stdout.slice(-300) }))
   })
@@ -73,9 +73,16 @@ if (mode === 'native') {
   wsock.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { const x = pending.get(m.id); pending.delete(m.id); m.error ? x.rej(Error(JSON.stringify(m.error))) : x.res(m.result) } }
   try {
     await wait(`Boolean(document.querySelector('#ob-prompt'))`)
+    const sid = await evalJs(`(async()=>{const b=(await window.openbot.bots.list())[0];return b.activeConversationId})()`)
+    await evalJs(`window.openbot.sessions.setCwd(${JSON.stringify(sid)},${JSON.stringify(ws)})`)
     await evalJs(`(()=>{const e=document.querySelector('#ob-prompt');const s=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;s.call(e,${JSON.stringify(taskText)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));})()`)
     await wait(`(async()=>{const b=(await window.openbot.bots.list())[0];return !(await window.openbot.agent.isRunning(b.activeConversationId))})()`, 600000)
     await delay(1000)
+    const transcript = await evalJs(`(async()=>{const b=(await window.openbot.bots.list())[0];const s=await window.openbot.sessions.get(b.activeConversationId);return JSON.stringify((s&&s.messages)||[])})()`)
+    await fs.writeFile(path.join(root, 'transcript.json'), transcript)
+    const parsed = JSON.parse(transcript)
+    const tail = parsed.filter((m) => m.role === 'assistant').slice(-2).map((m) => String(m.content || '').slice(0, 600))
+    console.log(JSON.stringify({ transcript: tail }))
   } finally {
     child.kill('SIGTERM'); await delay(500); if (child.exitCode === null) child.kill('SIGKILL')
   }
@@ -84,4 +91,5 @@ if (mode === 'native') {
 
 const result = { mode, wallMs: Date.now() - started, ...acceptanceResult }
 console.log(JSON.stringify({ ok: true, ...result }))
-await fs.rm(root, { recursive: true, force: true })
+if (!process.env.COMPARE_KEEP) await fs.rm(root, { recursive: true, force: true })
+else console.log('kept: ' + root)
