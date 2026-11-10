@@ -34,6 +34,8 @@ jobs:
           src/renderer/src/remote/transport.test.mjs
       - name: Backend selection
         run: node --experimental-strip-types --import ./scripts/register-ts.mjs --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts src/renderer/src/components/SettingsAppsGrid.test.mjs src/main/backends/cli/codexEvents.test.ts src/main/backends/cli/codexModels.test.ts src/main/backends/cli/cliImages.test.ts src/main/backends/cli/authStatus.test.ts src/main/backends/cli/kimiEvents.test.ts src/main/gateway/tokens.test.ts src/renderer/src/components/imageAttachments.test.ts src/main/store/starterBots.test.ts src/renderer/src/lib/backendDetail.test.ts src/shared/botBinding.test.ts src/shared/thinking.test.ts
+      - name: Publisher OAuth packaging gate
+        run: node --test Scripts/require-publisher-oauth.test.mjs
       - name: Release notes and Sparkle feed
         run: |
           python3 Scripts/release_test.py
@@ -44,22 +46,3 @@ jobs:
           bash -n Scripts/open-smoke.sh
           bash -n Scripts/mac-app.sh
           bash -n Scripts/capture-shots.sh
-
-  screenshots:
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npm ci
-      - name: Build
-        run: npm run build
-      - name: Capture settings and chat
-        run: bash Scripts/capture-shots.sh
-      # Keep generated captures/logs out of public artifacts until reviewed.

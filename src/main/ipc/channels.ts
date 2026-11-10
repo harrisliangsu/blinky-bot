@@ -117,6 +117,7 @@ export const CHANNELS = {
 
   appsStatus: 'openbot:apps:status',
   appsConnectGitHub: 'openbot:apps:connectGitHub',
+  appsCancelGitHub: 'openbot:apps:cancelGitHub',
   appsDisconnectGitHub: 'openbot:apps:disconnectGitHub',
   appsConnectGit: 'openbot:apps:connectGit',
   appsRequestGmail: 'openbot:apps:requestGmail',

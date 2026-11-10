@@ -12,6 +12,7 @@ try {
   const env = await connectionTestEnvironment(root)
   const files = [
     'src/main/connectors/connectionLifecycle.test.ts', 'src/main/connectors/githubConnection.test.ts',
+    'src/main/connectors/githubOAuth.test.ts',
     'src/main/connectors/oauthClientBuild.test.mjs',
     'src/main/connectors/slackOAuth.test.ts',
     'src/main/connectors/oauthRefresh.test.ts',

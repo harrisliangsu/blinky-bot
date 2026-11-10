@@ -10,9 +10,10 @@ coverage/
 *.log
 
 # Local overrides and toolchain scratch. `build/` is NOT ignored: it holds the
-# macOS entitlements the signed build needs.
+# macOS entitlements the signed build needs. .env.example lists names only.
 .env
 .env.*
+!.env.example
 *.tsbuildinfo
 .vite/
 .eslintcache

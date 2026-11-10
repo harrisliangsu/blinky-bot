@@ -236,7 +236,8 @@ export interface OpenBotApi {
   /** Installed Apps are GitHub, Gmail, and X. One connection, shared by every Bot. */
   apps: {
     status(): Promise<AppStatus[]>
-    connectGitHub(botId?: string): Promise<{ started: boolean; error?: string }>
+    connectGitHub(clientId: string, clientSecret: string, botId?: string): Promise<{ ok: boolean; error?: string }>
+    cancelGitHub(): Promise<void>
     setBotAccess(service: import('./connectedAppTools').ConnectedApp, botId: string, enabled: boolean): Promise<{ ok: boolean; error?: string; bot?: Bot }>
     disconnectGitHub(): Promise<{ ok: boolean }>
     connectGit(name: string, email: string): Promise<AppStatus>

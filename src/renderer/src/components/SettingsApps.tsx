@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { INSTALLED_APP_IDS, type AppStatus, type InstalledAppId } from '../../../shared/apps'
 import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { loadBots, store, useAppState } from '../state'
-import { BotAppAccess } from './BotAppAccess'
+import { loadBots, useAppState } from '../state'
 import './SettingsApps.css'
 import { XConnectCard } from './XConnectCard'
 import { GoogleConnectCard } from './GoogleConnectCard'
+import { GitHubConnectCard } from './GitHubConnectCard'
 import { readLastAppStatuses, saveLastAppStatuses } from './SettingsAppsStatusCache'
 
 // Reopening the panel shortly after a successful check does not need another
@@ -28,8 +28,6 @@ export function SettingsApps(): ReactNode {
   const [rows, setRows] = useState<AppStatus[]>(() => recent() ? recentStatuses!.rows : readLastAppStatuses(window.localStorage))
   const [fresh, setFresh] = useState<Set<AppStatus['id']>>(() => new Set(recent() ? recentStatuses!.rows.map((item) => item.id) : []))
   const requestVersion = useRef(0)
-  const githubLoginPending = useRef(false)
-  const [busy, setBusy] = useState(false)
   const [statusError, setStatusError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -45,9 +43,6 @@ export function SettingsApps(): ReactNode {
       if (!next.length) throw new Error('No app statuses returned')
       recentStatuses = { rows: next, at: Date.now() }
       setRows(next); setFresh(new Set(next.map((item) => item.id))); setStatusError(false)
-      // GitHub may complete its durable selected-Bot grant during this status
-      // request. Reload only after that acknowledgement, not in parallel.
-      void loadBots()
       saveLastAppStatuses(window.localStorage, next)
     }).catch(() => { if (version === requestVersion.current) { recentStatuses = undefined; setFresh(new Set()); setStatusError(true) } })
       .finally(() => { if (version === requestVersion.current) setLoading(false) })
@@ -55,9 +50,7 @@ export function SettingsApps(): ReactNode {
 
   useEffect(() => {
     load()
-    const onFocus = (): void => { const force = githubLoginPending.current; githubLoginPending.current = false; load(force) }
-    window.addEventListener('focus', onFocus)
-    return () => { requestVersion.current++; window.removeEventListener('focus', onFocus); void window.openbot.apps.cancelGoogle(); void window.openbot.apps.cancelX() }
+    return () => { requestVersion.current++; void window.openbot.apps.cancelGoogle(); void window.openbot.apps.cancelX(); void window.openbot.apps.cancelGitHub() }
   }, [])
 
   const row = (id: AppStatus['id']): AppStatus | undefined => rows.find((item) => item.id === id)
@@ -83,42 +76,7 @@ export function SettingsApps(): ReactNode {
       <h3 className="ob-apps-heading">{connectedOnly ? (zh ? '已连接' : 'Connected') : (zh ? '应用' : 'Apps')}</h3>
       {!anyVisible ? <p className="ob-hint">{zh ? '没有匹配的应用。' : 'No matching apps.'}</p> : null}
       <div className="ob-apps-grid">
-      {visible('github') ? <section className="ob-app-card" data-app="github">
-        <div className="ob-app-icon" aria-hidden="true">GH</div>
-        <div className="ob-app-summary"><h3>{copy.githubTitle}</h3>
-        <p className="ob-hint">{zh ? '复用本机 GitHub CLI 登录；需要登录时打开官方浏览器授权。' : 'Uses your GitHub CLI login; opens official browser authorization when needed.'}</p>
-        <p className="ob-set-value">
-          {label(github)}
-          {github?.account ? ` · ${github.account}` : ''}
-        </p>
-        {github?.detail === 'gh' ? <p className="ob-hint">{copy.githubMissing}</p> : null}
-        {github?.detail === 'verification-failed' ? <p className="ob-hint">{zh ? '无法验证连接，请检查 GitHub 登录和网络。' : 'Could not verify the connection. Check GitHub sign-in and the network.'}</p> : null}
-        </div>
-        {github?.status !== 'connected' ? <button
-          type="button"
-          className="ob-btn ob-btn-sm"
-          data-connect="github"
-          disabled={busy || !github || github.detail === 'gh'}
-          onClick={() => {
-            setBusy(true)
-            void window.openbot.apps
-              .connectGitHub(accessBot?.id)
-              .then((result) => {
-                if (!result.started) store.toast(copy.githubLoginFailed, 'error')
-                else githubLoginPending.current = true
-              })
-              .catch(() => store.toast(copy.githubLoginFailed, 'error'))
-              .finally(() => {
-                setBusy(false)
-                load(true); void loadBots()
-              })
-          }}
-        >
-          {zh ? '浏览器登录' : 'Sign in with browser'}
-        </button> : <button type="button" className="ob-btn ob-btn-sm" disabled={busy} onClick={() => { setBusy(true); void window.openbot.apps.disconnectGitHub().then((result) => { if (!result.ok) store.toast(zh ? '无法断开 GitHub。' : 'Could not disconnect GitHub.', 'error') }).catch(() => store.toast(zh ? '无法断开 GitHub。' : 'Could not disconnect GitHub.', 'error')).finally(() => { setBusy(false); load(true) }) }}>{zh ? '断开' : 'Disconnect'}</button>}
-        <p className="ob-hint ob-apps-connection-note">{zh ? '断开仅停用 BlinkyBot 的 GitHub 连接，保留本机 gh 登录。' : 'Disconnect disables GitHub in BlinkyBot and keeps your local gh login.'}</p>
-        {accessBot ? <BotAppAccess service="github" bot={accessBot} connected={github?.status === 'connected'} zh={zh} /> : null}
-      </section> : null}
+      {visible('github') ? <GitHubConnectCard zh={zh} status={github} statusLabel={label(github)} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
 
       {visible('gmail') ? <GoogleConnectCard zh={zh} service="gmail" status={row('gmail')} statusLabel={label(row('gmail'))} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
       {visible('x') ? <XConnectCard zh={zh} status={row('x')} statusLabel={label(row('x'))} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}

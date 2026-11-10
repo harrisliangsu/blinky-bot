@@ -21,7 +21,8 @@ test('electron-vite embeds only distributor fixture clients into a temporary mai
   const root = await mkdtemp(join(tmpdir(), 'blinky-client-build-'))
   const fixture = {
     MAIN_VITE_GOOGLE_CLIENT_ID: '123456789-fixture.apps.googleusercontent.com',
-    MAIN_VITE_GOOGLE_CLIENT_SECRET: 'fixture-native-secret', MAIN_VITE_X_CLIENT_ID: 'fixture-native-x-client', MAIN_VITE_SLACK_CLIENT_ID: '123456.789012'
+    MAIN_VITE_GOOGLE_CLIENT_SECRET: 'fixture-native-secret', MAIN_VITE_X_CLIENT_ID: 'fixture-native-x-client', MAIN_VITE_SLACK_CLIENT_ID: '123456.789012',
+    MAIN_VITE_GITHUB_CLIENT_ID: 'Iv1.fixtureClient123', MAIN_VITE_GITHUB_CLIENT_SECRET: 'fixture-github-secret'
   }
   for (const [key, value] of Object.entries(fixture)) process.env[key] = value
   try {
@@ -37,8 +38,31 @@ test('electron-vite embeds only distributor fixture clients into a temporary mai
     assert.deepEqual(clients.googleClient(), { clientId: fixture.MAIN_VITE_GOOGLE_CLIENT_ID, clientSecret: fixture.MAIN_VITE_GOOGLE_CLIENT_SECRET })
     assert.equal(clients.xClientId(), fixture.MAIN_VITE_X_CLIENT_ID)
     assert.equal(clients.slackClientId(), fixture.MAIN_VITE_SLACK_CLIENT_ID)
+    assert.deepEqual(clients.githubClient(), { clientId: fixture.MAIN_VITE_GITHUB_CLIENT_ID, clientSecret: fixture.MAIN_VITE_GITHUB_CLIENT_SECRET })
   } finally {
     for (const key of Object.keys(fixture)) delete process.env[key]
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('a main bundle built without publisher env does not invent clients', async () => {
+  const keys = ['MAIN_VITE_GOOGLE_CLIENT_ID', 'MAIN_VITE_GOOGLE_CLIENT_SECRET', 'MAIN_VITE_X_CLIENT_ID', 'MAIN_VITE_GITHUB_CLIENT_ID', 'MAIN_VITE_GITHUB_CLIENT_SECRET']
+  const previous = new Map(keys.map((key) => [key, process.env[key]]))
+  for (const key of keys) delete process.env[key]
+  const root = await mkdtemp(join(tmpdir(), 'blinky-client-missing-'))
+  try {
+    const configFile = join(root, 'electron.config.mjs'), outDir = join(root, 'out')
+    await writeFile(configFile, `export default {main:{envDir:${JSON.stringify(root)},build:{outDir:${JSON.stringify(outDir)},lib:{entry:${JSON.stringify(resolve('src/main/connectors/oauthClients.ts'))},formats:['es']},rollupOptions:{output:{entryFileNames:'oauthClients.mjs'}}}}}`)
+    await build({ configFile, envFile: false, logLevel: 'error' })
+    const clients = await import(pathToFileURL(join(outDir, 'oauthClients.mjs')))
+    assert.equal(clients.googleClient(), undefined)
+    assert.equal(clients.xClientId(), undefined)
+    assert.equal(clients.githubClient(), undefined)
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
     await rm(root, { recursive: true, force: true })
   }
 })

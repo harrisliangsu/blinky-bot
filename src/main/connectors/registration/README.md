@@ -6,9 +6,9 @@
 
 ## 从发行到 Bot / Agent 工具可用
 
-1. **发行方准备**：按下文分别登记自有客户端、精确回调和权限，完成适用审核/分发。随主进程构建注入公开的 `MAIN_VITE_GOOGLE_CLIENT_ID`、`MAIN_VITE_X_CLIENT_ID`、`MAIN_VITE_SLACK_CLIENT_ID`；仅 Google Desktop 注册确实要求时携带其可公开提取的 Desktop secret。不要把 Web/Slack confidential-client secret、账号 token 或刷新令牌放进桌面包、renderer、版本库或日志。`BLINKY_*` 运行时覆盖仅供本地发行调试，不能代替普通安装用户的发行配置。
-2. **构建回读**：使用独立源码和输出目录，核对最终 ASAR 中实际 `googleClient/xClientId/slackClientId` 所引用的构建对象是否含有效公开客户端，并记录包哈希。只做源码环境变量检查不证明发布包已预置。无配置的构建必须显示发行方尚未启用，不能把普通登录按钮变成申请开发者应用的表单；自带客户端保留为明确的高级选项。
-3. **用户连接**：当前应用页只提供 GitHub、Gmail 和 X。GitHub 由官方 `gh auth login --web --hostname github.com` 管理其登录，本应用不复制 token。Gmail 和 X 在浏览器中授权。Git 姓名/邮箱不是应用。Calendar 与 Slack 连接器仍在进程内，但不出现在应用页，普通用户不能从应用或设置里连接或授权它们。拒绝、错误回调和取消不得覆盖已有有效连接。
+1. **发行方准备**：按下文分别登记自有客户端、精确回调和权限，完成适用审核/分发。随主进程构建注入公开的 `MAIN_VITE_GOOGLE_CLIENT_ID`、`MAIN_VITE_X_CLIENT_ID`、`MAIN_VITE_SLACK_CLIENT_ID`、`MAIN_VITE_GITHUB_CLIENT_ID`；仅 Google Desktop 注册确实要求时携带 `MAIN_VITE_GOOGLE_CLIENT_SECRET`。GitHub 的令牌端点同样要求 client secret，因此另注入 `MAIN_VITE_GITHUB_CLIENT_SECRET`：它和 Google Desktop secret 一样可被桌面提取，不是可保密的服务端 secret，并用 PKCE 绑定授权码。不要把 Web/Slack confidential-client secret、账号 token 或刷新令牌放进桌面包、renderer、版本库或日志。`BLINKY_*` 运行时覆盖仅供本地发行调试，不能代替普通安装用户的发行配置。
+2. **构建回读**：使用独立源码和输出目录，核对最终 ASAR 中实际 `googleClient/xClientId/slackClientId/githubClient` 所引用的构建对象是否含有效公开客户端，并记录包哈希。只做源码环境变量检查不证明发布包已预置。无配置的构建必须显示发行方尚未启用，不能把普通登录按钮变成申请开发者应用的表单；自带客户端保留为明确的高级选项。
+3. **用户连接**：当前应用页只提供 GitHub、Gmail 和 X。GitHub 使用 BlinkyBot 自己的 GitHub App 用户授权，在浏览器中同意，不再调用 `gh auth login`，也不把本机 `gh` 登录当作已连接。Gmail 和 X 同样在浏览器中授权。Git 姓名/邮箱不是应用。Calendar 与 Slack 连接器仍在进程内，但不出现在应用页，普通用户不能从应用或设置里连接或授权它们。拒绝、错误回调和取消不得覆盖已有有效连接。缺少发行方客户端时显示尚未启用，不能把普通登录按钮变成申请开发者应用的表单。
 4. **工具授权接点**：连接身份与 Bot 的 `tools` 授权是两条现有合同。连接界面选择适用 Bot，默认当前 Bot；验证连接成功后，通过宿主持久保存合同合并该服务的读取/本地草稿工具。新授权落盘前不生效，保留显式拒绝、撤销、其他工具与并发编辑。不能在连接器中跳过 `schemasFor/exposedSchema` 或偷偷给所有 Bot 扩权。专属执行 Agent 由 `bindExecutionAgent` 继承同一 Bot 已授予的工具，不应再次索要 provider 凭据。
 5. **实际调用**：Gmail 为 `list_google_accounts/search_gmail/read_gmail/gmail_draft`；Calendar 为账户发现、`list_calendar_events/calendar_event_draft`；X 为 `read_x_post/x_post_draft`；Slack 为 `slack_message_draft`；GitHub 为 `github_comment_draft` 与另行授予的例程工具。应用页的 Gmail 授权不包含 `watch_gmail_query`。没有实现的邮箱附件、Slack 历史搜索、任意 GitHub API 等不能由“已连接”推导为已有能力。写入走本地草稿及逐次确认。自动发送规则已停用，保存的规则不会发信，模型无直接发送出口。
 6. **宿主范围**：API/应用内模型通过应用工具循环；Codex、Claude、OpenCode、Kimi、Grok 的已支持适配器通过本机、会话限权 MCP 网关。未列入运行时 MCP 支持的 CLI 不等于已经具备同样工具；VM 目标当前拒绝访问宿主账号，不能暗中退回本机。网关启动失败须报告失败。连接器假服务验证不替代各真实 CLI/模型和发布包验收。
@@ -20,11 +20,24 @@
 
 | 服务/能力 | 本地可继续且已实现 | 真正外部阻挡 | 所需账号权限/外部动作 |
 |---|---|---|---|
-| GitHub | 官方 `gh --web` 与既有登录复用；本应用停用；假 CLI 验证 | 用户自己的首次 CLI 授权、组织 SSO/仓库授权尚未人工验收 | 用户拥有 GitHub 账号；组织资源另需组织允许。此路径不需要 BlinkyBot 注册客户端 |
+| GitHub | BlinkyBot GitHub App 用户授权（PKCE、固定 loopback）、所选 Bot 的 `github_comment_draft`、刷新/断连；确认草稿后才调用 Issues 评论接口 | 缺少 BlinkyBot 的 GitHub App、Issues 读写权限和精确回调。旧的 `gh auth login` 不再算作已连接 | 能创建 GitHub App 的发行方。用户自行浏览器安装/同意。组织资源另需组织允许。不使用经典 OAuth App 的 `repo` scope |
 | Gmail/Calendar | Desktop PKCE、发行方预置、相应 Bot 读取/草稿、刷新/断连、跨进程恢复测试 | 缺少 BlinkyBot 的 Google Desktop client、API 启用、同意屏幕及适用审核 | 能管理 Google Cloud 项目/API 和 Google Auth Platform 的发行方；域名/隐私政策所有者；组织内部接入时可能需要 Workspace 管理员 |
 | X | Native public client PKCE、刷新/断连、既有帖子工具与草稿、跨进程恢复 | 缺少 BlinkyBot 的 Native client 和 API 产品访问权 | X 开发者应用所有者/编辑者；按服务商当前要求开通 API/计费；注册精确回调 |
 | Slack 用户授权 | 新增 Desktop PKCE，仅 user scopes；现有 Bot 草稿工具复用、确认后发送；刷新/断连/恢复 | 缺少 Slack 公共客户端和分发配置，可能需工作区管理员批准 | 可创建/管理 Slack App 的发行方；在受管工作区安装需对应管理员同意；用户自行浏览器授权 |
 | Slack 自动接收/Bot 身份 | 保留原 Socket Mode，旧连接兼容，用户授权不会启动接收器 | 桌面用户 PKCE不能授予 bot scopes 或生成 app-level token；仍需管理员设置，或独立托管安装服务 | Slack App 所有者配置 Socket Mode、事件和 xapp/xoxb；如要 Add to Slack Bot 体验，另需 HTTPS 服务和服务端凭据存储 |
+
+## GitHub：GitHub App 用户授权，不用 `gh auth login`
+
+1. 发行方在自己的 GitHub 账号创建 **GitHub App**（不要创建经典 OAuth App，也不要复用 `gh` 的应用身份）。经典 OAuth App 没有“仅 Issues”的 scope，`repo` 会授予仓库内容权限；本应用不使用该权限。
+2. 精确登记回调 `http://127.0.0.1:47841/oauth/github/callback`。应用只监听这个地址，端口被占用时授权失败，不改用未登记端口。GitHub 对 loopback 还允许登记 `http://127.0.0.1/oauth/github/callback`（端口不必一致）；仍应登记上面的精确 URL，避免关闭通配后回调不匹配。
+3. 仓库权限只开 **Issues: Read and write**。GitHub 会自动加上 Metadata: Read。不要开 Contents、Pull requests、Administration，不要启用 device flow。授权请求的 scope 只有 `offline_access`（GitHub App 唯一接受的 scope，用于刷新令牌）。不要请求 `repo`、`read:org` 或 `gist`。
+4. 构建注入 GitHub App 的 **Client ID**（不是数字 App ID）到 `MAIN_VITE_GITHUB_CLIENT_ID`。令牌端点要求 client secret，注入 `MAIN_VITE_GITHUB_CLIENT_SECRET`。该 secret 可从桌面包提取，必须配合 PKCE，不得提交到仓库。变量名和空值见仓库根目录 `.env.example`；真实值放在环境变量或未跟踪的 `.env.local`。打包脚本在 `MAIN_VITE_GOOGLE_CLIENT_ID`、`MAIN_VITE_X_CLIENT_ID`、`MAIN_VITE_GITHUB_CLIENT_ID`、`MAIN_VITE_GITHUB_CLIENT_SECRET` 任一为空时停止，且不打印值。`MAIN_VITE_GOOGLE_CLIENT_SECRET` 仅在 Google Desktop 注册要求时填写。X 不使用 secret。此打包门不包含 Slack。测试覆盖只用 `BLINKY_GITHUB_CLIENT_ID` / `BLINKY_GITHUB_CLIENT_SECRET`（Google/X 对应 `BLINKY_GOOGLE_CLIENT_ID`、`BLINKY_GOOGLE_CLIENT_SECRET`、`BLINKY_X_CLIENT_ID`）。
+5. 任一值缺失时，应用页显示发行方尚未启用，浏览器登录按钮不可用。高级选项才允许用户填写自己的客户端。旧的 `gh auth login` 以及 `github-connection.json` 版本 1 的启用标记都不再视为已连接；断开只删除本应用加密保存的刷新令牌，不执行 `gh auth logout`，也不撤销 github.com 上的浏览器会话。
+6. 连接成功只为所选 Bot 授予已有的 `github_comment_draft`。模型仍只能创建本地草稿；发送继续走受信任的草稿卡片，调用 `POST /repos/{owner}/{repo}/issues/{issue_number}/comments`（Issue 评论和 PR 对话评论）。不授予 `watch_github_issue`；已经单独授予的监视仍用同一令牌读取 Issue。不新增可被模型调用的发送工具。
+
+人工验收（未执行）：专用账号点击 GitHub“浏览器登录”→确认同意屏幕属于 BlinkyBot 且只有 Issues 读写→只创建本地评论草稿并取消→退出重启后仍能刷新→断开后读/发失败且 `gh` 登录仍在。真实发送必须另行明确授权。
+
+来源：[GitHub App 用户访问令牌](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)、[授权 OAuth 应用中的 loopback 与 PKCE](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)。
 
 ## Google：同一发行方 Desktop client，分别授权服务
 

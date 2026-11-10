@@ -277,6 +277,7 @@ export interface SettingsCopy {
     githubHint: string
     githubMissing: string
     githubLoginFailed: string
+    githubLegacy: string
     gmailTitle: string
     gmailHint: string
   }
@@ -619,9 +620,10 @@ const en: SettingsCopy = {
     pending: 'Waiting for sign-in',
     comingSoon: 'Coming soon',
     githubTitle: 'GitHub',
-    githubHint: 'Signs in with the GitHub CLI. BlinkyBot does not keep the token.',
-    githubMissing: 'Install GitHub CLI (gh), then connect.',
-    githubLoginFailed: 'Could not open Terminal for GitHub sign-in.',
+    githubHint: 'Authorize in the browser with BlinkyBot’s GitHub app. Issue and pull request comments still need a confirmed draft.',
+    githubMissing: 'GitHub browser sign-in has not been enabled by this distributor. Once enabled, sign in and consent; GitHub CLI is not required.',
+    githubLoginFailed: 'GitHub authorization did not complete.',
+    githubLegacy: 'A previous gh auth login no longer counts as connected. Use BlinkyBot browser authorization. Disconnect removes only this app’s saved token and does not sign you out of gh or github.com.',
     gmailTitle: 'Gmail',
     gmailHint: 'Authorize Gmail in the browser; sending mail still requires draft review.'
   },
@@ -965,9 +967,10 @@ const zh: SettingsCopy = {
     pending: '等待登录',
     comingSoon: '即将推出',
     githubTitle: 'GitHub',
-    githubHint: '用 GitHub CLI 登录。BlinkyBot 不保存令牌。',
-    githubMissing: '请先安装 GitHub CLI（gh），再连接。',
-    githubLoginFailed: '无法打开终端来登录 GitHub。',
+    githubHint: '使用 BlinkyBot 的 GitHub 应用在浏览器中授权。Issue 和 Pull Request 评论仍须确认草稿后才会发送。',
+    githubMissing: '此版本的 GitHub 浏览器登录尚未由发行方启用。启用后只需登录并同意，不需要 GitHub CLI。',
+    githubLoginFailed: 'GitHub 授权未完成。',
+    githubLegacy: '以前的 gh auth 登录不再算作已连接。请使用 BlinkyBot 的浏览器授权。断开只会删除本应用保存的令牌，不会退出 gh 或 github.com。',
     gmailTitle: 'Gmail',
     gmailHint: '在浏览器中授权 Gmail；发送邮件仍先审核草稿。'
   },
