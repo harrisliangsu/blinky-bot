@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { SearchResult, SessionSummary } from '../../../shared/types'
+import type { Bot, SearchResult } from '../../../shared/types'
 import { useFocusTrap } from '../lib/focusTrap'
-import { newSession, selectProject, selectSession, store, useAppState } from '../state'
-import { relativeTime } from '../lib/format'
-import { IconBot, IconPlus, IconRoutine, IconSearch, IconSettings } from './Icons'
+import { openBotChat, store, useAppState } from '../state'
+import { useBotChinese } from './BotUiLanguage'
+import { IconBot, IconClose, IconRoutine, IconSearch, IconSettings } from './Icons'
 import './CommandPalette.css'
 
 interface PaletteItem {
@@ -23,12 +23,13 @@ interface PaletteItem {
  * hold Tab inside — every other dialog would stop trapping.
  */
 export function CommandPalette(): ReactNode {
-  const { sessions, modal } = useAppState()
+  const { bots, currentSessionId, modal } = useAppState()
   if (modal !== 'palette') return null
-  return <PaletteDialog sessions={sessions} />
+  return <PaletteDialog bots={bots} currentSessionId={currentSessionId} />
 }
 
-function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode {
+function PaletteDialog({ bots, currentSessionId }: { bots: Bot[]; currentSessionId: string | null }): ReactNode {
+  const zh = useBotChinese()
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [cursor, setCursor] = useState(0)
@@ -73,40 +74,33 @@ function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode 
   const items = useMemo<PaletteItem[]>(() => {
     const needle = query.trim().toLowerCase()
     const actions: PaletteItem[] = [
-      { id: 'act-new', label: 'New chat', icon: <IconPlus size={12} />, run: () => void newSession() },
-      { id: 'act-bots', label: 'Bots', icon: <IconBot size={12} />, run: () => store.setModal('bots') },
-      { id: 'act-routines', label: 'Routines', icon: <IconRoutine size={12} />, run: () => store.setModal('routines') },
-      { id: 'act-settings', label: 'Settings', icon: <IconSettings size={12} />, run: () => store.setModal('settings') }
+      { id: 'act-bots', label: zh ? 'Bot 管理' : 'Bots', icon: <IconBot size={12} />, run: () => store.setModal('bots') },
+      { id: 'act-routines', label: zh ? '例程' : 'Routines', icon: <IconRoutine size={12} />, run: () => store.setModal('routines') },
+      { id: 'act-settings', label: zh ? '设置' : 'Settings', icon: <IconSettings size={12} />, run: () => store.setModal('settings') }
     ]
-    const conversations: PaletteItem[] = sessions
-      .filter((s) => !s.archived)
-      .slice(0, 50)
-      .map((s) => ({
-        id: s.id,
-        label: s.title || 'Untitled',
-        hint: relativeTime(s.updatedAt),
-        run: () => void selectSession(s.id)
+    const botItems: PaletteItem[] = bots
+      .filter((bot) => !bot.archived)
+      .map((bot) => ({
+        id: `bot-${bot.id}`,
+        label: bot.name,
+        hint: bot.description,
+        icon: <IconBot size={12} />,
+        run: () => void openBotChat(bot.id)
       }))
-    const local = needle ? [...actions, ...conversations].filter((i) => i.label.toLowerCase().includes(needle)) : [...actions, ...conversations]
-    const global: PaletteItem[] = searchResults.map((result) => ({
+    const local = needle ? [...actions, ...botItems].filter((i) => i.label.toLowerCase().includes(needle)) : [...actions, ...botItems]
+    const global: PaletteItem[] = searchResults.filter((result) => !result.projectId && (!result.sessionId || result.sessionId === currentSessionId)).map((result) => ({
       id: `search-${result.id}`,
       label: result.title,
       hint: `${result.kind} · ${result.snippet}`,
       run: () => {
-        if (result.sessionId) void selectSession(result.sessionId)
-        else if (result.projectId) selectProject(result.projectId)
+        if (result.sessionId) store.setModal(null)
         else if (result.botId) store.setModal('bots', result.botId)
         else if (result.routineId) store.setModal('routines')
       }
     }))
     const seen = new Set(local.map((item) => item.id))
-    const visibleSessions = new Set(conversations.map((item) => item.id))
-    return [...local, ...global.filter((item, index) => {
-      if (seen.has(item.id)) return false
-      const result = searchResults[index]
-      return !(result?.kind === 'conversation' && result.sessionId && visibleSessions.has(result.sessionId))
-    })]
-  }, [sessions, query, searchResults])
+    return [...local, ...global.filter((item) => !seen.has(item.id))]
+  }, [bots, currentSessionId, query, searchResults])
 
   const clamped = Math.min(cursor, Math.max(0, items.length - 1))
 
@@ -121,8 +115,8 @@ function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode 
       e.preventDefault()
       const item = items[clamped]
       if (item) {
-        item.run()
         store.setModal(null)
+        item.run()
       }
     }
   }
@@ -137,14 +131,15 @@ function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode 
             ref={inputRef}
             className="ob-palette-input"
             value={query}
-            placeholder="Search messages, files, links, agents and actions…"
-            aria-label="Search all BlinkyBot content"
+            placeholder={zh ? '搜索消息、文件、链接、Agent 和操作…' : 'Search messages, files, links, agents and actions…'}
+            aria-label={zh ? '搜索全部 BlinkyBot 内容' : 'Search all BlinkyBot content'}
             aria-controls="ob-palette-list"
             onChange={(e) => {
               setQuery(e.target.value)
               setCursor(0)
             }}
           />
+          <button type="button" className="ob-icon-btn" aria-label={zh ? '关闭搜索' : 'Close search'} title="Close search (Esc)" onClick={() => store.setModal(null)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }}><IconClose size={14} /></button>
         </div>
 
         <ul className="ob-palette-list" id="ob-palette-list" role="listbox" aria-label="Results">
@@ -158,8 +153,8 @@ function PaletteDialog({ sessions }: { sessions: SessionSummary[] }): ReactNode 
                 className={`ob-palette-item${i === clamped ? ' is-active' : ''}`}
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => {
-                  item.run()
                   store.setModal(null)
+                  item.run()
                 }}
               >
                 <span className="ob-palette-icon">{item.icon}</span>

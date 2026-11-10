@@ -20,9 +20,16 @@ export async function navigate(cdp: CdpClient, url: string): Promise<void> {
     )
   }
   // Subscribe before navigating, or a fast load fires before we are listening.
-  const loaded = cdp.waitFor('Page.loadEventFired', NAVIGATE_TIMEOUT_MS)
-  await cdp.send('Page.navigate', { url }, { timeoutMs: NAVIGATE_TIMEOUT_MS })
-  await loaded
+  const stopWaiting = new AbortController()
+  const loaded = cdp.waitFor('Page.loadEventFired', NAVIGATE_TIMEOUT_MS, stopWaiting.signal)
+  try {
+    const result = await cdp.send<{ errorText?: string; isDownload?: boolean }>('Page.navigate', { url }, { timeoutMs: NAVIGATE_TIMEOUT_MS })
+    if (result.errorText) throw new ToolError(`The browser could not navigate: ${result.errorText}`)
+    if (result.isDownload) throw new ToolError('The browser started a download instead of opening a page.')
+    await loaded
+  } finally {
+    stopWaiting.abort()
+  }
 }
 
 export async function openApp(cdp: CdpClient, dock: AppDock, name: string): Promise<void> {

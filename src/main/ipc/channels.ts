@@ -13,7 +13,7 @@ export const EVENT_CHANNEL = 'openbot:event'
 /** main -> renderer: native menu commands. */
 export const MENU_CHANNEL = 'openbot:menu'
 
-export type MenuCommand = 'new-chat' | 'settings'
+export type MenuCommand = 'new-chat' | 'archive-clear' | 'settings' | 'focus-composer' | 'find-bot' | 'toggle-sidebar'
 
 export const CHANNELS = {
   searchQuery: 'openbot:search:query',
@@ -21,6 +21,11 @@ export const CHANNELS = {
   activityMarkRead: 'openbot:activity:markRead',
   activityClear: 'openbot:activity:clear',
   tasksList: 'openbot:tasks:list',
+  tasksClarifications: 'openbot:tasks:clarifications',
+  tasksAnswerClarification: 'openbot:tasks:answerClarification',
+  tasksCancelClarification: 'openbot:tasks:cancelClarification',
+  tasksSummaries: 'openbot:tasks:summaries',
+  tasksGet: 'openbot:tasks:get',
   tasksCreate: 'openbot:tasks:create',
   tasksCancel: 'openbot:tasks:cancel',
   groupsList: 'openbot:groups:list',
@@ -31,8 +36,12 @@ export const CHANNELS = {
   roomsCreate: 'openbot:rooms:create',
   roomsRemove: 'openbot:rooms:remove',
   sessionsList: 'openbot:sessions:list',
+  sessionsWatch: 'openbot:sessions:watch',
   sessionsGet: 'openbot:sessions:get',
+  sessionsAttachment: 'openbot:sessions:attachment',
   sessionsCreate: 'openbot:sessions:create',
+  sessionsClear: 'openbot:sessions:clear',
+  sessionsArchiveAndClear: 'openbot:sessions:archiveAndClear',
   sessionsRename: 'openbot:sessions:rename',
   sessionsArchive: 'openbot:sessions:archive',
   sessionsUnarchive: 'openbot:sessions:unarchive',
@@ -65,6 +74,7 @@ export const CHANNELS = {
   skillsFor: 'openbot:skills:for',
   skillsInstall: 'openbot:skills:install',
   skillsUninstall: 'openbot:skills:uninstall',
+  skillsSyncExisting: 'openbot:skills:syncExisting',
 
   botsList: 'openbot:bots:list',
   botsGet: 'openbot:bots:get',
@@ -72,6 +82,7 @@ export const CHANNELS = {
   botsUpdate: 'openbot:bots:update',
   botsDuplicate: 'openbot:bots:duplicate',
   botsProbeTarget: 'openbot:bots:probeTarget',
+  botsBrowserScope: 'openbot:bots:browserScope',
   botsProvisionTarget: 'openbot:bots:provisionTarget',
   botsProvisionStatus: 'openbot:bots:provisionStatus',
   botsCancelProvision: 'openbot:bots:cancelProvision',
@@ -96,6 +107,7 @@ export const CHANNELS = {
   agentSend: 'openbot:agent:send',
   agentStop: 'openbot:agent:stop',
   agentRespondToApproval: 'openbot:agent:respondToApproval',
+  agentLiveMessages: 'openbot:agent:liveMessages',
   agentReturnControl: 'openbot:agent:returnControl',
 
   backendsList: 'openbot:backends:list',
@@ -105,11 +117,26 @@ export const CHANNELS = {
 
   appsStatus: 'openbot:apps:status',
   appsConnectGitHub: 'openbot:apps:connectGitHub',
+  appsCancelGitHub: 'openbot:apps:cancelGitHub',
+  appsDisconnectGitHub: 'openbot:apps:disconnectGitHub',
   appsConnectGit: 'openbot:apps:connectGit',
   appsRequestGmail: 'openbot:apps:requestGmail',
+  appsConnectGoogle: 'openbot:apps:connectGoogle',
+  appsCancelGoogle: 'openbot:apps:cancelGoogle',
+  appsDisconnectGoogle: 'openbot:apps:disconnectGoogle',
+  appsConnectX: 'openbot:apps:connectX',
+  appsCancelX: 'openbot:apps:cancelX',
+  appsDisconnectX: 'openbot:apps:disconnectX',
+  appsSlackStatus: 'openbot:apps:slackStatus',
+  appsConnectSlack: 'openbot:apps:connectSlack',
+  appsDisconnectSlack: 'openbot:apps:disconnectSlack',
 
+  settingsSaveMcpServer: 'openbot:settings:saveMcpServer',
   settingsGet: 'openbot:settings:get',
+  settingsEditPermission: 'openbot:settings:editPermission',
+  settingsSaveProfile: 'openbot:settings:saveProfile',
   settingsUpdate: 'openbot:settings:update',
+  settingsSaveDecisionReview: 'openbot:settings:decisionReview',
 
   dialogPickDirectory: 'openbot:dialog:pickDirectory',
   dialogPickFiles: 'openbot:dialog:pickFiles',

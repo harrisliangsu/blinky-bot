@@ -7,9 +7,22 @@
  */
 
 import type { ModelInfo } from '../types'
+import { isThinkingDepth, type ThinkingDepth } from '../../../shared/thinking'
 
 /** Ids Settings will actually store. Anything else cannot be selected. */
 const MODEL_ID = /^[A-Za-z0-9._:@/-]{1,120}$/
+
+/** Exact model metadata from the Codex installation's own cache. */
+export function parseCodexContextWindows(input: unknown): Map<string, number> {
+  const result = new Map<string, number>()
+  if (!input || typeof input !== 'object' || !Array.isArray((input as { models?: unknown }).models)) return result
+  for (const entry of (input as { models: unknown[] }).models) {
+    if (!entry || typeof entry !== 'object') continue
+    const row = entry as Record<string, unknown>, id = row.slug, size = row.context_window
+    if (typeof id === 'string' && MODEL_ID.test(id) && typeof size === 'number' && Number.isSafeInteger(size) && size > 1024 && size <= 10_000_000) result.set(id, size)
+  }
+  return result
+}
 
 export interface CodexModelPage {
   models: ModelInfo[]
@@ -34,11 +47,23 @@ function oneModel(entry: unknown): ModelInfo | null {
   const listed = Array.isArray(row['inputModalities'])
     ? row['inputModalities'].filter((item): item is string => typeof item === 'string')
     : null
+  const efforts = Array.isArray(row['supportedReasoningEfforts'])
+    ? [...new Set(row['supportedReasoningEfforts'].flatMap((entry): ThinkingDepth[] => {
+        if (!entry || typeof entry !== 'object') return []
+        const raw = (entry as Record<string, unknown>)['reasoningEffort']
+        const depth = raw === 'none' ? 'off' : raw
+        return isThinkingDepth(depth) ? [depth] : []
+      }))]
+    : undefined
+  const context = row['contextWindow'] ?? row['context_window']
   return {
     id,
     label: label.slice(0, 120),
     supportsTools: true,
-    supportsVision: listed === null ? true : listed.includes('image')
+    supportsVision: listed === null ? true : listed.includes('image'),
+    ...(typeof context === 'number' && Number.isSafeInteger(context) && context > 1024 && context <= 10_000_000 ? { contextWindow: context } : {}),
+    ...(row['isDefault'] === true ? { isDefault: true } : {}),
+    ...(efforts !== undefined ? { supportedThinking: efforts } : {})
   }
 }
 

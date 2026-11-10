@@ -30,6 +30,10 @@ export const IconPlus = (p: IconProps): ReactNode => (
   </Icon>
 )
 
+export const IconReply = (p: IconProps): ReactNode => (
+  <Icon {...p}><path d="M6.5 4 3 7.5 6.5 11M3.5 7.5h5.3c2.6 0 4.2 1.2 4.2 3.5" /></Icon>
+)
+
 export const IconSearch = (p: IconProps): ReactNode => (
   <Icon {...p}>
     <circle cx="7.2" cy="7.2" r="3.8" />
@@ -104,6 +108,13 @@ export const IconCopy = (p: IconProps): ReactNode => (
   <Icon {...p}>
     <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" />
     <path d="M10.5 5.5v-1a1.6 1.6 0 0 0-1.6-1.6H4.1A1.6 1.6 0 0 0 2.5 4.5v4.8a1.6 1.6 0 0 0 1.6 1.6h1" />
+  </Icon>
+)
+
+export const IconSmile = (p: IconProps): ReactNode => (
+  <Icon {...p}>
+    <circle cx="8" cy="8" r="5.5" />
+    <path d="M5.7 6.4h.01M10.3 6.4h.01M5.8 9.3c.5.9 1.2 1.4 2.2 1.4s1.7-.5 2.2-1.4" />
   </Icon>
 )
 

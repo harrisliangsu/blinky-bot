@@ -268,8 +268,7 @@
 }
 
 .ob-cframe-stage-expanded:focus {
-  border-color: var(--ob-accent);
-  box-shadow: 0 0 0 3px var(--ob-accent-tertiary);
+  border-color: var(--ob-border-strong);
 }
 
 .ob-cframe-img-expanded {
@@ -385,3 +384,12 @@
   color: var(--ob-text-tertiary);
   line-height: 1.4;
 }
+.ob-vault-fill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ob-space-2);
+  padding: var(--ob-space-2) 0;
+}
+.ob-vault-fill label { display: flex; flex-direction: column; gap: var(--ob-space-1); font-size: var(--ob-font-size-sm); color: var(--ob-text-secondary); }
+.ob-vault-fill p { flex-basis: 100%; margin: 0; }

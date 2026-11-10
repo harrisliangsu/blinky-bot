@@ -11,6 +11,7 @@ import { createWindow, focusOrCreateWindow } from './window'
 import { stopRoutineScheduler } from '../routines/scheduler'
 import { getSettings, onSettingsChanged } from '../settings'
 import { stopCollaborationServer } from '../collaboration/server'
+import { stopRoutineLauncher, syncRoutineLauncher } from './routineLauncher'
 
 let shutdownRun: Promise<void> | null = null
 let readyToQuit = false
@@ -70,7 +71,8 @@ function warnUnsaved(files: string[]): void {
  */
 async function shutdown(): Promise<void> {
   stopRoutineScheduler()
-  await stopCollaborationServer().catch((error) => console.warn('[openbot] collaboration server did not stop cleanly', error))
+  stopRoutineLauncher()
+  await stopCollaborationServer('host-exit').catch((error) => console.warn('[openbot] collaboration server did not stop cleanly', error))
   try {
     const report = await flushBeforeQuit()
     if (!report) {
@@ -84,13 +86,25 @@ async function shutdown(): Promise<void> {
     warnUnsaved([])
   }
   await stopChildProcesses()
+  // The background registration is secondary to saving the chat. Bound its
+  // shutdown time so an unresponsive launchd cannot prevent the final flush.
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([syncRoutineLauncher(), new Promise<void>((resolve) => { timer = setTimeout(resolve, FLUSH_DEADLINE_MS) })])
+  } finally { if (timer) clearTimeout(timer) }
+  // Child shutdown and launcher diagnostics may themselves write records.
+  const tail = await flushBeforeQuit().catch(() => null)
+  if (!tail || tail.failed.length || tail.stillWriting) warnUnsaved(tail?.failed ?? [])
 }
 
 /** Take the single-instance lock. Returns false if another copy is running. */
 export function claimSingleInstance(): boolean {
   const gotLock = app.requestSingleInstanceLock()
   if (!gotLock) return false
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    // A periodic background wake must never steal focus from an open app.
+    if (argv.includes('--routine-runner')) return
+    if (process.platform === 'darwin') void app.dock?.show()
     focusOrCreateWindow()
   })
   return true

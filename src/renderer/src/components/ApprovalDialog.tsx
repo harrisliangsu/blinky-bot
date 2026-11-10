@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { ApprovalDecision, ApprovalRequest } from '../../../shared/types'
 import { diffFromText } from '../lib/diff'
-import { useFocusTrap } from '../lib/focusTrap'
 import { pngSrc } from '../lib/format'
+import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useAppState } from '../state'
 import { BotAvatar } from './BotAvatar'
 import { DiffView } from './DiffView'
@@ -16,14 +16,25 @@ interface ApprovalDialogProps {
   queued: number
 }
 
-const KIND_LABEL: Record<ApprovalRequest['kind'], string> = {
-  shell: 'Run a command',
-  write: 'Write a file',
-  edit: 'Edit a file',
-  delete: 'Delete',
-  fetch: 'Network request',
-  mcp: 'MCP tool',
-  computer: 'Control the computer'
+const KIND_LABEL: Record<ApprovalRequest['kind'], [string, string]> = {
+  shell: ['执行命令', 'Run a command'],
+  write: ['写入文件', 'Write a file'],
+  edit: ['修改文件', 'Edit a file'],
+  delete: ['删除', 'Delete'],
+  fetch: ['网络请求', 'Network request'],
+  mcp: ['MCP 工具', 'MCP tool'],
+  computer: ['控制电脑', 'Control the computer']
+}
+
+// These operations use the generic mutating-action approval policy, but they
+// do not write a file. Name the requested action rather than its policy bucket.
+const TOOL_LABEL: Record<string, [string, string]> = {
+  delegate_task: ['派发任务', 'Delegate a task'],
+  manage_task: ['恢复任务', 'Resume a task'],
+  handoff: ['交接任务', 'Hand off a task'],
+  todo_write: ['更新待办', 'Update the task list'],
+  remember: ['保存记忆', 'Save a memory'],
+  request_help: ['请求协助', 'Request help']
 }
 
 /**
@@ -37,8 +48,8 @@ const ARM_MS = 400
 
 /** Blocking gate for a mutating action. Esc rejects, handled by the app shell. */
 export function ApprovalDialog({ request, onDecide, queued }: ApprovalDialogProps): ReactNode {
-  const { bots, currentSessionId, session, sessions } = useAppState()
-  const panelRef = useRef<HTMLDivElement>(null)
+  const { bots, currentSessionId, session, sessions, settings } = useAppState()
+  const zh = resolveSettingsLang(settings?.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
   // Stamped at first render, not in the effect, so the window is armed before
   // anything can be clicked rather than one paint later.
   const shownAt = useRef(Date.now())
@@ -65,12 +76,14 @@ export function ApprovalDialog({ request, onDecide, queued }: ApprovalDialogProp
     const botIds = live?.botIds ?? summary?.botIds ?? []
     const botId = live?.activeBotId ?? (botIds.length === 1 ? botIds[0] : undefined)
     return {
-      title: live?.title || summary?.title || 'Untitled chat',
+      title: botIds.length === 1 && request.sessionId === currentSessionId
+        ? ''
+        : live?.title || summary?.title || (zh ? '未命名对话' : 'Untitled chat'),
       bot: botId ? bots.find((b) => b.id === botId) : undefined,
       /* The case the user cannot otherwise see: this is not the chat on screen. */
       elsewhere: request.sessionId !== currentSessionId
     }
-  }, [bots, currentSessionId, request.sessionId, session, sessions])
+  }, [bots, currentSessionId, request.sessionId, session, sessions, zh])
 
   /*
    * A forced request can never be satisfied by a stored rule.
@@ -88,21 +101,8 @@ export function ApprovalDialog({ request, onDecide, queued }: ApprovalDialogProp
   const forced = request.force === true
   const canRemember = !forced && request.kind !== 'computer'
 
-  /*
-   * Without this, Tab walks out of the card and into the app behind the scrim
-   * — the one dialog where that matters most, since the user goes on typing
-   * into a composer they cannot see while a command waits on their answer.
-   *
-   * Before the focus below: the trap notes where focus was so it can give it
-   * back, and taking focus first made the card itself that memory.
-   */
-  useFocusTrap(panelRef, 'blocking')
-
   useEffect(() => {
     shownAt.current = Date.now()
-    // The panel, never a button: a stray Enter or Space must not approve a
-    // shell command just because the control happened to hold focus.
-    panelRef.current?.focus()
   }, [request.id])
 
   const decide = (decision: ApprovalDecision): void => {
@@ -111,26 +111,26 @@ export function ApprovalDialog({ request, onDecide, queued }: ApprovalDialogProp
   }
 
   return (
-    <div className="ob-approval-scrim">
+    <div className="ob-approval-inline">
       <div
         className={`ob-approval${forced ? ' is-forced' : ''}`}
-        role="alertdialog"
-        aria-modal="true"
+        role="group"
+        aria-live="polite"
         aria-labelledby="ob-approval-title"
         aria-describedby="ob-approval-origin"
-        ref={panelRef}
-        tabIndex={-1}
+        onKeyDown={(event) => { if (event.key === 'Escape') event.stopPropagation() }}
       >
         <header className="ob-approval-head">
           <div className="ob-approval-head-row">
             <span className={`ob-pill ${forced ? 'ob-pill-bad' : 'ob-pill-warn'}`}>
               <IconWarning size={11} />
-              {KIND_LABEL[request.kind]}
+              {(TOOL_LABEL[request.toolName] ?? KIND_LABEL[request.kind])[zh ? 0 : 1]}
             </span>
             <span className="ob-approval-tool">{request.toolName}</span>
-            {/* Irreversible, and named as such before the buttons are read. */}
-            {forced ? <span className="ob-pill ob-pill-bad">Irreversible</span> : null}
-            {queued > 0 ? <span className="ob-pill">{queued} more waiting</span> : null}
+            {/* `force` means approval cannot be remembered; it does not by itself
+                establish that the action is irreversible. */}
+            {forced ? <span className="ob-pill ob-pill-bad">{zh ? '每次确认' : 'Confirmation required'}</span> : null}
+            {queued > 0 ? <span className="ob-pill">{zh ? `另有 ${queued} 项等待确认` : `${queued} more waiting`}</span> : null}
           </div>
 
           {/*
@@ -141,10 +141,10 @@ export function ApprovalDialog({ request, onDecide, queued }: ApprovalDialogProp
           <p id="ob-approval-origin" className="ob-approval-origin">
             {origin.bot ? <BotAvatar bot={origin.bot} size="sm" /> : <IconChat size={12} />}
             <span>
-              {origin.bot ? `${origin.bot.name} in ` : 'Asked in '}
-              <span className="ob-approval-origin-title">{origin.title}</span>
+              {origin.bot ? origin.bot.name : (zh ? '来自' : 'Asked')}
+              {origin.title ? <span className="ob-approval-origin-title">{zh ? ' · ' : ' in '}{origin.title}</span> : null}
             </span>
-            {origin.elsewhere ? <span className="ob-pill ob-pill-accent">Another chat</span> : null}
+            {origin.elsewhere ? <span className="ob-pill ob-pill-accent">{zh ? '其他对话' : 'Another chat'}</span> : null}
           </p>
         </header>
 
@@ -166,41 +166,41 @@ export function ApprovalDialog({ request, onDecide, queued }: ApprovalDialogProp
           className="ob-approval-detail"
           tabIndex={0}
           role="group"
-          aria-label={`What ${request.toolName} is asking to do`}
+          aria-label={zh ? `${request.toolName} 请求的操作详情` : `What ${request.toolName} is asking to do`}
         >
           {diff ? (
             <DiffView lines={diff} path={request.summary} />
           ) : request.detail ? (
             <pre className="ob-approval-code">{request.detail}</pre>
           ) : (
-            <p className="ob-hint">No further detail was provided for this action.</p>
+            <p className="ob-hint">{zh ? '此操作没有提供更多详情。' : 'No further detail was provided for this action.'}</p>
           )}
 
           {request.preview ? (
-            <img className="ob-approval-preview" src={pngSrc(request.preview)} alt="Preview of the screen this action will affect" />
+            <img className="ob-approval-preview" src={pngSrc(request.preview)} alt={zh ? '将受此操作影响的屏幕预览' : 'Preview of the screen this action will affect'} />
           ) : null}
         </div>
 
         <footer className="ob-approval-foot">
           <p className="ob-approval-note">
             {forced
-              ? 'This one is always confirmed — there is no "always approve" for it. Esc rejects.'
-              : 'Nothing runs until you decide. Esc rejects.'}
+              ? (zh ? '此操作每次都需确认。' : 'This action always requires confirmation.')
+              : (zh ? '确认前不会执行。' : 'Nothing runs until you decide.')}
           </p>
           <div className="ob-approval-buttons">
             <button type="button" className="ob-btn ob-btn-danger" onClick={() => decide('reject')}>
               <IconClose size={12} />
-              Reject
+              {zh ? '拒绝' : 'Reject'}
             </button>
             {/* Hidden for a forced request, and for screen control — see `canRemember`. */}
             {canRemember ? (
               <button type="button" className="ob-btn" onClick={() => decide('approve-always')}>
-                Always approve
+                {zh ? '始终允许' : 'Always approve'}
               </button>
             ) : null}
             <button type="button" className="ob-btn ob-btn-primary" onClick={() => decide('approve')}>
               <IconCheck size={12} />
-              Approve
+              {zh ? '允许' : 'Approve'}
             </button>
           </div>
         </footer>

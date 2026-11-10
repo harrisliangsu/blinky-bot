@@ -13,13 +13,57 @@ cd "$(dirname "$0")/.."
 # shellcheck source=mac-app.sh
 source Scripts/mac-app.sh
 require_macos "package-mac.sh"
+source Scripts/package-timing.sh
+
+app_only=0
+skip_build=0
+for arg in "$@"; do
+    case "$arg" in
+        --app-only) app_only=1 ;;
+        --skip-build) skip_build=1 ;;
+        -h|--help)
+            echo 'Usage: Scripts/package-mac.sh [--app-only] [--skip-build]'
+            echo 'Default: build App, DMG and ZIP. --app-only: local replacement App only.'
+            echo 'BLINKY_PACKAGE_OUTPUT may select a separate --app-only output directory.'
+            exit 0 ;;
+        *) echo "Unknown option: $arg" >&2; exit 1 ;;
+    esac
+done
+if [[ -n "${BLINKY_PACKAGE_OUTPUT:-}" && "$app_only" -ne 1 ]]; then
+    echo 'BLINKY_PACKAGE_OUTPUT requires --app-only.' >&2
+    exit 1
+fi
+if [[ "$skip_build" -eq 1 && ! -f out/main/index.js ]]; then
+    echo '--skip-build requires an already built and verified out/.' >&2
+    exit 1
+fi
+package_timing_init
 
 export CSC_IDENTITY_AUTO_DISCOVERY=false
 
-npm run build
-if ! node -e "require('electron')" >/dev/null 2>&1; then
-    node node_modules/electron/install.js
+if [[ "$skip_build" -eq 0 ]]; then
+    node Scripts/require-publisher-oauth.mjs
+    package_step build npm run build
 fi
-npx electron-builder --mac --dir
-./Scripts/dmg.sh --reuse
-./Scripts/zip-app.sh
+if ! node -e "require('electron')" >/dev/null 2>&1; then
+    package_step electron-install node node_modules/electron/install.js
+fi
+builder_args=(--mac --dir -c.electronDist=node_modules/electron/dist)
+if [[ -n "${BLINKY_PACKAGE_OUTPUT:-}" ]]; then
+    builder_args+=("-c.directories.output=$BLINKY_PACKAGE_OUTPUT")
+fi
+package_step app npx --no-install electron-builder "${builder_args[@]}"
+if [[ -n "${BLINKY_PACKAGE_OUTPUT:-}" ]]; then
+    app="$BLINKY_PACKAGE_OUTPUT/mac-$(uname -m)/BlinkyBot.app"
+    [[ -d "$app" ]] || app="$BLINKY_PACKAGE_OUTPUT/mac/BlinkyBot.app"
+else
+    app="$(find_blinky_app)"
+fi
+# Local app bundles need a valid signature for macOS Notification Center.
+package_step sign codesign --force --deep --sign - --entitlements build/entitlements.mac.plist "$app"
+codesign --verify --deep --strict "$app"
+if [[ "$app_only" -eq 0 ]]; then
+    ./Scripts/dmg.sh --reuse
+    package_step zip ./Scripts/zip-app.sh
+fi
+echo "Timings: $BLINKY_PACKAGE_TIMINGS"

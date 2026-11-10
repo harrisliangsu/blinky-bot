@@ -12,17 +12,23 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+  mask-image: linear-gradient(to bottom, transparent, black 24px, black calc(100% - 24px), transparent);
+}
+
+@media (forced-colors: active) {
+  .ob-transcript-scroller { mask-image: none; }
 }
 
 .ob-transcript-content {
   display: flex;
   flex-direction: column;
-  gap: var(--ob-space-4);
+  gap: var(--ob-space-3);
   width: 100%;
-  max-width: var(--ob-content-max);
-  margin: 0 auto;
-  padding: var(--ob-space-6) var(--ob-space-6) var(--ob-space-12);
+  max-width: none;
+  padding: var(--ob-space-7) var(--ob-space-6) var(--ob-space-10);
 }
+.ob-main.is-chat .ob-transcript-content { padding-top: calc(var(--ob-titlebar-height) + var(--ob-space-3)); }
+.ob-transcript-working { align-self: flex-start; }
 
 /*
  * Consecutive bot turns are one exchange, so they sit closer together than a
@@ -55,14 +61,49 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--ob-space-4);
+  gap: var(--ob-space-3);
   min-height: 52vh;
   padding: var(--ob-space-10) 0;
   text-align: center;
 }
+.ob-transcript-empty .ob-avatar {
+  margin-bottom: var(--ob-space-2);
+  box-shadow: 0 0 0 8px var(--ob-accent-quaternary);
+}
+.ob-transcript-empty .ob-empty-title {
+  margin: 0;
+  font-size: var(--ob-font-size-2xl);
+  letter-spacing: -.025em;
+}
+.ob-transcript-empty .ob-empty-body {
+  margin: 0;
+  font-size: var(--ob-font-size-base);
+  color: var(--ob-text-secondary);
+}
 
 .ob-transcript-working {
   display: flex;
+  align-items: center;
+  gap: var(--ob-space-2);
+}
+.ob-transcript-working .ob-working {
+  padding: 0;
+  color: var(--ob-text-secondary);
+  background: transparent;
+}
+
+.ob-model-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--ob-space-2);
+  color: var(--ob-text-secondary);
+  font-size: var(--ob-font-size-sm);
+  min-width: 0;
+}
+.ob-model-progress > .ob-avatar { flex-shrink: 0; }
+.ob-model-progress-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .ob-transcript-error {

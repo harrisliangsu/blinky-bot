@@ -7,11 +7,17 @@ import { probeVersion } from '../versionProbe'
 import { which } from '../which'
 import { KNOWN_BACKEND_IDS, defaultSettings } from '../../settingsSchema'
 import { grokMapper, kimiMapper } from './events'
-import { buildGrokArgs, GROK_SPEC } from './grok'
+import { buildGrokArgs, GROK_SPEC, parseGrokModels } from './grok'
 import { AGENT_CLI_SPECS } from './index'
 import { buildKimiArgs, KIMI_SPEC } from './kimi'
 
 describe('kimi and grok cli adapters', () => {
+  it('reads Grok CLI model rows without interpreting diagnostics as models', () => {
+    assert.deepEqual(parseGrokModels('You are not authenticated.\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n  - grok-4.5\n  - bad model\n'), [
+      { id: 'grok-4.6', label: 'grok-4.6' }, { id: 'grok-4.5', label: 'grok-4.5' }
+    ])
+    assert.deepEqual(parseGrokModels('Default model: grok-4.6'), [])
+  })
   it('lists both in detection specs, settings, and the backend registry', () => {
     const specs = AGENT_CLI_SPECS.map((spec) => spec.id)
     assert.ok(specs.includes('kimi'))
@@ -93,8 +99,8 @@ describe('kimi and grok cli adapters', () => {
     const kimi = kimiMapper((id) => {
       kimiSession = id
     })
-    assert.deepEqual(kimi({ role: 'assistant', content: 'Hello' }), [{ type: 'text', delta: 'Hello' }])
-    assert.deepEqual(kimi({ role: 'assistant', content: 'Hello world' }), [{ type: 'text', delta: ' world' }])
+    assert.deepEqual(kimi({ role: 'assistant', content: 'Hello' }), [{ type: 'text', delta: 'Hello', visible: true }])
+    assert.deepEqual(kimi({ role: 'assistant', content: 'Hello world' }), [{ type: 'text', delta: ' world', visible: true }])
     assert.equal(
       kimi({
         role: 'assistant',
@@ -111,7 +117,7 @@ describe('kimi and grok cli adapters', () => {
     const grok = grokMapper((id) => {
       grokSession = id
     })
-    assert.deepEqual(grok({ type: 'text', data: 'Hi' }), [{ type: 'text', delta: 'Hi' }])
+    assert.deepEqual(grok({ type: 'text', data: 'Hi' }), [{ type: 'text', delta: 'Hi', visible: true }])
     assert.deepEqual(grok({ type: 'thought', data: 'Looking' }), [{ type: 'reasoning', delta: 'Looking' }])
 
     const thinking = kimiMapper()
@@ -122,7 +128,7 @@ describe('kimi and grok cli adapters', () => {
       thinking({ role: 'assistant', reasoning_content: 'Checking the file', content: 'Hi' }),
       [
         { type: 'reasoning', delta: ' the file' },
-        { type: 'text', delta: 'Hi' }
+        { type: 'text', delta: 'Hi', visible: true }
       ]
     )
     assert.deepEqual(thinking({ type: 'thinking_delta', delta: { type: 'thinking_delta', thinking: 'more' } }), [

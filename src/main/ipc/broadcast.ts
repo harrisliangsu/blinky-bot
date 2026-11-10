@@ -4,17 +4,26 @@
  * renderer directly.
  */
 
-import { BrowserWindow, Notification } from 'electron'
+import { publishDesktopEvent } from './eventBus'
+import { BrowserWindow } from 'electron'
 import { getSettings } from '../settings'
 import type { AgentEvent } from '../../shared/types'
+import { summariseSession } from '../../shared/sessionSummary'
+import { summariseTask } from '../../shared/activity'
+import { observesSession } from './sessionObservation'
 import { EVENT_CHANNEL, MENU_CHANNEL, type MenuCommand } from './channels'
 import { addActivity } from '../store/activity'
 import { getBot } from '../store/bots'
 import { getSession } from '../store/sessions'
 import { hasActiveTask } from '../store/tasks'
-import { focusOrCreateWindow } from '../app/window'
+import { showDesktopNotification } from '../desktopNotifications'
+import { ReplyCompletion } from '../replyCompletion'
+import { sendNativeEvent } from '../native/stdioBridge'
+import { routineOwnsNotifications } from '../routines/notificationOwnership'
+import { taskJudgmentScope } from '../agent/taskJudgmentScope'
 
 const failedRuns = new Set<string>()
+const replyCompletion = new ReplyCompletion()
 
 /**
  * Every live window, focused or not.
@@ -30,6 +39,7 @@ function targets(): BrowserWindow[] {
 }
 
 function send(channel: string, payload: unknown): void {
+  if (channel === EVENT_CHANNEL) publishDesktopEvent(payload as AgentEvent)
   for (const win of targets()) {
     try {
       win.webContents.send(channel, payload)
@@ -41,19 +51,37 @@ function send(channel: string, payload: unknown): void {
 
 /** Push one streaming event to the renderer. Never throws. */
 export function broadcast(event: AgentEvent): void {
-  send(EVENT_CHANNEL, event)
+  publishDesktopEvent(event)
+  sendNativeEvent(event)
+  // Runtime listeners and the native bridge retain their original contract.
+  // A window only receives history for its two visible conversations.
+  for (const win of targets()) {
+    const payload: AgentEvent = event.type === 'session-updated' && !observesSession(win.webContents, event.session.id)
+      ? { type: 'session-summary-updated', summary: summariseSession(event.session) }
+      : event.type === 'task-updated' ? { type: 'task-summary-updated', task: summariseTask(event.task) } : event
+    try { win.webContents.send(EVENT_CHANNEL, payload) }
+    catch (err) { console.error('[openbot/ipc] send failed', EVENT_CHANNEL, err) }
+  }
+  const reply = replyCompletion.observe(event, (sessionId, messageId) => getSession(sessionId)?.messages.find(message => message.id === messageId))
   if (event.type === 'activity-updated' || event.type === 'task-updated') return
+  // Preserve the live event for every UI/native consumer. Only the generic
+  // completion activity/notification is owned by the routine ledger instead.
+  if ((event.type === 'done' || event.type === 'error') && (routineOwnsNotifications(event.sessionId) || taskJudgmentScope(event.sessionId))) {
+    failedRuns.delete(event.sessionId)
+    return
+  }
 
-  if (event.type === 'message-start' && event.message.role === 'assistant') {
+  if (event.type === 'run-started' || event.type === 'message-start' && event.message.role === 'assistant') {
     failedRuns.delete(event.sessionId)
   }
 
   if (event.type === 'human-help-request') {
     const bot = getBot(event.request.botId)
-    postActivity('help', `${bot?.name ?? 'A bot'} needs you`, event.request.reason, event.request.sessionId, event.request.botId, true)
+    postActivity('help', `${bot?.name ?? 'A bot'} needs you`, event.request.reason, event.request.sessionId, event.request.botId, true, event.request.id)
   } else if (event.type === 'approval-request') {
-    postActivity('approval', 'Approval needed', event.request.summary, event.request.sessionId, undefined, true)
+    postActivity('approval', 'Approval needed', event.request.summary, event.request.sessionId, undefined, true, event.request.id)
   } else if (event.type === 'error') {
+    const alreadyFailed = failedRuns.has(event.sessionId)
     failedRuns.add(event.sessionId)
     /*
      * A background task posts its own inbox item — carrying the task's title
@@ -61,28 +89,16 @@ export function broadcast(event: AgentEvent): void {
      * every failed task two entries that told different stories. The session is
      * still marked failed, which is what keeps the `done` below quiet.
      */
-    if (!hasActiveTask(event.sessionId)) {
+    if (!alreadyFailed && !hasActiveTask(event.sessionId)) {
       postActivity('failed', getSession(event.sessionId)?.title ?? 'Agent run failed', event.message, event.sessionId, undefined, true)
     }
   } else if (event.type === 'done') {
-    const failed = failedRuns.delete(event.sessionId)
-    /*
-     * `hasActiveTask` for the same reason as the `error` branch above: the task
-     * pipeline posts its own item when the run settles, and `done` is broadcast
-     * while the record is still `running`. Without this guard a background task
-     * finishing with the window unfocused — the normal case for background work
-     * — posted "The bot finished while OpenBOT was in the background" and then
-     * "Background agent task completed" for the one run.
-     */
-    if (!failed && !hasActiveTask(event.sessionId) && BrowserWindow.getFocusedWindow() === null) {
-      postActivity(
-        'completed',
-        getSession(event.sessionId)?.title ?? 'Agent run completed',
-        'The bot finished while BlinkyBot was in the background.',
-        event.sessionId,
-        undefined,
-        getSettings().notifyOnTurn === true
-      )
+    failedRuns.delete(event.sessionId)
+    if (reply && !hasActiveTask(event.sessionId)) {
+      const session = getSession(event.sessionId)
+      const botId = session?.messages.find(message => message.id === reply)?.botId ?? session?.activeBotId
+      postActivity('completed', getBot(botId ?? '')?.name ?? 'AI reply',
+        getSettings().language === 'en' ? 'A reply is ready.' : '回复已完成。', event.sessionId, botId, 'reply', reply)
     }
   }
 }
@@ -95,19 +111,17 @@ export function broadcast(event: AgentEvent): void {
  * notification the skipped event would have raised.
  */
 export function postActivity(
-  kind: 'approval' | 'help' | 'completed' | 'failed',
+  kind: 'info' | 'approval' | 'help' | 'completed' | 'failed',
   title: string,
   detail: string,
   sessionId?: string,
   botId?: string,
-  notify = false
+  notify: boolean | 'reply' = false,
+  messageId = ''
 ): void {
   const item = addActivity(kind, title, detail, { ...(sessionId ? { sessionId } : {}), ...(botId ? { botId } : {}) })
   send(EVENT_CHANNEL, { type: 'activity-updated', item } satisfies AgentEvent)
-  if (!notify || getSettings().notifications === false || BrowserWindow.getFocusedWindow() !== null || !Notification.isSupported()) return
-  const notification = new Notification({ title, body: detail.slice(0, 240), silent: false })
-  notification.on('click', () => focusOrCreateWindow())
-  notification.show()
+  if (notify) showDesktopNotification(kind, sessionId ? { sessionId, ...(botId ? { botId } : {}) } : undefined, notify === 'reply', messageId)
 }
 
 /** Push a native-menu command (New Chat, Settings) to the renderer. */

@@ -1,10 +1,8 @@
 /**
  * Which CLI or provider, model, and thinking depth a Bot actually runs.
  *
- * Settings is the fallback. A Bot that still says "use the default" follows
- * the default CLI, that CLI's default model, and the default thinking depth.
- * A Bot that picks its own source keeps the model it chose. `default` on a
- * pinned Bot still means that CLI or provider's model in Settings.
+ * Existing followers are resolved once for migration. Pinned Bots keep their
+ * own source and model; `default` delegates to the CLI or provider itself.
  */
 
 import { isThinkingDepth, type ThinkingDepth } from './thinking'
@@ -20,7 +18,7 @@ export interface BindingSettings {
   defaultBackendId: string
   defaultModelId: string
   defaultThinking?: ThinkingDepth
-  backends: Record<string, { defaultModelId?: string } | undefined>
+  backends: Record<string, { defaultModelId?: string; modelThinking?: Record<string, ThinkingDepth> } | undefined>
 }
 
 export interface BotBinding {
@@ -42,8 +40,24 @@ export function resolveBotBinding(bot: BindingBot, settings: BindingSettings): B
   const backendId = (followsDefault ? settings.defaultBackendId : bot.backendId) || settings.defaultBackendId
   const cliDefault = settings.backends[backendId]?.defaultModelId?.trim()
   const own = (followsDefault ? settings.defaultModelId : bot.modelId)?.trim()
-  const modelId = !own || own === 'default' ? cliDefault || own || 'default' : own
-  const chosen = followsDefault ? settings.defaultThinking : bot.thinking
+  const modelId = followsDefault && (!own || own === 'default') ? cliDefault || 'default' : own || 'default'
+  const modelKey = modelId === 'default' ? cliDefault || 'default' : modelId
+  // Connection preferences seed new/legacy followers only. An existing Bot's
+  // empty depth means the CLI's default, just like an execution Agent's empty
+  // depth; changing a connection must not change a pinned Bot at run time.
+  const chosen = followsDefault
+    ? settings.defaultThinking ?? settings.backends[backendId]?.modelThinking?.[modelKey]
+    : bot.thinking
   const thinking = isThinkingDepth(chosen) ? chosen : undefined
   return { backendId, modelId, followsDefault, ...(thinking ? { thinking } : {}) }
+}
+
+/** Freeze a legacy follower's effective selection before global settings can change. */
+export function snapshotBotBinding(bot: BindingBot, settings: BindingSettings): BotBinding {
+  const binding = resolveBotBinding(bot, settings)
+  // Old pinned Bots also resolved their "default" through the provider settings.
+  const modelId = binding.modelId === 'default'
+    ? settings.backends[binding.backendId]?.defaultModelId?.trim() || 'default'
+    : binding.modelId
+  return { ...binding, modelId, followsDefault: false }
 }

@@ -7,6 +7,10 @@
  */
 
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { publishDesktopEvent } from './eventBus'
+import { remoteChannelPolicies } from '../../shared/remoteCapabilities'
+import { registerRemoteBusinessHandler } from '../collaboration/businessRegistry'
+import { registerNativeHandler } from '../native/stdioBridge'
 
 export type Handler<T> = (args: unknown[]) => T | Promise<T>
 export type EventHandler<T> = (event: IpcMainInvokeEvent, args: unknown[]) => T | Promise<T>
@@ -52,7 +56,14 @@ export function handleEvent<T>(channel: string, run: EventHandler<T>, fallback: 
 }
 
 export function handle<T>(channel: string, run: Handler<T>, fallback: Fallback<T>): void {
-  handleEvent(channel, (_event, args) => run(args), fallback)
+  const business: Handler<T> = async args => {
+    const result = await run(args)
+    if (remoteChannelPolicies.get(channel) === 'write') publishDesktopEvent({ type: 'workspace-updated', area: channel.split(':')[1] ?? '' })
+    return result
+  }
+  registerRemoteBusinessHandler(channel, async args => { try { return await business(args) } catch (error) { return fallback(args, error) } })
+  registerNativeHandler(channel, business)
+  handleEvent(channel, (_event, args) => business(args), fallback)
 }
 
 /** Handlers whose contract is `Promise<void>`. */

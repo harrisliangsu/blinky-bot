@@ -19,6 +19,7 @@ import { CHROME_MISSING_MESSAGE, findChrome, type BrowserSpec } from './chrome'
 import { ChromeSession, type SessionState } from './chromeSession'
 import * as input from './input'
 import { currentUrl, navigate, openApp } from './navigation'
+import { vaultFillExpression } from './vaultFill'
 import { inspectProfileLock, profileLayout } from './profile'
 
 
@@ -128,6 +129,13 @@ export class BrowserComputerProvider implements ComputerProvider {
     await input.drag(await this.session.client(), from, to, this.lastScale)
   }
 
+  /** Renderer-confirmed manual fill; never returns the secret or a screenshot. */
+  async fillVaultField(origin: string, field: string, value: string): Promise<boolean> {
+    const cdp = await this.session.client()
+    const result = await cdp.send<{ result?: { value?: unknown }; exceptionDetails?: unknown }>('Runtime.evaluate', { expression: vaultFillExpression(origin, field, value), returnByValue: true }, { timeoutMs: 5000 })
+    return !result.exceptionDetails && result.result?.value === true
+  }
+
   async openApp(name: string): Promise<void> {
     await openApp(await this.session.client(), this.dock, name)
   }
@@ -151,6 +159,7 @@ export class BrowserComputerProvider implements ComputerProvider {
     } catch {
       return undefined
     }
+    await this.dock.ready()
     const match = this.dock.list().find((app) => hostOf(app.url) === host)
     return match?.name ?? host
   }

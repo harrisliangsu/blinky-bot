@@ -7,6 +7,8 @@ interface ModalProps {
   title: string
   subtitle?: string
   onClose: () => void
+  /** Override Escape when a drawer inside the dialog must close first. */
+  onEscape?: () => void
   /** Rendered on the right of the header — usually a primary action. */
   actions?: ReactNode
   /** `xl` is the full-height working surface — the board uses it. */
@@ -16,10 +18,10 @@ interface ModalProps {
 
 /**
  * Dialog shell: click-outside and the close button dismiss it, Tab is trapped
- * inside, and focus returns to whatever opened it. Esc is owned by the app-level
- * key handler so one rule covers modals and streaming alike.
+ * inside, and focus returns to whatever opened it. Escape belongs to the
+ * focused dialog, including when focus is inside an editable control.
  */
-export function Modal({ title, subtitle, onClose, actions, size = 'md', children }: ModalProps): ReactNode {
+export function Modal({ title, subtitle, onClose, onEscape, actions, size = 'md', children }: ModalProps): ReactNode {
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
@@ -50,6 +52,12 @@ export function Modal({ title, subtitle, onClose, actions, size = 'md', children
         aria-labelledby={titleId}
         ref={panelRef}
         tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || event.repeat || event.nativeEvent.isComposing || event.defaultPrevented) return
+          event.preventDefault()
+          event.stopPropagation()
+          ;(onEscape ?? onClose)()
+        }}
       >
         <header className="ob-modal-head">
           <div className="ob-modal-heading">

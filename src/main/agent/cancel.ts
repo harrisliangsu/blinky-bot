@@ -14,6 +14,8 @@ interface Entry {
   controller: AbortController
   disposers: Set<Disposer>
   startedAt: number
+  recorded: boolean
+  rejection?: string
 }
 
 const entries = new Map<string, Entry>()
@@ -27,7 +29,8 @@ export function start(sessionId: string): AbortController {
   const entry: Entry = {
     controller: new AbortController(),
     disposers: new Set(),
-    startedAt: Date.now()
+    startedAt: Date.now(),
+    recorded: false
   }
   entries.set(sessionId, entry)
   return entry.controller
@@ -42,8 +45,39 @@ export function signalFor(sessionId: string): AbortSignal | undefined {
 }
 
 export function isRunning(sessionId: string): boolean {
+  // A superseded run owns the session until its cleanup has finished.
+  return entries.has(sessionId)
+}
+
+export function markRecorded(sessionId: string, controller: AbortController): void {
   const entry = entries.get(sessionId)
-  return !!entry && !entry.controller.signal.aborted
+  if (entry?.controller === controller) entry.recorded = true
+}
+
+/** Interrupt for a follow-up without releasing the session before cleanup. */
+export function supersedeForFollowup(sessionId: string): boolean {
+  const entry = entries.get(sessionId)
+  if (!entry?.recorded || entry.controller.signal.aborted) return false
+  entry.controller.abort(new DOMException('superseded by user follow-up', 'AbortError'))
+  for (const dispose of entry.disposers) safeDispose(dispose)
+  entry.disposers.clear()
+  return true
+}
+
+/** Stop a rejected turn without freeing its session before cleanup completes. */
+export function stopAfterRejectedApproval(sessionId: string, rejection = ''): boolean {
+  const entry = entries.get(sessionId)
+  if (!entry || entry.controller.signal.aborted) return false
+  entry.rejection = rejection
+  entry.controller.abort(new DOMException('approval rejected', 'AbortError'))
+  for (const dispose of entry.disposers) safeDispose(dispose)
+  entry.disposers.clear()
+  return true
+}
+
+export function rejectedApprovalFor(sessionId: string, controller: AbortController): string | undefined {
+  const entry = entries.get(sessionId)
+  return entry?.controller === controller ? entry.rejection : undefined
 }
 
 export function isAborted(sessionId: string): boolean {

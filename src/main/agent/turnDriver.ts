@@ -27,16 +27,28 @@ import { addNotice } from './messages'
 import { cancelGatewayDetach, detachGateway, scheduleGatewayDetach } from './mcpGateway'
 import { bots, sessions } from './sessionGateway'
 import { broadcastError } from './events'
-import { extractAfterTurn } from './memory'
+import { enqueueMemoryExtraction } from './memory'
 import { getBackendInfo } from './backendGateway'
 import { modeFor } from './backendMode'
 import { runSupervisedTurn } from './supervisedTurn'
 import { runTurn, type TurnResult } from './turn'
-import { applyBotBinding } from '../store/bots'
+import { applyBotBinding, getBot } from '../store/bots'
+import { getSession } from '../store/sessions'
 import { settingsStore } from './settingsGateway'
+import { backgroundBotOwner, bindExecutionAgent, isExecutionAgent } from './executionAgent'
+import { untrustedToolText } from './untrusted'
 
 /** How many times per user message the moderator will ask for a missing ACTION line. */
 const MAX_ACTION_NUDGES = 1
+
+export interface IterationOptions {
+  internalAssistant?: boolean
+  targetBotId?: string
+  reviewBotId?: string
+  beforeFirstTurn?: (signal: AbortSignal) => Promise<boolean>
+  onExecutionStart?: () => void
+  onTurnResult?: (result: TurnResult) => void
+}
 
 /**
  * Run turns until one finishes the work.
@@ -45,7 +57,7 @@ const MAX_ACTION_NUDGES = 1
  * including when a turn throws. Leaving that to the caller lost the detach on the
  * throwing path, and the gateway's server for that session then outlived the run.
  */
-export async function iterate(session: Session, signal: AbortSignal): Promise<void> {
+export async function iterate(session: Session, signal: AbortSignal, options?: IterationOptions): Promise<void> {
   // A follow-up message must not find the gateway already revoked. The detach
   // is deferred when the previous turn ended so a warm CLI can keep its token.
   cancelGatewayDetach(session.id)
@@ -53,7 +65,7 @@ export async function iterate(session: Session, signal: AbortSignal): Promise<vo
   try {
     await runTurns(session, signal, () => {
       sawSupervised = true
-    })
+    }, options)
   } finally {
     if (sawSupervised) scheduleGatewayDetach(session.id)
     else void detachGateway(session.id)
@@ -63,8 +75,10 @@ export async function iterate(session: Session, signal: AbortSignal): Promise<vo
 async function runTurns(
   session: Session,
   signal: AbortSignal,
-  noteSupervised: () => void
+  noteSupervised: () => void,
+  options?: IterationOptions
 ): Promise<void> {
+  let firstTurn = true
   let extras: string[] = []
   let bot: Bot | null = null
   // Exchange bookkeeping: which turn we are on, and the message being answered.
@@ -101,7 +115,8 @@ async function runTurns(
   let nudgesLeft = MAX_ACTION_NUDGES
 
   while (!signal.aborted) {
-    bot = await resolveBot(session)
+    const executionOwner = backgroundBotOwner(session.id)
+    bot = await resolveBot(session, options?.reviewBotId ?? executionOwner, Boolean(executionOwner))
     if (!bot) {
       broadcastError(
         session.id,
@@ -109,11 +124,15 @@ async function runTurns(
       )
       return
     }
+    if (options?.targetBotId && (bot.id !== options.targetBotId || session.botIds.length !== 1 || session.botIds[0] !== options.targetBotId)) {
+      broadcastError(session.id, 'The configured channel Bot conversation changed; the channel message was not sent to another Bot.')
+      return
+    }
     const speaker = bot
     const teammates = roster.filter((other) => other.id !== speaker.id).map((other) => other.name)
 
     const settings = await settingsStore.get()
-    bot = applyBotBinding(bot)
+    bot = bindExecutionAgent(session.id, applyBotBinding(bot))
     const mode = modeFor(await getBackendInfo(bot.backendId), bot.computerTarget)
 
     if (mode === 'supervised' && bot.computerTarget?.kind === 'vm') {
@@ -161,6 +180,22 @@ async function runTurns(
     handedFrom = undefined
     handedRequest = undefined
 
+    if (firstTurn && options?.beforeFirstTurn) {
+      firstTurn = false
+      if (!await options.beforeFirstTurn(signal)) return
+    }
+    if (signal.aborted) return
+    const pinnedBot = options?.reviewBotId ?? options?.targetBotId ?? executionOwner
+    if (pinnedBot) {
+      // No await between this source/owner check and invoking the executor.
+      const current = getSession(session.id), owner = getBot(pinnedBot)
+      if (!current || (current.archived && !executionOwner) || !owner || owner.archived || !current.botIds.includes(pinnedBot) || bot.id !== pinnedBot ||
+        (options?.targetBotId && (current.activeBotId !== pinnedBot || current.botIds.length !== 1))) {
+        broadcastError(session.id, 'The original Bot conversation changed; this turn was not sent to another Bot.')
+        return
+      }
+    }
+    options?.onExecutionStart?.()
     let result: TurnResult
     if (mode === 'supervised') {
       noteSupervised()
@@ -172,7 +207,8 @@ async function runTurns(
         extras: given.extras,
         replyTo: given.replyTo,
         floor,
-        retry
+        retry,
+        internalAssistant: options?.internalAssistant
       })
     } else {
       result = await runTurn({
@@ -183,7 +219,8 @@ async function runTurns(
         extras: given.extras,
         replyTo: given.replyTo,
         floor,
-        retry
+        retry,
+        internalAssistant: options?.internalAssistant
       })
     }
 
@@ -209,7 +246,9 @@ async function runTurns(
       continue
     }
 
+    options?.onTurnResult?.(result)
     if (result.status === 'handoff') {
+      if (options?.reviewBotId || executionOwner) { broadcastError(session.id, 'A background turn cannot hand off its original Bot.'); return }
       // Continue as the receiving bot, with the moderator restating the goal.
       turn += 1
       handedFrom = bot.name
@@ -230,7 +269,7 @@ async function runTurns(
     limits.clearHandoffs(session.id)
     // Detached on purpose — it must not delay the reply — but it now registers
     // itself so stopping the session or quitting the app actually reaches it.
-    void extractAfterTurn(session, bot, settings, mode)
+    if (!isExecutionAgent(session.id)) void enqueueMemoryExtraction(session, bot, settings, mode)
     return
   }
 }
@@ -242,8 +281,9 @@ async function runTurns(
  * which moves `activeBotId` behind our back, and the copy this loop has been holding
  * since the turn began would otherwise send the floor straight back to the same bot.
  */
-async function resolveBot(session: Session): Promise<Bot | null> {
+async function resolveBot(session: Session, reviewBotId?: string, privateExecution = false): Promise<Bot | null> {
   await sessions.refresh(session)
+  if (reviewBotId) return (!session.archived || privateExecution) && session.botIds.includes(reviewBotId) ? bots.get(reviewBotId) : null
 
   const active = session.activeBotId ? await bots.get(session.activeBotId) : null
   if (active) return active

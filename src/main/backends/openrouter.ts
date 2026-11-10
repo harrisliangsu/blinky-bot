@@ -6,6 +6,7 @@
  */
 
 import { openrouterReasoningBody } from '../../shared/thinking'
+import { fastModelVariant } from '../../shared/fast'
 import { detectCloud } from './cloudDetect'
 import { LIST_TIMEOUT_MS, withTimeout } from './httpClient'
 import { errorMessage } from './httpErrors'
@@ -74,7 +75,7 @@ export const openrouterBackend: Backend = {
     if (withheld) throw new Error(withheld)
     return streamOpenAiChat({
       ...endpoint(cfg),
-      model: req.model,
+      model: fastModelVariant('openrouter', req.model, req.fast),
       messages: req.messages,
       tools: req.tools,
       temperature: req.temperature,

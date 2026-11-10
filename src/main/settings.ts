@@ -4,10 +4,16 @@
  */
 
 import type { Settings } from '../shared/types'
+import type { UserProfilePatch } from '../shared/settings'
+import type { McpServerEdit, PermissionEdit } from '../shared/settings'
+import { isSemanticPermissionRule } from '../shared/permissionRules'
+import { noteLocalPermissionSettings } from './localExecution'
+import { canonicalProfileImage } from './profileImage'
 import {
   defaultSettings,
   deepMerge,
   isPlainObject,
+  isCustomBackendId,
   KNOWN_BACKEND_IDS,
   normaliseSettings
 } from './settingsSchema'
@@ -19,9 +25,13 @@ import {
   hasBackendApiKey,
   setBackendApiKey
 } from './store/backendSecrets'
-import { clearMcpBearerToken, hasMcpBearerToken, mcpBearerToken, setMcpBearerToken } from './store/mcpSecrets'
+import { clearMcpBearerToken, flushMcpSecrets, hasMcpBearerToken, mcpBearerToken, setMcpBearerToken, stageMcpBearerToken } from './store/mcpSecrets'
+import { originOf } from './backends/keyHost'
+import { listBots } from './store/bots'
+import { interruptDecisionReviews } from './agent/decisionReviewLifecycle'
 
 let current: Settings = defaultSettings()
+let reviewPreference = false
 let loading: Promise<Settings> | null = null
 
 /** Load `settings.json` from disk. Safe to call more than once. */
@@ -34,6 +44,7 @@ async function read(): Promise<Settings> {
   const file = settingsFile()
   const { status, value } = await readJsonState<unknown>(file, null)
   current = normaliseSettings(value)
+  reviewPreference = current.decisionSkillReview === true
   /**
    * A credential that could not be encrypted is still stripped from the file.
    *
@@ -150,11 +161,179 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   return current
 }
 
+let voiceWrite: Promise<unknown> = Promise.resolve()
+let decisionReviewWrite: Promise<unknown> = Promise.resolve()
+export function saveDecisionSkillReview(enabled: unknown): Promise<Settings> {
+  const run = decisionReviewWrite.catch(() => undefined).then(async () => {
+    if (unreadable || typeof enabled !== 'boolean') throw new Error('Invalid decision review preference')
+    for (;;) {
+      const before = current, next = normaliseSettings({ ...before, decisionSkillReview: enabled })
+      await writeJsonNow(settingsFile(), persistedSettings(next))
+      if (current !== before) continue
+      current = next; announce(current); return next
+    }
+  })
+  decisionReviewWrite = run.catch(() => undefined)
+  return run
+}
+/** Publish this preference only after the atomic write, preserving concurrent edits. */
+export function saveVoiceLanguage(language: unknown): Promise<string> {
+  const run = voiceWrite.catch(() => undefined).then(async () => {
+    if (unreadable || typeof language !== 'string' || normaliseSettings({ voiceLanguage: language }).voiceLanguage !== language) throw new Error('Invalid voice language')
+    for (;;) {
+      const before = current, next = normaliseSettings({ ...before, voiceLanguage: language })
+      await writeJsonNow(settingsFile(), persistedSettings(next))
+      if (current !== before) continue
+      current = next; announce(current); return language
+    }
+  })
+  voiceWrite = run.catch(() => undefined)
+  return run
+}
+
+let profileWrite: Promise<unknown> = Promise.resolve()
+let permissionWrite: Promise<unknown> = Promise.resolve()
+
+/** Atomic list edits and durable permission changes; never replace a renderer snapshot. */
+export function savePermissionEdit(edit: PermissionEdit): Promise<Settings> {
+  const run = permissionWrite.catch(() => undefined).then(async () => {
+    if (unreadable) throw new Error('Settings are unavailable')
+    for (;;) {
+      const before = current
+      let patch: Partial<Settings>
+      if (edit?.kind === 'options') {
+        patch = {}
+        if (Object.hasOwn(edit, 'localExecutionPolicy')) {
+          if (!['always-allow', 'ask-every-time', 'never-allow'].includes(edit.localExecutionPolicy!)) throw new Error('Invalid local execution policy')
+          patch.localExecutionPolicy = edit.localExecutionPolicy
+        }
+        if (Object.hasOwn(edit, 'automaticReview')) {
+          if (typeof edit.automaticReview !== 'boolean') throw new Error('Invalid automatic review setting')
+          patch.automaticReview = edit.automaticReview
+        }
+      } else if (edit?.kind === 'semantic-rule') {
+        if (!isSemanticPermissionRule(edit.rule)) throw new Error('Invalid natural-language permission rule')
+        const entries = before.semanticPermissionRules ?? []
+        if (!Array.isArray(entries)) throw new Error('Saved rules need repair before editing')
+        const old = entries.find(rule => rule.id === edit.rule.id)
+        if (edit.previous ? JSON.stringify(old) !== JSON.stringify(edit.previous) : !!old) throw new Error('This rule changed. Reopen it to edit the current version.')
+        const next = entries.filter(rule => rule.id !== edit.rule.id)
+        if (!edit.remove) next.push({ ...edit.rule, text: edit.rule.text.trim() })
+        patch = { semanticPermissionRules: next }
+      } else if (edit?.kind === 'rule' && ['asklist', 'allowlist', 'denylist', 'computerUseAllowedApps'].includes(edit.list)) {
+        if (typeof edit.value !== 'string' || !edit.value.trim() || edit.value.length > 2000) throw new Error('Enter a rule (maximum 2000 characters).')
+        const value = edit.value.trim()
+        const entries = before[edit.list] ?? []
+        if (edit.previous !== undefined && !entries.includes(edit.previous)) throw new Error('This rule changed. Reopen it to edit the current version.')
+        const next = entries.filter((item) => item !== (edit.previous ?? (edit.remove ? value : undefined)))
+        if (!edit.remove && !next.includes(value)) next.push(value)
+        patch = { [edit.list]: next }
+      } else throw new Error('Invalid permission edit')
+      const next = normaliseSettings({ ...before, ...patch })
+      await writeJsonNow(settingsFile(), persistedSettings(next))
+      if (current !== before) continue
+      current = next
+      announce(current)
+      return current
+    }
+  })
+  permissionWrite = run.catch(() => undefined)
+  return run
+}
+
+let mcpWrite: Promise<unknown> = Promise.resolve()
+
+/** Durable form save of one connection; leave ordinary optimistic settings alone. */
+export function saveMcpServer(edit: McpServerEdit): Promise<Settings> {
+  const run = mcpWrite.catch(() => undefined).then(async () => {
+    if (unreadable || !isPlainObject(edit?.server)) throw new Error('Settings are unavailable')
+    const server = normaliseSettings({ mcpServers: [edit.server] }).mcpServers[0]
+    if (!server?.name.trim() || !(server.transport === 'http' ? server.url?.trim() : server.command?.trim())) throw new Error('Invalid MCP connection')
+    const existing = current.mcpServers.find(item => item.id === server.id)
+    if (edit.editingId ? edit.editingId !== server.id || !existing : !!existing) throw new Error('This connection changed. Reopen it to edit the current version.')
+    const token = server.bearerToken?.trim()
+    let rollbackToken: (() => Promise<void>) | undefined
+    try {
+      if (token) {
+        rollbackToken = stageMcpBearerToken(server.id, token)
+        await flushMcpSecrets()
+      }
+      for (;;) {
+        const before = current
+        // A newer writer may have rotated this credential while we awaited IO.
+        if (token && mcpBearerToken(server.id) !== token) throw new Error('This connection credential changed while saving')
+        const old = before.mcpServers.find(item => item.id === server.id)
+        if (edit.editingId ? !old : !!old) throw new Error('This connection changed while saving')
+        const saved = { ...server, bearerToken: token || old?.bearerToken, hasBearerToken: hasMcpBearerToken(server.id) || old?.hasBearerToken }
+        const next = normaliseSettings({ ...before, mcpServers: edit.editingId ? before.mcpServers.map(item => item.id === server.id ? saved : item) : [...before.mcpServers, saved] })
+        await writeJsonNow(settingsFile(), persistedSettings(next))
+        if (current !== before) continue
+        current = next; announce(current)
+        return current
+      }
+    } catch (error) {
+      // A failed config write must not silently replace the old credential.
+      await rollbackToken?.()
+      throw error
+    }
+  })
+  mcpWrite = run.catch(() => undefined)
+  return run
+}
+
+/** Publish the user's identity only once its real write has succeeded. */
+export function saveUserProfile(patch: UserProfilePatch): Promise<Settings> {
+  const run = profileWrite.catch(() => undefined).then(async () => {
+    if (unreadable) throw new Error('Settings are unavailable')
+    const fields: UserProfilePatch = {}
+    if (Object.hasOwn(patch, 'profileName')) {
+      if (typeof patch.profileName !== 'string' || patch.profileName.trim().length > 80) throw new Error('Invalid profile name')
+      fields.profileName = patch.profileName.trim()
+    }
+    if (Object.hasOwn(patch, 'profileImage')) fields.profileImage = canonicalProfileImage(patch.profileImage)
+    // Other settings may change while the write is in flight. Re-merge rather
+    // than replacing those changes with the profile editor's older snapshot.
+    for (;;) {
+      const before = current
+      const next = normaliseSettings({ ...before, ...fields })
+      await writeJsonNow(settingsFile(), persistedSettings(next))
+      if (current !== before) continue
+      current = next
+      announce(current)
+      return current
+    }
+  })
+  profileWrite = run.catch(() => undefined)
+  return run
+}
+
 /** Apply write-only API-key fields from the renderer without ever echoing a key back. */
 export function updateSettingsFromRenderer(patch: Partial<Settings>): Settings {
   if (isPlainObject(patch.backends)) {
+    // Validate all custom changes before touching the credential store.
     for (const [id, raw] of Object.entries(patch.backends)) {
-      if (!KNOWN_BACKEND_IDS.includes(id) || !isPlainObject(raw)) continue
+      if (!isCustomBackendId(id) || !isPlainObject(raw)) continue
+      const prior = current.backends[id]
+      delete raw['credentialOrigin']
+      if (raw['added'] === false) {
+        const usedBy = listBots().filter((bot) => bot.backendId === id || bot.executionAgent?.backendId === id)
+        if (usedBy.length || (patch.defaultBackendId ?? current.defaultBackendId) === id) {
+          throw new Error('该供应商仍被 Bot 或默认模型使用，请先切换后再删除。')
+        }
+        raw['enabled'] = false
+        raw['clearApiKey'] = true
+      } else {
+        const url = raw['baseUrl'] ?? prior?.baseUrl
+        const name = raw['providerName'] ?? prior?.providerName
+        const protocol = raw['providerProtocol'] ?? prior?.providerProtocol
+        if (typeof url !== 'string' || !originOf(url) || typeof name !== 'string' || !name.trim() || (protocol !== 'openai' && protocol !== 'anthropic')) {
+          throw new Error('请填写供应商名称、有效的 HTTP(S) 地址和受支持的协议。')
+        }
+        if (typeof raw['apiKey'] === 'string' && raw['apiKey'].trim()) raw['credentialOrigin'] = originOf(url) ?? undefined
+      }
+    }
+    for (const [id, raw] of Object.entries(patch.backends)) {
+      if ((!KNOWN_BACKEND_IDS.includes(id) && !isCustomBackendId(id)) || !isPlainObject(raw)) continue
       if (raw['clearApiKey'] === true) {
         clearBackendApiKey(id)
         const existing = current.backends[id]
@@ -279,6 +458,11 @@ export function onSettingsChanged(fn: SettingsListener): () => void {
 }
 
 function announce(settings: Settings): void {
+  if (reviewPreference !== (settings.decisionSkillReview === true)) {
+    reviewPreference = settings.decisionSkillReview === true
+    interruptDecisionReviews()
+  }
+  noteLocalPermissionSettings(settings)
   for (const fn of listeners) {
     try {
       fn(settings)

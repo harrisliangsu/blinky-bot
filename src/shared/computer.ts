@@ -17,7 +17,7 @@ export type ComputerTarget =
    * VM (~250MB, seconds to start) and enough for anything web-based: the
    * user signs the bot in once, and the profile keeps it signed in.
    */
-  | { kind: 'browser'; botId: string }
+  | { kind: 'browser'; botId: string; provider?: 'ego' | 'chrome' }
   | {
       kind: 'vm'
       /** Opaque id owned by the VM supervisor. */

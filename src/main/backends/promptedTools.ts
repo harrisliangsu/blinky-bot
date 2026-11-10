@@ -88,29 +88,66 @@ export function parsePromptedToolOutput(text: string, tools: ToolSchema[]): Prom
   }
 }
 
-/** Buffer text so protocol markup never flashes in the transcript before parsing. */
+/** Stream public prose with only a delimiter-sized lookahead; hide tool frames. */
 export async function* promptedToolStream(
   stream: AsyncIterable<ChatChunk>,
-  tools: ToolSchema[],
-  emptyFallback?: string
+  tools: ToolSchema[]
 ): AsyncGenerator<ChatChunk> {
   let text = ''
+  let pending = ''
+  let insideCall = false
+  let sawCall = false
+  let publicSource = true
   let failure: unknown
+  const drain = (final = false): string[] => {
+    const output: string[] = []
+    for (;;) {
+      const marker = insideCall ? CLOSE : OPEN
+      const at = pending.indexOf(marker)
+      if (at >= 0) {
+        if (!insideCall && at) output.push(pending.slice(0, at))
+        pending = pending.slice(at + marker.length)
+        insideCall = !insideCall
+        sawCall = true
+        continue
+      }
+      if (insideCall) break
+      let held = 0
+      for (let size = Math.min(pending.length, OPEN.length - 1); size > 0; size--) {
+        if (OPEN.startsWith(pending.slice(-size))) { held = size; break }
+      }
+      if (final && held <= 1) held = 0
+      const safe = pending.length - held
+      if (safe) output.push(pending.slice(0, safe))
+      pending = pending.slice(safe)
+      break
+    }
+    return output
+  }
   try {
     for await (const chunk of stream) {
-      if (chunk.type === 'text') text += chunk.delta ?? ''
+      if (chunk.type === 'text') {
+        text += chunk.delta ?? ''
+        // The protocol filter does not make unclassified stdout public.
+        if (!chunk.visible && !chunk.segment) publicSource = false
+        if (!publicSource) continue
+        pending += chunk.delta ?? ''
+        for (const delta of drain()) yield { type: 'text', delta, visible: true }
+      }
       else if (chunk.type !== 'done') yield chunk
     }
   } catch (error) {
     failure = error
   }
 
+  if (publicSource) for (const delta of drain(true)) yield { type: 'text', delta, visible: true }
   const parsed = parsePromptedToolOutput(text, tools)
-  if (parsed.text) yield { type: 'text', delta: parsed.text }
+  // A malformed or unfinished frame must not become a visible model reply.
+  // Preserve already streamed prose and report the protocol failure instead.
+  if ((sawCall || insideCall || pending.length > 1) && !parsed.call && failure === undefined) {
+    failure = new Error('The model returned an incomplete or invalid tool-call frame.')
+  }
   if (parsed.call) yield { type: 'tool_call', call: parsed.call }
   if (failure !== undefined) throw failure
-  if (!parsed.text && !parsed.call && emptyFallback) {
-    yield { type: 'text', delta: emptyFallback }
-  }
   yield { type: 'done' }
 }

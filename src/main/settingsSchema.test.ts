@@ -10,10 +10,29 @@ import { copyLeaves, settingsCopy } from '../renderer/src/lib/settingsCopy.ts'
 import { defaultSettings, normaliseSettings } from './settingsSchema.ts'
 import { compareVersions, decideUpdate, isNewer, pickRelease, readSparkleItem } from './updates/sparkleFeed.ts'
 
-test('default thinking depth is kept only when it is one of the five steps', () => {
+test('decision skill review is opt-in for legacy data and persists only an explicit boolean', () => {
+  assert.equal(defaultSettings().decisionSkillReview, false)
+  for (const value of [undefined, null, 'true', 1, false]) assert.equal(normaliseSettings({ decisionSkillReview: value }).decisionSkillReview, false)
+  const saved = normaliseSettings({ decisionSkillReview: true })
+  assert.equal(normaliseSettings(JSON.parse(JSON.stringify(saved))).decisionSkillReview, true)
+})
+
+test('saved memory extraction choices survive normalization and reload', () => {
+  for (const memoryExtraction of ['off', 'api', 'all'] as const) {
+    const settings = normaliseSettings({ memoryExtraction })
+    assert.equal(settings.memoryExtraction, memoryExtraction)
+    assert.equal(normaliseSettings(JSON.parse(JSON.stringify(settings))).memoryExtraction, memoryExtraction)
+  }
+  assert.equal(normaliseSettings({}).memoryExtraction, defaultSettings().memoryExtraction)
+  assert.equal(normaliseSettings({ memoryExtraction: 'invalid' }).memoryExtraction, defaultSettings().memoryExtraction)
+})
+
+test('default thinking depth preserves known levels and rejects unknown levels', () => {
   const kept = normaliseSettings({ defaultThinking: 'high', defaultBackendId: 'codex' })
   assert.equal(kept.defaultThinking, 'high')
-  const dropped = normaliseSettings({ defaultThinking: 'max', defaultBackendId: 'codex' })
+  assert.equal(normaliseSettings({ defaultThinking: 'max', defaultBackendId: 'codex' }).defaultThinking, 'max')
+  assert.equal(normaliseSettings({ defaultThinking: 'ultra', defaultBackendId: 'codex' }).defaultThinking, 'ultra')
+  const dropped = normaliseSettings({ defaultThinking: 'unknown', defaultBackendId: 'codex' })
   assert.equal(dropped.defaultThinking, undefined)
   const cleared = normaliseSettings({ defaultThinking: '' })
   assert.equal(cleared.defaultThinking, undefined)
@@ -55,13 +74,25 @@ test('backends settings separate providers from local CLIs, and bots are not ass
   assert.equal(zh.nav.apps, '应用')
   assert.equal(zh.nav.tools, '工具')
   assert.equal(en.nav.tools, 'Tools')
-  assert.equal(zh.nav.backends, '本地 CLI 与供应商')
-  assert.equal(en.nav.backends, 'Local CLIs & providers')
+  assert.equal(zh.nav.backends, 'Agent')
+  assert.equal(en.nav.backends, 'Agents')
   assert.equal(zh.apps.comingSoon, '即将推出')
   assert.equal(en.apps.comingSoon, 'Coming soon')
+  assert.match(zh.apps.intro, /GitHub、Gmail 和 X/)
+  assert.match(en.apps.intro, /GitHub, Gmail, and X/)
+  assert.match(zh.tools.intro, /GitHub、Gmail 和 X/)
+  assert.match(en.tools.intro, /GitHub, Gmail, and X/)
+  assert.equal(zh.apps.intro.includes('Git 和 Gmail'), false)
+  assert.equal(zh.tools.intro.includes('Git 和 Gmail'), false)
+  assert.equal(zh.apps.gmailHint.includes('这一版还没有 Google 登录'), false)
+  assert.equal(en.apps.gmailHint.includes('not in this build'), false)
+  assert.equal('gitTitle' in zh.apps, false)
+  assert.equal('gitTitle' in en.apps, false)
   assert.equal(zh.account.more, '其他…')
   assert.equal(en.account.more, 'More…')
   assert.equal(zh.apps.intro.includes('\n'), false)
+  assert.equal(JSON.stringify(zh).includes('已使用你保存的精确收件人发送规则'), false)
+  assert.equal(JSON.stringify(en).includes('Used your saved rule'), false)
   assert.equal('advanced' in zh.apps, false)
   assert.equal('shared' in zh.apps, false)
 
@@ -166,6 +197,7 @@ test('defaults include the settings the window actually shows', () => {
   assert.equal(settings.language, 'zh-CN')
   assert.equal(settings.uiScale, 100)
   assert.equal(settings.vibrant, false)
+  assert.equal(settings.nativeGlass, true)
   assert.equal(settings.sendShortcut, 'enter')
   assert.equal(settings.expandSteps, false)
   assert.equal(settings.linkOpen, 'browser')
@@ -182,6 +214,7 @@ test('a partial save keeps the new fields and drops unknown ones', () => {
     language: 'en',
     uiScale: 125,
     vibrant: true,
+    nativeGlass: true,
     accent: 'purple',
     sendShortcut: 'mod-enter',
     expandSteps: true,
@@ -199,7 +232,8 @@ test('a partial save keeps the new fields and drops unknown ones', () => {
   })
   assert.equal(saved.language, 'en')
   assert.equal(saved.uiScale, 125)
-  assert.equal(saved.vibrant, true)
+  assert.equal(saved.vibrant, false)
+  assert.equal(saved.nativeGlass, true)
   assert.equal(saved.accent, 'purple')
   assert.equal(saved.sendShortcut, 'mod-enter')
   assert.equal(saved.expandSteps, true)

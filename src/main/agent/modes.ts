@@ -37,7 +37,10 @@ export const ALWAYS_ALLOWED_TOOLS: ReadonlySet<string> = new Set([
  * that set. Membership of the set is about which *modes* may call a tool, and that is
  * decided in `allowedInMode`, not here.
  */
-export function isMutatingTool(name: string, schema?: ToolSchema): boolean {
+export function isMutatingTool(name: string, schema?: ToolSchema, args?: Record<string, unknown>): boolean {
+  // The aggregate schema keeps inspection discoverable. At execution time,
+  // classify the actual action; unknown actions must not inherit read access.
+  if (name === 'manage_task' && args !== undefined) return !['list', 'inspect', 'match'].includes(String(args.action))
   if (schema && typeof schema.mutating === 'boolean') return schema.mutating
   if (ALWAYS_ALLOWED_TOOLS.has(name)) return false
   return !READ_ONLY_TOOLS.has(name)
@@ -53,11 +56,11 @@ export function isReadOnlyMode(mode: AgentMode): boolean {
   return mode === 'ask' || mode === 'plan'
 }
 
-export function allowedInMode(mode: AgentMode, name: string, schema?: ToolSchema): boolean {
+export function allowedInMode(mode: AgentMode, name: string, schema?: ToolSchema, args?: Record<string, unknown>): boolean {
   if (mode === 'agent') return true
   // Coordination tools touch no user state, so a read-only mode may still use them.
   if (ALWAYS_ALLOWED_TOOLS.has(name)) return true
-  return !isMutatingTool(name, schema)
+  return !isMutatingTool(name, schema, args)
 }
 
 export function filterToolsForMode(schemas: ToolSchema[], mode: AgentMode): ToolSchema[] {
@@ -76,8 +79,7 @@ export function modeRefusal(mode: AgentMode, name: string): string {
 const AGENT_RULES = [
   'MODE: AGENT — full tool use.',
   'Use tools to gather your own context instead of asking the user for things you can look up.',
-  'Actions that modify files, run commands or drive the computer go through the approval ' +
-    'gate. If one is rejected or denied by policy, do not retry it verbatim: adapt, or ask ' +
+  'Follow the user-configured approval rules. If an action is rejected or denied by policy, do not retry it verbatim: adapt, or ask ' +
     'the user what they want instead.',
   'Prefer small verified steps over one large speculative change, and state what you did.'
 ].join('\n')

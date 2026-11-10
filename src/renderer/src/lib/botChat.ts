@@ -1,19 +1,8 @@
-import type { SessionSummary } from '../../../shared/types'
-
 /**
- * The conversation to open when a bot is selected.
+ * Newest open chat that includes a bot.
  *
- * Navigation only: this does not create, merge, or compact anything. Summaries
- * are the same records the sidebar already holds, newest `updatedAt` wins, and
- * a chat counts when the bot is one of its participants. Archived chats are
- * skipped.
+ * The durable home is `bot.activeConversationId`. This helper is the upgrade
+ * rule and the fallback when that binding is missing or stale. Archived chats
+ * stay under 更多.
  */
-export function latestChatForBot(sessions: readonly SessionSummary[], botId: string): SessionSummary | null {
-  let best: SessionSummary | null = null
-  for (const session of sessions) {
-    if (session.archived) continue
-    if (!session.botIds.includes(botId)) continue
-    if (!best || session.updatedAt > best.updatedAt) best = session
-  }
-  return best
-}
+export { latestChatForBot } from '../../../shared/activeConversation'

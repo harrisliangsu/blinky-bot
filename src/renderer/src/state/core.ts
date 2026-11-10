@@ -19,7 +19,7 @@ class StateCore {
   private messageListeners = new Map<string, Set<Listener>>()
   private results = new Map<string, ToolResult>()
 
-  private pending = new Map<string, { text: string; reasoning: string }>()
+  private pending = new Map<string, { text: string; reasoning: string; segments: NonNullable<Message['segments']>; unsegmented: boolean }>()
   private frame: number | null = null
   private toastTimer: number | null = null
   private seq = 0
@@ -96,6 +96,13 @@ class StateCore {
     this.notifyMessage(id)
   }
 
+  /** A reply may finish after new user messages have arrived mid-turn. */
+  moveMessageToEnd(id: string): void {
+    const ids = this.state.messageIds
+    if (!ids.includes(id) || ids[ids.length - 1] === id) return
+    this.patch({ messageIds: [...ids.filter((item) => item !== id), id] })
+  }
+
   dropMessage(id: string): void {
     this.messages.delete(id)
     this.pending.delete(id)
@@ -110,7 +117,11 @@ class StateCore {
    * Listeners are deliberately left in place — a bubble that survives the swap
    * is still mounted and must keep receiving its updates.
    */
-  resetMessages(list: Message[]): string[] {
+  resetMessages(list: Message[], preserveLive = false): string[] {
+    const live = preserveLive ? this.state.messageIds.flatMap((id) => {
+      const message = this.messages.get(id)
+      return message?.streaming && message.role === 'assistant' ? [message] : []
+    }) : []
     this.messages.clear()
     this.results.clear()
     this.optimistic.clear()
@@ -120,6 +131,12 @@ class StateCore {
       this.messages.set(m.id, m)
       ids.push(m.id)
       if (m.toolResult) this.results.set(m.toolResult.callId, m.toolResult)
+    }
+    for (const message of live) {
+      const existing = this.messages.get(message.id)
+      if (existing && !existing.streaming) continue
+      if (!existing) ids.push(message.id)
+      if (!existing || message.content.length >= existing.content.length) this.messages.set(message.id, message)
     }
     for (const id of this.messageListeners.keys()) this.notifyMessage(id)
     return ids
@@ -142,10 +159,25 @@ class StateCore {
 
   /* — streaming deltas, batched to one frame — */
 
-  queueDelta(messageId: string, field: 'text' | 'reasoning', delta: string): void {
+  queueDelta(messageId: string, field: 'text' | 'reasoning', delta: string, segment?: { id: string; phase: 'commentary' | 'partial_answer' | 'final_answer'; delta: string; text?: string }): void {
     if (!this.messages.has(messageId)) return
     const prev = this.messages.get(messageId)
-    const entry = this.pending.get(messageId) ?? { text: '', reasoning: '' }
+    const entry = this.pending.get(messageId) ?? { text: '', reasoning: '', segments: [], unsegmented: false }
+    if (field === 'text') {
+      if (!segment) entry.unsegmented = true
+      else {
+        const last = entry.segments.at(-1)
+        const base = prev?.segments?.find((part) => part.id === segment.id)?.text ?? ''
+        const existing = base + (last?.id === segment.id ? last.text : '')
+        let addition = segment.delta
+        if (segment.text !== undefined) {
+          if (existing.startsWith(segment.text)) return
+          if (segment.text.startsWith(existing)) addition = segment.text.slice(existing.length)
+        }
+        if (last?.id === segment.id && last.phase === segment.phase) last.text += addition
+        else entry.segments.push({ id: segment.id, phase: segment.phase, text: addition })
+      }
+    }
     entry[field] += delta
     this.pending.set(messageId, entry)
     /*
@@ -175,6 +207,15 @@ class StateCore {
       if (!prev) continue
       const next: Message = { ...prev, streaming: true }
       if (delta.text) next.content = prev.content + delta.text
+      if (delta.text && !delta.unsegmented && (prev.segments || !prev.content)) {
+        const segments = (prev.segments ?? []).map((part) => ({ ...part }))
+        for (const part of delta.segments) {
+          const last = segments.at(-1)
+          if (last?.id === part.id && last.phase === part.phase) last.text += part.text
+          else segments.push({ ...part })
+        }
+        next.segments = segments
+      } else if (delta.text) next.segments = undefined
       if (delta.reasoning) next.reasoning = (prev.reasoning ?? '') + delta.reasoning
       this.messages.set(id, next)
       this.notifyMessage(id)
@@ -230,4 +271,4 @@ class StateCore {
 }
 
 export const store = new StateCore()
-export type { StateCore }
+export { StateCore }

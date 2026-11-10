@@ -35,6 +35,7 @@
 
 .ob-memory-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--ob-space-2);
   font-size: var(--ob-font-size-xs);
@@ -43,3 +44,12 @@
 .ob-memory-meta > span:nth-child(2) {
   flex: 1;
 }
+.ob-memory-kind { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ob-space-2); margin-bottom: var(--ob-space-2); font-size: var(--ob-font-size-xs); color: var(--ob-text-secondary); }
+.ob-memory-kind select { max-width: 100%; }
+.ob-memory-groups { margin-top: var(--ob-space-4); }
+.ob-memory-group + .ob-memory-group { margin-top: var(--ob-space-5); }
+.ob-memory-group h5 { display: flex; align-items: baseline; gap: var(--ob-space-2); margin: 0 0 var(--ob-space-2); color: var(--ob-text-primary); font-size: var(--ob-font-size-sm); font-weight: var(--ob-weight-medium); }
+.ob-memory-group h5 span { color: var(--ob-text-tertiary); font-size: var(--ob-font-size-xs); }
+.ob-memory-provenance, .ob-memory-conflict { font-size: var(--ob-font-size-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.ob-memory-provenance { color: var(--ob-text-tertiary); }
+.ob-memory-conflict { color: var(--ob-text-secondary); }

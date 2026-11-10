@@ -97,6 +97,14 @@ export async function detectAgentCli(
     }
   }
 
+  if (probe.signal) {
+    return {
+      status: 'error',
+      detail: `${spec.displayName} was terminated by ${probe.signal} during its version check. Its startup could not be verified; this does not establish a login failure.`,
+      cliAuth
+    }
+  }
+
   const version = probe.version ? ` ${probe.version}` : ''
   const where = ` (${binaryPath})`
   const reported = authDetail(spec, cliAuth, command, version, where)

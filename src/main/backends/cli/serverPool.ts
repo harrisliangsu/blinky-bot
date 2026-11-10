@@ -8,7 +8,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { diagnosticTail } from '../secretRedaction'
+import { diagnosticTail } from '../vaultRedaction'
 import { type ProcessHandle, spawnLines } from '../spawnProcess'
 import { stopWarmCodex } from './codexAppServer'
 import type { AgentCliSpec } from './spec'

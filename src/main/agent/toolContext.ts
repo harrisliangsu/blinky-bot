@@ -17,7 +17,19 @@ import { broadcast } from './events'
 import { detailFor, kindForTool, summarise, targetForCall } from './approvalPolicy'
 import { requestApproval } from './approval'
 import { handoff, listBots, saveMemoryEntry, setTodos } from './sessionActions'
-import { delegateBackgroundTask } from '../tasks'
+import { delegateBackgroundTask, manageBackgroundTask, reviewBackgroundTask } from '../tasks'
+import { createGitHubWatch, createScheduledInstruction, createGmailWatch, createWebhookWatch, createOnceInstruction, createFolderWatch } from '../routines/create'
+import { createGitHubCommentDraft } from '../connectors/githubDrafts'
+import { createGmailDraft } from '../connectors/gmailDrafts'
+import { createCalendarDraft } from '../connectors/calendarDrafts'
+import { createXDraft } from '../connectors/xDrafts'
+import { createSlackDraft } from '../connectors/slackDrafts'
+import { dataRoot } from '../store/paths'
+import { requestToolClarification } from '../tasks/clarifications'
+import { listBotMemory } from '../store/memory'
+import { recallMemories } from './memoryRecall'
+import { isLocalResourceTool } from '../../shared/localExecution'
+import { getSettings } from '../settings'
 
 /**
  * Tools that raise their own approval, with their own summary. Everything else that
@@ -34,6 +46,12 @@ export const SELF_APPROVING: ReadonlySet<string> = new Set([
   'edit_file',
   'fetch',
   'remember',
+  // Creating a local draft never sends it; the renderer gates the actual send.
+  'github_comment_draft',
+  'gmail_draft',
+  'calendar_event_draft',
+  'x_post_draft',
+  'slack_message_draft',
   'click',
   'double_click',
   'type_text',
@@ -58,12 +76,27 @@ export interface ToolContextInput {
 
 const host: ToolHost = {
   saveMemory: (entry) => saveMemoryEntry(entry),
+  recallMemory: (botId, query, kind, limit) => recallMemories(listBotMemory(botId), query, { kind, limit }),
   setTodos: (sessionId, todos) => void setTodos(sessionId, todos),
   handoff: async (sessionId, fromBotId, toBotId, reason) => {
     await handoff(sessionId, fromBotId, toBotId, reason)
   },
-  delegateTask: (sessionId, fromBotId, toBotId, prompt, title) =>
-    delegateBackgroundTask(sessionId, fromBotId, toBotId, prompt, title),
+  delegateTask: (sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, plan) =>
+    delegateBackgroundTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, plan),
+  reviewTask: reviewBackgroundTask,
+  manageTask: manageBackgroundTask,
+  requestInput: requestToolClarification,
+  scheduleRoutine: createScheduledInstruction,
+  scheduleOnceRoutine: createOnceInstruction,
+  watchFolderRoutine: createFolderWatch,
+  watchGitHubIssue: createGitHubWatch,
+  watchGmail: createGmailWatch,
+  watchWebhook: createWebhookWatch,
+  createGitHubDraft: createGitHubCommentDraft,
+  createGmailDraft,
+  createCalendarDraft,
+  createXDraft,
+  createSlackDraft,
   listBots: () => listBots()
 }
 
@@ -72,15 +105,18 @@ export function buildToolContext(input: ToolContextInput): ToolContext {
   let granted = input.preApproved
 
   return {
+    backendId: bot.backendId,
     sessionId: session.id,
     botId: bot.id,
     cwd: session.cwd,
+    dataDir: dataRoot(),
     signal,
     emit: (event) => broadcast(event),
     computerTarget: bot.computerTarget ?? { kind: 'local' },
     callId: call.id,
     messageId: input.messageId,
     settings: input.settings,
+    getSettings,
     host,
     requestApproval: async (request: ApprovalRequest) => {
       // The user already approved this specific call; do not ask twice for it — unless
@@ -89,9 +125,11 @@ export function buildToolContext(input: ToolContextInput): ToolContext {
       const target = targetForCall(call)
       const outcome = await requestApproval({
         sessionId: session.id,
+        botId: bot.id,
         toolName: request?.toolName || call.name,
         call,
         target,
+        localExecution: bot.computerTarget?.kind !== 'vm' && isLocalResourceTool(call.name),
         kind: request?.kind ?? kindForTool(call.name),
         summary: request?.summary ?? summarise(call.name, call, target),
         detail: request?.detail ?? detailFor(call),

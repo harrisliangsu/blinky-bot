@@ -5,13 +5,34 @@
  */
 
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { after, before, describe, it } from 'node:test'
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { SafeStorage } from 'electron'
+import { addVaultItem, setVaultStorageForTests } from '../../store/vault.ts'
 
 import { approvalResponse, describeApproval } from './codexApprovals.ts'
 import { CodexItems } from './codexItems.ts'
 import { codexPoolKey } from './codexPool.ts'
 import { CodexTurnError, codexNotification, isTurnEnd, presentCodexError } from './codexEvents.ts'
 import { codexTurnPrompt } from './transcript.ts'
+
+// Diagnostics now pass through the local Vault boundary. A plain Node process
+// has no Electron app/userData; every test must explicitly own its data root.
+let dataDir: string
+const previousDataDir = process.env.OPENBOT_DATA_DIR
+before(async () => {
+  dataDir = await mkdtemp(join(tmpdir(), 'blinky-codex-events-'))
+  process.env.OPENBOT_DATA_DIR = dataDir
+})
+after(async () => {
+  setVaultStorageForTests(undefined)
+  if (previousDataDir === undefined) delete process.env.OPENBOT_DATA_DIR
+  else process.env.OPENBOT_DATA_DIR = previousDataDir
+  await rm(dataDir, { recursive: true, force: true })
+})
 
 const THREAD = 'thread-1'
 const TURN = 'turn-1'
@@ -123,6 +144,10 @@ function reasoningOf(chunks: ReturnType<typeof codexNotification>): string {
     .join('')
 }
 
+function noticesOf(chunks: ReturnType<typeof codexNotification>): string {
+  return chunks.filter((chunk) => chunk.type === 'notice').map((chunk) => chunk.type === 'notice' ? chunk.message : '').join('\n')
+}
+
 describe('codex app-server notifications', () => {
   it('keeps a turn that reconnects and then completes', () => {
     const { chunks, failure, ended } = play(RECORDED_TURN)
@@ -130,12 +155,12 @@ describe('codex app-server notifications', () => {
     assert.equal(ended, true)
     assert.equal(textOf(chunks), 'ok')
 
-    const reasoning = reasoningOf(chunks)
-    assert.match(reasoning, /Reconnecting\.\.\. 2\/5/)
-    assert.match(reasoning, /Reconnecting\.\.\. 3\/5/)
-    assert.match(reasoning, /Connection reset by peer \(os error 54\)/)
-    assert.match(reasoning, /Falling back from WebSockets to HTTPS transport/)
-    assert.doesNotMatch(reasoning, /codex reported an error/)
+    const notices = noticesOf(chunks)
+    assert.match(notices, /Reconnecting\.\.\. 2\/5/)
+    assert.match(notices, /Reconnecting\.\.\. 3\/5/)
+    assert.match(notices, /Connection reset by peer \(os error 54\)/)
+    assert.match(notices, /Falling back from WebSockets to HTTPS transport/)
+    assert.equal(reasoningOf(chunks), '')
 
     const usage = chunks.find((chunk) => chunk.type === 'usage')
     assert.equal(usage?.type, 'usage')
@@ -181,6 +206,20 @@ describe('codex app-server notifications', () => {
     assert.equal(textOf(chunks), 'hello')
   })
 
+  it('separates consecutive agent messages while retaining their streamed text once', () => {
+    const items = new CodexItems()
+    const first = codexNotification('item/agentMessage/delta', { itemId: 'first', delta: 'Working' }, items)
+    const second = codexNotification('item/agentMessage/delta', { itemId: 'second', delta: 'Done' }, items)
+    const tail = codexNotification('item/agentMessage/delta', { itemId: 'second', delta: '.' }, items)
+    const repeated = codexNotification('item/completed', { item: { type: 'agentMessage', id: 'second', text: 'Done.' } }, items)
+    assert.deepEqual([...first, ...second, ...tail], [
+      { type: 'text', delta: 'Working', visible: true },
+      { type: 'text', delta: '\n\nDone', visible: true },
+      { type: 'text', delta: '.', visible: true }
+    ])
+    assert.deepEqual(repeated, [])
+  })
+
   it('reports a terminal error with the nested message and additionalDetails', () => {
     const { failure, chunks } = play([
       reconnect('1/5'),
@@ -206,7 +245,7 @@ describe('codex app-server notifications', () => {
     assert.match(failure.message, /Connection reset by peer \(os error 54\)/)
     assert.match(failure.message, /closed before the reply finished/)
     assert.notEqual(failure.message, 'codex reported an error')
-    assert.match(reasoningOf(chunks), /Reconnecting\.\.\. 1\/5/)
+    assert.match(noticesOf(chunks), /Reconnecting\.\.\. 1\/5/)
   })
 
   it('reads a string error from older payloads', () => {
@@ -340,7 +379,7 @@ describe('codex app-server notifications', () => {
       { method: 'warning', params: { threadId: null, message: '' } }
     ])
     assert.equal(failure, null)
-    assert.match(reasoningOf(chunks), /This command looks unusual/)
+    assert.match(noticesOf(chunks), /This command looks unusual/)
   })
 
   it('ignores item types that are not the assistant reply', () => {
@@ -547,4 +586,76 @@ describe('codex warm thread', () => {
     assert.notEqual(key, rotated)
     assert.equal(codexPoolKey({ ...base, env: { OPENBOT_MCP_TOKEN_OPENBOT: secret } }), key)
   })
+})
+
+it('executor trace keeps tool events separate and redacts known credentials', () => {
+  const params = { item: { id: 'tool-1', type: 'commandExecution', command: 'echo ok', status: 'completed', aggregatedOutput: 'api_key=secret123456', headers: { Authorization: 'Basic abcdef' }, token: 'private-value' } }
+  assert.deepEqual(codexNotification('item/completed', params, new CodexItems()), [])
+  const chunks = codexNotification('item/completed', params, new CodexItems(), true)
+  assert.equal(chunks.length, 1)
+  const trace = chunks[0]
+  assert.equal(trace?.type, 'agent_trace')
+  if (trace?.type !== 'agent_trace') throw Error('Missing executor trace')
+  assert.equal(trace.entry.kind, 'commandExecution')
+  assert.match(trace.entry.detail, /echo ok/)
+  assert.doesNotMatch(trace.entry.detail, /secret123456/)
+  assert.doesNotMatch(trace.entry.detail, /Basic abcdef|private-value/)
+})
+
+describe('Codex native automatic approval review', () => {
+  it('does not mistake an approval for an error', () => {
+    assert.deepEqual(codexNotification('item/autoApprovalReview/completed', { review: { status: 'approved' }, action: { type: 'command', command: 'touch fixture' } }), [])
+  })
+  it('stops on denial with the operation and stated reason', () => {
+    assert.throws(() => codexNotification('item/autoApprovalReview/completed', { review: { status: 'denied', rationale: 'Not authorized for this action' }, action: { type: 'command', command: 'rm fixture' } }), (error: unknown) => error instanceof CodexTurnError && /拒绝/.test(error.message) && /rm fixture/.test(error.message) && /Not authorized/.test(error.message))
+  })
+  it('does not silently continue after a timed-out review', () => {
+    assert.throws(() => codexNotification('item/autoApprovalReview/completed', { review: { status: 'timedOut' }, action: { type: 'networkAccess', host: 'example.test' } }), /超时/)
+  })
+})
+
+it('diagnostics preserve safe context with an unlocked Vault and fail closed when unavailable or corrupt', async () => {
+  const key = randomBytes(32), secret = 'synthetic-vault-diagnostic-4826'
+  const storage = {
+    isEncryptionAvailable: () => true,
+    encryptString(text: string) {
+      const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', key, iv)
+      const bytes = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+      return Buffer.concat([iv, cipher.getAuthTag(), bytes])
+    },
+    decryptString(bytes: Buffer) {
+      const decipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12))
+      decipher.setAuthTag(bytes.subarray(12, 28))
+      return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8')
+    }
+  } as SafeStorage
+  const params = { item: { id: 'vault-tool', type: 'commandExecution', command: 'echo safe', status: 'completed', aggregatedOutput: `output ${secret}; api_key=secret123456` } }
+  const traceDetail = () => {
+    const chunk = codexNotification('item/completed', params, new CodexItems(), true)[0]
+    assert.equal(chunk?.type, 'agent_trace')
+    if (chunk?.type !== 'agent_trace') throw Error('Missing executor trace')
+    return chunk.entry.detail
+  }
+  const denied = () => codexNotification('item/autoApprovalReview/completed', {
+    review: { status: 'denied', rationale: `Not authorized ${secret}` }, action: { type: 'command', command: 'rm fixture' }
+  })
+  try {
+    setVaultStorageForTests(storage)
+    await addVaultItem({ kind: 'login', label: 'Synthetic diagnostic fixture', origin: 'https://example.invalid', values: { password: secret } })
+    const detail = traceDetail()
+    assert.match(detail, /echo safe/)
+    assert.doesNotMatch(detail, new RegExp(`${secret}|secret123456`))
+    assert.throws(denied, (error: unknown) => error instanceof CodexTurnError && /拒绝/.test(error.message) && /rm fixture/.test(error.message) && /Not authorized/.test(error.message) && !error.message.includes(secret))
+    setVaultStorageForTests(null)
+    assert.equal(traceDetail(), '[Content withheld: vault unavailable]')
+    assert.throws(denied, (error: unknown) => error instanceof CodexTurnError && /拒绝/.test(error.message) && /本轮已停止/.test(error.message) && !/rm fixture|Not authorized/.test(error.message) && !error.message.includes(secret))
+    await writeFile(join(dataDir, 'vault.json'), '{damaged synthetic fixture')
+    setVaultStorageForTests(storage)
+    assert.equal(traceDetail(), '[Content withheld: vault unavailable]')
+    assert.throws(denied, (error: unknown) => error instanceof CodexTurnError && /本轮已停止/.test(error.message) && !error.message.includes(secret))
+    assert.equal(await readFile(join(dataDir, 'vault.json'), 'utf8'), '{damaged synthetic fixture')
+  } finally {
+    setVaultStorageForTests(undefined)
+    await rm(join(dataDir, 'vault.json'), { force: true })
+  }
 })

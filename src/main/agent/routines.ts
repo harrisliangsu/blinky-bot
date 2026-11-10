@@ -16,6 +16,7 @@ import { errorMessage, isAbortError } from './errors'
 import { replayRoutine } from './replay'
 import { routines } from './routineGateway'
 import { settingsStore } from './settingsGateway'
+import { loopFn } from '../ipc/agentRuntime'
 
 export {
   isRecording,
@@ -43,6 +44,17 @@ export async function runRoutine(routineId: string, sessionId: string): Promise<
   if (!routine) {
     broadcastError(sessionId, `Routine "${routineId}" was not found.`)
     broadcast({ type: 'done', sessionId })
+    return
+  }
+
+  if (routine.instruction) {
+    if (session.activeBotId !== routine.botId) {
+      broadcastError(sessionId, 'Open the Bot that owns this routine before running it.')
+      return
+    }
+    const send = await loopFn('sendMessage')
+    if (!send) { broadcastError(sessionId, 'The Bot runtime is unavailable.'); return }
+    await send(sessionId, `[Routine: ${routine.name}]\n\n${routine.instruction}`)
     return
   }
 

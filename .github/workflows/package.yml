@@ -1,0 +1,73 @@
+name: Package
+
+# Build a local-style Mac package and keep the DMG and zip as workflow
+# artifacts. Dispatch this from the branch that contains the workflow.
+# An empty ref packages that same branch.
+#
+# This does not tag, publish a GitHub Release, update the Sparkle feed,
+# or push to main. The formal publish path stays in release.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or SHA to package. Leave empty to use the branch this workflow runs from.
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  mac-package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Free disk space
+        run: |
+          rm -rf ~/Library/Developer/CoreSimulator || true
+          sudo rm -rf /Library/Developer/CoreSimulator || true
+          df -h /
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          npm ci
+          if ! node -e "require('electron')" >/dev/null 2>&1; then
+            node node_modules/electron/install.js
+          fi
+
+      # Scripts/package-mac.sh runs Scripts/require-publisher-oauth.mjs
+      # before the build. That gate exits when a required publisher OAuth
+      # name is empty and prints names only, never values.
+      - name: Package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_ID }}
+          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
+          MAIN_VITE_X_CLIENT_ID: ${{ secrets.MAIN_VITE_X_CLIENT_ID }}
+          MAIN_VITE_GITHUB_CLIENT_ID: ${{ secrets.MAIN_VITE_GITHUB_CLIENT_ID }}
+          MAIN_VITE_GITHUB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GITHUB_CLIENT_SECRET }}
+        run: |
+          ./Scripts/package-mac.sh
+          VERSION="$(node -p "require('./package.json').version")"
+          ls -lh "release/BlinkyBot-$VERSION.dmg" "release/BlinkyBot-$VERSION.zip"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Upload Mac package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlinkyBot-${{ env.VERSION }}
+          path: |
+            release/BlinkyBot-${{ env.VERSION }}.dmg
+            release/BlinkyBot-${{ env.VERSION }}.zip
+          if-no-files-found: error

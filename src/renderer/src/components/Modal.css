@@ -3,11 +3,11 @@
   inset: 0;
   z-index: 40;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: var(--ob-space-16) var(--ob-space-8) var(--ob-space-12);
+  padding: clamp(20px, 4vh, 48px) clamp(16px, 4vw, 48px);
   background: var(--ob-bg-overlay);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(5px);
 }
 
 .ob-modal {
@@ -17,8 +17,15 @@
   max-height: 100%;
   overflow: hidden;
   background: var(--ob-bg-canvas);
+  border: 1px solid var(--ob-border-subtle);
   border-radius: var(--ob-card-radius);
   box-shadow: var(--ob-shadow-modal);
+}
+
+/* Focus starts on the dialog itself, not its first action. The container is
+   not an interactive control and should not acquire a focus rectangle. */
+.ob-modal:focus-visible {
+  outline: none;
 }
 
 .ob-modal-sm {
@@ -32,7 +39,7 @@
 }
 .ob-modal-xl {
   max-width: 1240px;
-  height: 100%;
+  height: min(900px, 100%);
 }
 
 .ob-modal-head {
@@ -48,7 +55,7 @@
   font-size: var(--ob-font-size-xl);
   line-height: var(--ob-line-height-lg);
   font-weight: var(--ob-weight-semibold);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
 .ob-modal-heading p {
@@ -69,4 +76,10 @@
   min-height: 0;
   overflow-y: auto;
   padding: 0 var(--ob-card-padding) var(--ob-card-padding);
+}
+
+@media (max-width: 640px) {
+  .ob-modal-scrim { padding: var(--ob-space-3); }
+  .ob-modal-head { padding: var(--ob-space-5) var(--ob-space-5) var(--ob-space-3); }
+  .ob-modal-body { padding: 0 var(--ob-space-5) var(--ob-space-5); }
 }

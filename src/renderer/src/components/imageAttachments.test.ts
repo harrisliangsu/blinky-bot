@@ -36,6 +36,13 @@ test('clipboard items and the file list are not attached twice', () => {
   assert.equal(files[0]?.name, 'shot.png')
 })
 
+test('clipboard representations with different names and timestamps do not duplicate an image', () => {
+  const file = fileLike('image.png', 'image/png', [1, 2, 3])
+  const itemFile = { ...fileLike('pasted.png', 'image/png', [1, 2, 3]), lastModified: 2 }
+  assert.deepEqual(filesFromTransfer({ files: [file], items: [{ kind: 'file', type: 'image/png', getAsFile: () => itemFile }] }), [file])
+  assert.deepEqual(filesFromTransfer({ items: [{ kind: 'file', type: 'image/png', getAsFile: () => itemFile }] }), [itemFile])
+})
+
 test('an oversized image is skipped instead of truncated', async () => {
   const png = fileLike('big.png', 'image/png', [1, 2, 3, 4, 5, 6, 7, 8])
   const { attachments, skipped } = await attachmentsFromImageFiles([png], { maxDataLength: 4 })

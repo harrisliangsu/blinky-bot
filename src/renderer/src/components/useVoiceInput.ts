@@ -1,53 +1,50 @@
+import { randomId } from '../lib/randomId'
 import { useEffect, useRef, useState } from 'react'
-import { startVoiceInput, type VoiceSession } from '../lib/voice'
-import { store } from '../state'
+import type { VoiceEvent } from '../../../shared/voice'
+import { voiceError } from '../lib/voice'
 
-export interface VoiceInput {
-  listening: boolean
-  /** What is being said right now — settled text goes to the message instead. */
-  interim: string
-  toggle: () => void
-}
-
-/** Dictation into the composer, for as long as it is switched on. */
-export function useVoiceInput(onSpoken: (spoken: string) => void): VoiceInput {
-  const [listening, setListening] = useState(false)
-  const [voiceInterim, setVoiceInterim] = useState('')
-  const voice = useRef<VoiceSession | null>(null)
-
-  useEffect(() => () => voice.current?.stop(), [])
-
-  const toggleVoice = (): void => {
-    if (listening) {
-      voice.current?.stop()
-      voice.current = null
-      setListening(false)
-      setVoiceInterim('')
-      return
-    }
-    const session = startVoiceInput({
-      result: (spoken, final) => {
-        if (final) {
-          onSpoken(spoken)
-          setVoiceInterim('')
-        } else setVoiceInterim(spoken)
-      },
-      error: (message) => store.toast(message, 'error'),
-      end: () => { voice.current = null; setListening(false); setVoiceInterim('') }
-    })
-    /*
-     * Null means voice input declined to start — which it always does, by
-     * design: Chromium's recogniser streams audio to Google and the app denies
-     * the microphone (see lib/voice.ts). The fallback names something that works
-     * and stays on the machine, instead of a Web Speech error code.
-     */
-    if (!session) {
-      store.toast('Voice input is off — BlinkyBot will not stream your audio to a speech service. You can still use macOS Dictation in the message field.', 'error')
-      return
-    }
-    voice.current = session
-    setListening(true)
+/** A recording belongs to its originating draft. Only a final result edits text. */
+export function useVoiceInput(owner: string | undefined, language: string, zh: boolean, onSpoken: (spoken: string) => void) {
+  const [state, setState] = useState<'idle' | 'starting' | 'listening' | 'stopping'>('idle')
+  const [interim, setInterim] = useState('')
+  const [error, setError] = useState('')
+  const run = useRef<{ id: string; owner: string | undefined } | null>(null)
+  const currentOwner = useRef(owner); currentOwner.current = owner
+  const callback = useRef(onSpoken); callback.current = onSpoken
+  const cancel = (): void => {
+    const active = run.current; run.current = null
+    if (active) void window.openbot.voice.stop(active.id, true)
+    setState('idle'); setInterim(''); setError('')
   }
-
-  return { listening, interim: voiceInterim, toggle: toggleVoice }
+  useEffect(() => {
+    setState('idle'); setInterim(''); setError('')
+    const off = window.openbot.voice.on((event: VoiceEvent) => {
+      const active = run.current
+      if (!active || active.id !== event.id || active.owner !== currentOwner.current) return
+      if (event.type === 'starting' || event.type === 'listening' || event.type === 'stopping') setState(event.type)
+      if (event.type === 'interim') setInterim(event.text ?? '')
+      if (event.type === 'result' && event.text?.trim()) callback.current(event.text.trim())
+      if (event.type === 'error') setError(voiceError(event.code, zh))
+      if (event.type === 'end') { run.current = null; setState('idle'); setInterim('') }
+    })
+    return () => { off(); const active = run.current; run.current = null; if (active) void window.openbot.voice.stop(active.id, true) }
+  }, [owner, language, zh])
+  const toggle = (): void => {
+    const active = run.current
+    if (active) {
+      if (state !== 'listening') { cancel(); return }
+      setState('stopping'); void window.openbot.voice.stop(active.id); return
+    }
+    if (!owner) return
+    const id = randomId(); run.current = { id, owner }
+    setError(''); setInterim(''); setState('starting')
+    void window.openbot.voice.start(id, language).then((reply) => {
+      if (run.current?.id !== id) return
+      if (!reply.ok) { run.current = null; setState('idle'); setError(voiceError(reply.error, zh)) }
+    }).catch(() => {
+      if (run.current?.id !== id) return
+      run.current = null; setState('idle'); setError(voiceError('recognition', zh))
+    })
+  }
+  return { state, interim, error, busy: state !== 'idle', listening: state === 'listening', toggle, cancel }
 }

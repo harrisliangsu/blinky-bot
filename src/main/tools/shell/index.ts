@@ -12,7 +12,7 @@ import { approve } from '../approval'
 import { execCapture } from '../exec'
 import { emitPartial, throttle } from '../events'
 import { ToolError } from '../errors'
-import { displayPath, escapingPaths, noteApprovedTarget, resolveTarget } from '../paths'
+import { displayPath, escapingPaths, noteApprovedTarget, outsideAccessRequiresConfirmation, resolveTarget } from '../paths'
 import { defineTool } from '../results'
 import { matchesPattern, settingsOf } from '../settings'
 import { CappedText } from '../text'
@@ -20,6 +20,8 @@ import type { Tool, ToolContext } from '../types'
 import { analyzeCommand, type CommandAnalysis } from './classify'
 import { approvalDetail, combineOutput, loginShell } from './report'
 import { pathArguments } from './targets'
+import { localExecutionPolicy } from '../../../shared/localExecution'
+import { askedRuleForCall } from '../../agent/approvalPolicy'
 
 const NAME = 'shell'
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -31,7 +33,8 @@ export const schema: ToolSchema = {
   name: NAME,
   description:
     "Run a command in the user's login shell and return its combined output and exit code. " +
-    'Use it for builds, tests, git and any CLI work. Destructive commands are refused outright; ' +
+    'Use it for builds, tests, git and any CLI work. Do not post GitHub comments with gh or the GitHub API; ' +
+    'use github_comment_draft. Destructive commands and GitHub comment posts are refused outright; ' +
     'anything that changes state is confirmed with the user first. Prefer the dedicated file tools ' +
     'over cat/sed/echo so edits show a diff.',
   parameters: {
@@ -68,14 +71,18 @@ export const shellTool: Tool = defineTool(schema, async (args, ctx) => {
   const analysis = analyzeCommand(command, settings.denylist)
 
   if (analysis.blocked) {
+    const draft = analysis.blocked.includes('github_comment_draft')
     return {
       callId: ctx.callId ?? '',
       name: NAME,
       ok: false,
-      output:
-        `Refused to run this command: it matches ${analysis.blocked}.\n` +
-        'This is a hard safety rule, not an approval prompt — the command was never executed. ' +
-        'Tell the user what you wanted to achieve and let them run it themselves if they really mean it.',
+      output: draft
+        ? `Refused to run this command: it matches ${analysis.blocked}.\n` +
+          'This is a hard safety rule, not an approval prompt — the command was never executed. ' +
+          'Use github_comment_draft so the user can review the comment. Do not retry with gh, the GitHub API, curl, or another shell command, and do not ask the user to run this command themselves.'
+        : `Refused to run this command: it matches ${analysis.blocked}.\n` +
+          'This is a hard safety rule, not an approval prompt — the command was never executed. ' +
+          'Tell the user what you wanted to achieve and let them run it themselves if they really mean it.',
       detail: { command, blocked: analysis.blocked, risk: analysis.risk }
     }
   }
@@ -84,7 +91,7 @@ export const shellTool: Tool = defineTool(schema, async (args, ctx) => {
    * Paths the command names that leave the workspace. The risk classifier only
    * looks at the binary, so it called `cat ~/.ssh/id_rsa` read-only and ran it
    * unprompted — bypassing the containment `read_file` enforces on exactly that
-   * path. Leaving the workspace always confirms, whatever the policy says.
+   * path. Directory access follows auto-run; other policies still confirm it.
    */
   const escaping = await escapingPaths(ctx, pathArguments(command))
   const leavesWorkspace = Boolean(target.outside) || escaping.length > 0
@@ -98,7 +105,7 @@ export const shellTool: Tool = defineTool(schema, async (args, ctx) => {
         summary: why ? `${command} — ${why}` : command,
         detail: approvalDetail({ ctx, command, cwd, analysis, timeoutMs, outside: target.outside, escaping })
       },
-      { force: analysis.risk === 'high' || leavesWorkspace }
+      { force: analysis.risk === 'high' || (leavesWorkspace && outsideAccessRequiresConfirmation(ctx)) }
     )
     if (!granted) {
       return {
@@ -171,7 +178,7 @@ export const shellTool: Tool = defineTool(schema, async (args, ctx) => {
       callId: ctx.callId ?? '',
       name: NAME,
       ok: false,
-      output: `Cancelled by the user after ${result.durationMs} ms.${body ? `\n\nOutput so far:\n${body}` : ''}`,
+      output: `Cancelled after ${result.durationMs} ms.${ctx.signal.reason instanceof Error ? ` ${ctx.signal.reason.message}` : ''}${body ? `\n\nOutput so far:\n${body}` : ''}`,
       detail
     }
   }
@@ -214,6 +221,8 @@ export function allowlistCovers(analysis: CommandAnalysis, allowlist: string[]):
 
 async function needsApproval(ctx: ToolContext, command: string, analysis: CommandAnalysis): Promise<boolean> {
   const settings = settingsOf(ctx)
+  if (localExecutionPolicy(settings) === 'ask-every-time') return true
+  if (ctx.settings?.automaticReview === false || askedRuleForCall(ctx.settings ?? {}, { id: ctx.callId ?? '', name: NAME, args: { command } })) return true
   if (analysis.risk === 'high') return true
   if (allowlistCovers(analysis, settings.allowlist)) return false
   if (analysis.binaries.length > 0 && analysis.binaries.every((b) => matchesPattern(b, settings.allowlist))) {

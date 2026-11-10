@@ -6,6 +6,7 @@
  */
 
 import type { CliAuthInfo } from './cliAuth'
+import type { ThinkingDepth } from './thinking'
 
 export type BackendKind = 'local-server' | 'agent-cli' | 'cloud-api'
 
@@ -42,6 +43,10 @@ export interface ModelInfo {
   supportsTools?: boolean
   /** Required for computer use. */
   supportsVision?: boolean
+  /** Available depths reported by this model's provider; absent means unknown. */
+  supportedThinking?: ThinkingDepth[]
+  /** Provider-reported default, when available. */
+  isDefault?: boolean
 }
 
 export interface BackendInfo {

@@ -17,6 +17,8 @@
 
 import type { Bot } from '../../shared/types'
 import { getBot } from '../store/bots'
+import { bindExecutionAgent } from '../agent/executionAgent'
+import { taskJudgmentScope } from '../agent/taskJudgmentScope'
 import { abortInFlight } from './protocol'
 import { closeServer, ensureServer, mcpEndpoint } from './server'
 import { closeStreamsFor } from './sse'
@@ -59,8 +61,9 @@ export const GATEWAY_SERVER_NAME = 'openbot'
  * belongs to.
  */
 export async function attachSession(input: GatewayAttachment): Promise<AttachedGateway | null> {
-  const bot = getBot(input.botId)
-  if (!bot) return null
+  const source = getBot(input.botId)
+  if (!source) return null
+  const bot = bindExecutionAgent(input.sessionId, source)
 
   // Started before anything is minted: a grant for a listener that failed to
   // come up is a live credential nothing will ever revoke.
@@ -106,12 +109,15 @@ export function noteMessage(sessionId: string, messageId: string | undefined): v
 }
 
 function grantInput(bot: Bot, input: GatewayAttachment): Parameters<typeof mintGrant>[0] {
+  // Keep the required gateway handshake fail-closed, but give this temporary
+  // internal consideration no App capability. Never change the stored Bot.
+  const judgment=taskJudgmentScope(input.sessionId)
   return {
     botId: bot.id,
     sessionId: input.sessionId,
     cwd: input.cwd,
-    tools: bot.tools ?? [],
-    computerUse: bot.computerUse === true,
+    tools: judgment ? [] : bot.tools ?? [],
+    computerUse: !judgment && bot.computerUse === true,
     computerTarget: bot.computerTarget
   }
 }

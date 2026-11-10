@@ -1,15 +1,19 @@
-import { memo, useState, type MouseEvent, type ReactNode } from 'react'
-import type { Bot, Message } from '../../../shared/types'
+import { memo, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react'
+import type { Attachment, Bot, Message } from '../../../shared/types'
+import { isMessageQuote, MESSAGE_QUOTE_MIME } from '../../../shared/messageQuote'
 import { clockTime } from '../lib/format'
+import { copyText } from '../lib/clipboard'
 import { reactToMessage, store, useMessage } from '../state'
 import { BackendSetupLink } from './BackendSetupLink'
 import { imagePreviewSrc } from './imageAttachments'
 import { BotAvatar } from './BotAvatar'
-import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconWarning } from './Icons'
-import { ReasoningBlock } from './ReasoningBlock'
+import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconReply, IconSmile, IconWarning } from './Icons'
+import { setComposerQuote } from './useComposerDraft'
+import { resolveSettingsLang } from '../lib/settingsCopy'
 import { ErrorBoundary } from './ErrorBoundary'
-import { ToolCallView } from './ToolCallView'
+import { visibleAssistantText } from '../lib/messagePresentation'
 import { VisualizationMarkdown } from './VisualizationMarkdown'
+import { ApplicationNotice } from './ApplicationNotice'
 import './Message.css'
 
 interface MessageProps {
@@ -31,7 +35,7 @@ function onMarkdownClick(e: MouseEvent<HTMLDivElement>): void {
   if (!button) return
   const code = button.closest('.ob-code')?.querySelector('code')?.textContent ?? ''
   // A denied or unfocused clipboard must not be reported as a copy.
-  navigator.clipboard.writeText(code).then(
+  copyText(code).then(
     () => {
       button.textContent = 'Copied'
       window.setTimeout(() => {
@@ -93,8 +97,9 @@ function CopyButton({ text }: { text: string }): ReactNode {
       type="button"
       className="ob-icon-btn ob-msg-copy"
       aria-label={done ? 'Message copied' : 'Copy message'}
+      title={done ? 'Message copied' : 'Copy message'}
       onClick={() => {
-        navigator.clipboard.writeText(text).then(
+        copyText(text).then(
           () => {
             setDone(true)
             window.setTimeout(() => setDone(false), 1200)
@@ -108,16 +113,62 @@ function CopyButton({ text }: { text: string }): ReactNode {
   )
 }
 
+function StoredImage({ attachment, sessionId, messageId }: { attachment: Attachment; sessionId: string; messageId: string }): ReactNode {
+  const container = useRef<HTMLSpanElement>(null)
+  const [visible, setVisible] = useState(Boolean(attachment.data))
+  const [data, setData] = useState<string | null>(attachment.data ?? null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    const element = container.current
+    if (!element || attachment.data) return
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return }
+    // Visibility gates the first read only. Clearing loaded data on exit
+    // collapses the image, moves the observer targets, and can repeatedly
+    // enter/exit them while Chromium is anchoring or scrolling to Latest.
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return
+      setVisible(true)
+      observer.disconnect()
+    }, { rootMargin: '300px' })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [attachment.data, attachment.dataRef])
+  useEffect(() => {
+    let active = true
+    setData(attachment.data ?? null)
+    setFailed(false)
+    if (visible && !attachment.data && attachment.dataRef) {
+      void window.openbot.sessions.attachment(sessionId, messageId, attachment.id).then((value) => {
+        if (active) { setData(value); setFailed(!value) }
+      }).catch(() => { if (active) setFailed(true) })
+    }
+    return () => { active = false }
+  }, [attachment.data, attachment.dataRef, attachment.id, sessionId, messageId, visible])
+  const src = imagePreviewSrc({ ...attachment, data: data ?? undefined })
+  return <span ref={container} className="ob-msg-picture-container">{src ? <img className="ob-msg-picture" alt={attachment.name} src={src} /> : <span>{failed ? `图片无法读取：${attachment.name}` : attachment.name}</span>}</span>
+}
+
+// Message bubbles need the language, not every background task/activity update.
+// A primitive snapshot lets React keep unchanged historical bubbles asleep.
+function messageChinese(): boolean {
+  const system = typeof navigator === 'undefined' ? 'zh-CN' : navigator.language
+  return resolveSettingsLang(store.getState().settings?.language, system) === 'zh-CN'
+}
+
 /**
  * One turn. Subscribes to its own message only, so a streaming token repaints
  * this bubble and nothing else.
  */
 export const MessageView = memo(function MessageView({ id, bots, multiBot, expandSteps = false }: MessageProps): ReactNode {
+  const zh = useSyncExternalStore(store.subscribe, messageChinese, messageChinese)
   const message = useMessage(id)
   const [showAttachments, setShowAttachments] = useState(false)
+  const [showReactions, setShowReactions] = useState(false)
+  const [showActions, setShowActions] = useState(false)
 
   if (!message) return null
-  if (message.role === 'system' && message.handoffTo) return <HandoffNote message={message} bots={bots} />
+  if (message.internal) return null
+  if (message.role === 'system') return null
 
   /*
    * A tool message is raw output — a fetched page, a file, a command's stdout —
@@ -129,30 +180,32 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
    * here; the live transcript did not.
    */
   if (message.role === 'tool') return null
+  if (message.uiOnly) return <ApplicationNotice message={message} zh={zh} />
 
   const bot = message.botId ? bots.get(message.botId) : undefined
   const isUser = message.role === 'user'
+  const visibleText = isUser ? message.content : visibleAssistantText(message, true)
+  const assistantBody = isUser ? '' : bodyWithoutError(visibleText, message.error)
+  if (!isUser && !visibleText && !message.error) return null
   const attachments = message.attachments ?? []
-  const pictures = attachments.flatMap((item) => {
-    const src = imagePreviewSrc(item)
-    return src ? [{ id: item.id, name: item.name, src }] : []
-  })
-  const otherAttachments = attachments.filter((item) => !pictures.some((picture) => picture.id === item.id))
-  const toolCalls = message.toolCalls ?? []
+  const pictures = attachments.filter((item) => item.kind === 'image' && (imagePreviewSrc(item) || item.dataRef))
+  const quotes = attachments.filter(isMessageQuote)
+  const otherAttachments = attachments.filter((item) => !isMessageQuote(item) && !pictures.some((picture) => picture.id === item.id))
+  // Keep identity visible when multiple bots participate in the conversation.
   const showAuthor = !isUser && multiBot && bot !== undefined
   // The teammate whose message this one answers, when a handover happened.
   const answered = message.replyTo ? store.getMessage(message.replyTo) : null
   const repliedTo = answered?.botId ? bots.get(answered.botId) : undefined
+  const activeReactions = Object.entries(message.reactions ?? {}).filter(([, people]) => people.length > 0)
 
   return (
-    <article className={`ob-msg ob-msg-${isUser ? 'user' : 'assistant'}`} aria-label={isUser ? 'You' : bot?.name ?? 'Bot'}>
+    <article className={`ob-msg ob-msg-${isUser ? 'user' : 'assistant'}`} data-message-id={message.id} aria-label={isUser ? 'You' : bot?.name ?? 'Bot'}>
       {showAuthor ? (
         <header className="ob-msg-author">
-          <BotAvatar bot={bot} size="sm" />
           <span className="ob-msg-author-name">{bot?.name}</span>
           {/* Ties this turn to the teammate message that prompted it, so a
               back-and-forth reads as a thread rather than parallel monologues. */}
-          {repliedTo ? (
+          {multiBot && repliedTo ? (
             <span className="ob-msg-replying">
               <span aria-hidden="true">↳</span> replying to <strong>{repliedTo.name}</strong>
             </span>
@@ -160,34 +213,23 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
         </header>
       ) : null}
 
+      <div className="ob-msg-row">
       <div className="ob-msg-shell">
-        {message.reasoning !== undefined && !isUser ? (
-          <ReasoningBlock text={message.reasoning} streaming={message.streaming === true && !message.content} />
-        ) : null}
-
-        {isUser ? (
+        {quotes.map((quote) => <div className="ob-msg-quote" key={quote.id} title={quote.data}><strong>{quote.name}</strong><span>{quote.data}</span></div>)}
+        {isUser && message.content ? (
           <div className="ob-msg-bubble">{message.content}</div>
-        ) : (
-          <ErrorBoundary label="This message could not be shown">
-            <VisualizationMarkdown source={bodyWithoutError(message.content, message.error)} onClick={onMarkdownClick} />
-          </ErrorBoundary>
-        )}
-
-        {message.streaming && !isUser ? <span className="ob-caret" aria-label="Still writing" /> : null}
-
-        {toolCalls.length > 0 ? (
-          <div className="ob-msg-tools">
-            {toolCalls.map((call) => (
-              <ToolCallView key={call.id} call={call} result={store.getToolResult(call.id)} defaultOpen={expandSteps} />
-            ))}
+        ) : !isUser && assistantBody ? (
+          <div className="ob-msg-answer">
+            <ErrorBoundary label="This message could not be shown">
+              <VisualizationMarkdown source={assistantBody} onClick={onMarkdownClick} />
+            </ErrorBoundary>
           </div>
         ) : null}
 
+
         {pictures.length > 0 ? (
           <div className="ob-msg-pictures">
-            {pictures.map((a) => (
-              <img key={a.id} className="ob-msg-picture" alt={a.name} src={a.src} />
-            ))}
+            {pictures.map((a) => <StoredImage key={a.id} attachment={a} sessionId={store.getState().currentSessionId ?? ''} messageId={message.id} />)}
           </div>
         ) : null}
 
@@ -226,16 +268,29 @@ export const MessageView = memo(function MessageView({ id, bots, multiBot, expan
         ) : null}
       </div>
 
-      <footer className="ob-msg-foot">
-        <time dateTime={new Date(message.createdAt).toISOString()}>{clockTime(message.createdAt)}</time>
-        <CopyButton text={message.content} />
-        {!isUser ? <span className="ob-msg-reactions">
-          {['👍', '❤️', '👀'].map((emoji) => {
-            const people = message.reactions?.[emoji] ?? []
-            return <button key={emoji} type="button" className={people.includes('You') ? 'is-active' : ''} title={people.join(', ') || `React ${emoji}`} onClick={() => void reactToMessage(message.id, emoji)}>{emoji}{people.length ? ` ${people.length}` : ''}</button>
-          })}
-        </span> : null}
-      </footer>
+      <div className={`ob-msg-action-group${showActions ? ' is-open' : ''}`} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowActions(false) } }}>
+      <button type="button" className="ob-icon-btn ob-msg-more" aria-label={zh ? '更多消息操作' : 'More message actions'} aria-expanded={showActions} onClick={() => setShowActions(open => !open)}>···</button>
+      <div className={`ob-msg-actions${activeReactions.length ? ' has-reactions' : ''}`} aria-label="Message actions" title={clockTime(message.createdAt)}>
+        <CopyButton text={visibleText} />
+        {!isUser && assistantBody ? <button type="button" className="ob-icon-btn" aria-label={zh ? '引用回复' : 'Quote reply'} title={zh ? '引用回复' : 'Quote reply'} onClick={() => {
+          const sessionId = store.getState().currentSessionId
+          if (!sessionId) return
+          setComposerQuote(sessionId, { id: `quote-${message.id}`, kind: 'selection', name: bot?.name ?? 'Bot', mime: MESSAGE_QUOTE_MIME, data: assistantBody })
+          document.querySelector<HTMLTextAreaElement>('#ob-prompt')?.focus()
+        }}><IconReply size={16} /></button> : null}
+        {!isUser ? <div className="ob-msg-reaction-control" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setShowReactions(false) }} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setShowReactions(false) } }}>
+          <button type="button" className="ob-icon-btn" aria-label="Add reaction" title="Add reaction" aria-expanded={showReactions} onClick={() => setShowReactions((open) => !open)}><IconSmile size={16} /></button>
+          {showReactions ? <div className="ob-msg-reactions" role="group" aria-label="Reactions">
+            {['👍', '❤️', '👀'].map((emoji) => {
+              const people = message.reactions?.[emoji] ?? []
+              return <button key={emoji} type="button" className={people.includes('You') ? 'is-active' : ''} aria-label={`React ${emoji}`} aria-pressed={people.includes('You')} title={people.join(', ') || `React ${emoji}`} onClick={() => { void reactToMessage(message.id, emoji); setShowReactions(false) }}>{emoji}{people.length ? ` ${people.length}` : ''}</button>
+            })}
+          </div> : null}
+        </div> : null}
+        {activeReactions.length ? <span className="ob-msg-reaction-summary">{activeReactions.map(([emoji, people]) => <span key={emoji} title={people.join(', ')}>{emoji}{people.length > 1 ? ` ${people.length}` : ''}</span>)}</span> : null}
+      </div>
+      </div>
+      </div>
     </article>
   )
 })

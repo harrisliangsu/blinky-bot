@@ -107,13 +107,15 @@ export async function cancelComputerProvision(): Promise<VmProvisionStatus> {
 
 export async function captureBotScreen(
   botId: string,
-  options: { quiet?: boolean } = {}
+  options: { quiet?: boolean; sessionId?: string } = {}
 ): Promise<boolean> {
   try {
-    const frame = await bridge().bots.captureScreen(botId)
+    const sessionId = options.sessionId ?? store.getState().currentSessionId ?? undefined
+    const frame = await bridge().bots.captureScreen(botId, sessionId)
     if (!frame.ok) throw new Error(frame.error)
+    if (store.getState().currentSessionId !== sessionId) return false
     store.patch({
-      computerFrame: { screenshot: frame.frame.image, at: Date.now(), botId }
+      computerFrame: { screenshot: frame.frame.image, at: Date.now(), botId, sessionId: sessionId ?? null }
     })
     return true
   } catch (error) {
@@ -122,12 +124,13 @@ export async function captureBotScreen(
   }
 }
 
-export async function controlBotScreen(botId: string, action: HumanComputerAction): Promise<void> {
+export async function controlBotScreen(botId: string, action: HumanComputerAction, sessionId = store.getState().currentSessionId ?? undefined): Promise<void> {
   try {
-    const frame = await bridge().bots.controlScreen(botId, action)
+    const frame = await bridge().bots.controlScreen(botId, action, sessionId)
     if (!frame.ok) throw new Error(frame.error)
+    if (store.getState().currentSessionId !== sessionId) return
     store.patch({
-      computerFrame: { screenshot: frame.frame.image, at: Date.now(), botId },
+      computerFrame: { screenshot: frame.frame.image, at: Date.now(), botId, sessionId: sessionId ?? null },
       computerActive: false
     })
   } catch (error) {
@@ -174,7 +177,11 @@ export async function discardComputerTarget(target: ComputerTarget): Promise<voi
  */
 export async function removeBot(id: string): Promise<boolean> {
   try {
-    await bridge().bots.remove(id)
+    const result = await bridge().bots.remove(id)
+    if (!result?.ok) {
+      store.toast(result?.error ?? 'Bot 删除未能完成，请重试。', 'error')
+      return false
+    }
     store.patch({ bots: store.getState().bots.filter((b) => b.id !== id), botDraftId: null })
     return true
   } catch (e) {
@@ -192,11 +199,12 @@ export async function loadMemory(botId: string): Promise<void> {
   }
 }
 
-export async function addMemory(botId: string, text: string): Promise<void> {
+export async function addMemory(botId: string, text: string): Promise<boolean> {
   const body = text.trim()
-  if (!body) return
+  if (!body) return false
   try {
     const entry = await bridge().bots.addMemory(botId, body)
+    if (!entry) { store.toast(store.getState().settings?.language === 'zh-CN' ? '记忆未能保存，请检查本地存储。' : 'Memory could not be saved. Check local storage.', 'error'); return false }
     const list = store.getState().memories[botId] ?? []
     /*
      * The main process broadcasts `memory-updated` for this same entry, and the
@@ -206,10 +214,12 @@ export async function addMemory(botId: string, text: string): Promise<void> {
      * A write that failed comes back as a blank-id placeholder, and blank ids
      * must not be read as matching one another.
      */
-    if (entry.id && list.some((existing) => existing.id === entry.id)) return
+    if (entry.id && list.some((existing) => existing.id === entry.id)) return true
     store.patch({ memories: { ...store.getState().memories, [botId]: [entry, ...list] } })
+    return true
   } catch (e) {
     store.toast(errText(e), 'error')
+    return false
   }
 }
 

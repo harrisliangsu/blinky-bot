@@ -71,7 +71,8 @@ export async function sendTurn(text: string, attachments?: Attachment[]): Promis
   })
 
   try {
-    await bridge().agent.send(sessionId, body, attachments)
+    const accepted = await bridge().agent.send(sessionId, body, attachments)
+    if (!accepted) throw new Error('The conversation is busy or the agent is unavailable.')
     return true
   } catch (e) {
     /*
@@ -84,17 +85,21 @@ export async function sendTurn(text: string, attachments?: Attachment[]): Promis
      * message-start may already have reconciled it.
      */
     if (store.optimistic.delete(local.id)) store.dropMessage(local.id)
-    store.patch({ streaming: false, runError: `That message was not sent — ${errText(e)}` })
+    const stillRunning = await bridge().agent.isRunning(sessionId).catch(() => false)
+    if (store.getState().currentSessionId === sessionId) {
+      store.patch({ streaming: stillRunning, runError: `That message was not sent — ${errText(e)}` })
+    }
     return false
   }
 }
 
-export async function stopTurn(): Promise<boolean> {
+export async function stopTurn(message?: string): Promise<boolean> {
   const id = store.getState().currentSessionId
   if (!id) return true
   try {
-    await bridge().agent.stop(id)
-    store.endAllStreaming()
+    const stopped = await bridge().agent.stop(id, message)
+    if (!stopped) throw new Error('The stop request did not reach the agent.')
+    if (store.getState().currentSessionId === id) store.endAllStreaming()
     // Stopping rejects anything still waiting on the user, so the gate must go
     // with the run rather than linger and take a click that means nothing.
     dropApprovals(id)

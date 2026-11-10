@@ -7,8 +7,8 @@
   /* Positioning context for the rail when it floats on a narrow window. */
   position: relative;
 }
-
 .ob-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -16,9 +16,11 @@
   min-height: 0;
   background: var(--ob-bg-editor);
 }
+.ob-approval-elsewhere { align-self: center; margin: var(--ob-space-2); }
 
-@media (max-width: 900px) {
-  .ob-sidebar {
-    display: none;
-  }
-}
+.ob-sidebar-backdrop { display: none; }
+
+html[data-native-glass='true'] body, html[data-native-glass='true'] .ob-app { background: transparent; backdrop-filter: none; }
+/* Tint the whole navigation surface in the selected app theme. The native
+   material remains visible without letting a light desktop wash out dark UI. */
+html[data-native-glass='true'] .ob-sidebar { background: color-mix(in srgb, var(--ob-bg-sidebar) 80%, transparent); backdrop-filter: none; }

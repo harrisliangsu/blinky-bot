@@ -1,0 +1,4 @@
+.ob-room-devices { display: grid; gap: 8px; margin: 8px 0; min-width: 0; }
+.ob-room-device { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md, 8px); background: var(--surface); min-width: 0; }
+.ob-room-device code { font-size: 11px; overflow-wrap: anywhere; user-select: text; }
+.ob-room-device-actions { display: flex; flex-wrap: wrap; gap: 6px; }

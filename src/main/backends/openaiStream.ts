@@ -79,7 +79,7 @@ export async function* streamOpenAiChat(opts: OaChatOptions): AsyncGenerator<Cha
     const reasoning = readReasoning(delta)
     if (reasoning) yield { type: 'reasoning', delta: reasoning }
     const content = readContent(delta.content)
-    if (content) yield { type: 'text', delta: content }
+    if (content) yield { type: 'text', delta: content, visible: true }
     calls.push(delta.tool_calls)
   }
 
@@ -99,7 +99,7 @@ async function* wholeResponse(res: Response, url: string): AsyncGenerator<ChatCh
     const reasoning = readReasoning(message)
     if (reasoning) yield { type: 'reasoning', delta: reasoning }
     const content = readContent(message.content)
-    if (content) yield { type: 'text', delta: content }
+    if (content) yield { type: 'text', delta: content, visible: true }
     const calls = new ToolCallAccumulator()
     calls.push(message.tool_calls)
     for (const call of calls.finish()) yield { type: 'tool_call', call }
@@ -123,8 +123,9 @@ function readContent(value: unknown): string {
   return value
     .map((part) => {
       if (typeof part === 'string') return part
-      const p = part as { type?: string; text?: string }
-      return p.type === 'text' || p.text ? (p.text ?? '') : ''
+      if (!part || typeof part !== 'object') return ''
+      const p = part as { type?: string; text?: unknown }
+      return (p.type === 'text' || p.type === 'output_text') && typeof p.text === 'string' ? p.text : ''
     })
     .join('')
 }

@@ -68,6 +68,20 @@ export class CodexItems {
    * a short reply would be shown twice.
    */
   private readonly streamedAgentText = new Map<string, string>()
+  private readonly emittedAgentItems = new Set<string>()
+  private readonly agentPhases = new Map<string, 'commentary' | 'partial_answer' | 'final_answer'>()
+
+  agentPhase(id: string): 'commentary' | 'partial_answer' | 'final_answer' | undefined {
+    return this.agentPhases.get(id)
+  }
+
+  /** Separate distinct messages from a CLI turn while keeping its deltas contiguous. */
+  agentTextPrefix(id: string): string {
+    if (!id || this.emittedAgentItems.has(id)) return ''
+    const prefix = this.emittedAgentItems.size ? '\n\n' : ''
+    this.emittedAgentItems.add(id)
+    return prefix
+  }
 
   /** Record anything a later approval request or reply might need. Cheap and total. */
   observe(method: string, params: unknown): void {
@@ -86,7 +100,9 @@ export class CodexItems {
     const item = isPlainObject(params.item) ? params.item : null
     const id = item ? str(item.id) : ''
     if (!item || !id) return
-    if (item.type === 'fileChange') {
+    if (item.type === 'agentMessage' && (item.phase === 'commentary' || item.phase === 'partial_answer' || item.phase === 'final_answer')) {
+      this.remember(this.agentPhases, id, item.phase)
+    } else if (item.type === 'fileChange') {
       this.rememberChanges(id, fileUpdates(item.changes))
     } else if (item.type === 'commandExecution') {
       const command = str(item.command) || joinCommand(item.command)

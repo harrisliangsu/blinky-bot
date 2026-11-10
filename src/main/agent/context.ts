@@ -8,11 +8,13 @@
 
 import type { Bot, MemoryEntry, Session, Settings, ToolSchema } from '../../shared/types'
 import type { ProviderMessage } from './contracts'
-import { applyBudget, contextWindowOr } from './budget'
+import { applyBudget, contextWindowOr, type SemanticRegionSummary } from './budget'
 import { groupBlocks, toProviderMessages } from './history'
 import { filterToolsForMode } from './modes'
 import { composeSystemPrompt } from './systemPrompt'
 import { estimateTokens } from './tokens'
+import { rankMemory } from './memoryRecall'
+import { withoutTaskJudgmentDrafts, taskJudgmentScope } from './taskJudgmentScope'
 
 export interface ContextInput {
   session: Session
@@ -20,6 +22,8 @@ export interface ContextInput {
   settings: Settings
   /** Memory entries for the active bot, any order. */
   memory: MemoryEntry[]
+  /** Cached semantic summary of the squeezed history region, when it matches. */
+  semantic?: SemanticRegionSummary
   /** Registry schemas plus enabled built-ins, before mode filtering. */
   schemas: ToolSchema[]
   /** Every bot in the session, including this one. */
@@ -43,27 +47,33 @@ export interface BuiltContext {
 
 export function buildContext(input: ContextInput): BuiltContext {
   const contextWindow = contextWindowOr(input.contextWindow)
-  const tools = availableTools(input.schemas, input.session, input.bot)
+  // Internal consideration already has a bounded observation envelope. Do not
+  // inject execution/review tool instructions that conflict with that purpose.
+  const tools = taskJudgmentScope(input.session.id) ? [] : availableTools(input.schemas, input.session, input.bot)
 
   const systemPrompt = composeSystemPrompt({
     bot: input.bot,
     session: input.session,
     settings: input.settings,
-    memory: input.memory,
+    // Ignore internal task-result messages: their contents are not the user's
+    // current topic and must not steer retrieval of unrelated memories.
+    memory: rankMemory(input.memory, [...(input.session.messages ?? [])].reverse().find((message) => message.role === 'user' && !message.internal)?.content ?? ''),
     schemas: tools,
     roster: input.roster,
     contextWindow,
     extras: input.extras
   })
 
-  const history = toProviderMessages(input.session.messages ?? [], {
+  // Private judgment drafts are not a user-visible conversation and must not
+  // contaminate later human turns or be mistaken for already-published updates.
+  const history = toProviderMessages(withoutTaskJudgmentDrafts(input.session.messages ?? []), {
     supportsVision: input.supportsVision,
     // Only a shared conversation needs speaker labels; a solo bot would just be
     // reading its own name back at itself.
     speakerNames: input.roster.length > 1 ? nameById(input.roster) : undefined,
     selfBotId: input.bot.id
   })
-  const budgeted = applyBudget(groupBlocks(history), estimateTokens(systemPrompt), contextWindow)
+  const budgeted = applyBudget(groupBlocks(history), estimateTokens(systemPrompt), contextWindow, input.semantic)
 
   return {
     messages: [{ role: 'system', content: systemPrompt }, ...budgeted.messages],

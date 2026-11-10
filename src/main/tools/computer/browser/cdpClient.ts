@@ -168,17 +168,21 @@ export class CdpClient {
   }
 
   /** Wait for a single event, with a timeout that resolves rather than throws. */
-  waitFor(method: string, timeoutMs = 10_000): Promise<boolean> {
+  waitFor(method: string, timeoutMs = 10_000, signal?: AbortSignal): Promise<boolean> {
     return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        off()
-        resolve(false)
-      }, timeoutMs)
-      const off = this.on(method, () => {
+      if (signal?.aborted) return resolve(false)
+      const done = (value: boolean): void => {
         clearTimeout(timer)
         off()
-        resolve(true)
-      })
+        signal?.removeEventListener('abort', abort)
+        resolve(value)
+      }
+      const abort = (): void => done(false)
+      const timer = setTimeout(() => {
+        done(false)
+      }, timeoutMs)
+      const off = this.on(method, () => done(true))
+      signal?.addEventListener('abort', abort, { once: true })
     })
   }
 

@@ -13,6 +13,7 @@ import { ToolError } from '../errors'
 import {
   displayPath,
   noteApprovedTarget,
+  outsideAccessRequiresConfirmation,
   outsideNotice,
   outsideResolvedTarget,
   resolveTarget
@@ -62,7 +63,7 @@ export const writeFileTool = defineTool(schema, async (args, ctx) => {
           summary: `Write ${absolute} (${formatBytes(bytesOf(content))}) — outside the workspace`,
           detail: `${outsideNotice(ctx, outside)}\n\n${truncateEnd(content, MAX_PREVIEW_CHARS, 'preview truncated')}`
         },
-        { force: true }
+        { force: outsideAccessRequiresConfirmation(ctx) }
       )
       noteApprovedTarget(ctx, outside, 'write')
     }

@@ -1,7 +1,7 @@
 import type {
   ApprovalRequest,
   ActivityItem,
-  AgentTask,
+  AgentTaskSummary,
   AgentGroup,
   CollaborationRoom,
   BackendInfo,
@@ -112,9 +112,9 @@ export interface AppState {
   approvals: ApprovalRequest[]
   helpRequests: HumanHelpRequest[]
   activity: ActivityItem[]
-  tasks: AgentTask[]
+  tasks: AgentTaskSummary[]
   rooms: CollaborationRoom[]
-  computerFrame: { screenshot: string; at: number; botId: string | null } | null
+  computerFrame: { screenshot: string; at: number; botId: string | null; sessionId: string | null } | null
   computerActive: boolean
   lastClick: { x: number; y: number; at: number; botId: string | null } | null
 

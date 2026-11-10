@@ -25,7 +25,7 @@ let lastDetected: BackendInfo[] | null = null
  * empty when it does not, so a missing peer module can never fail the build.
  */
 // @ts-ignore `import.meta.glob` is a Vite build-time transform.
-const candidates = import.meta.glob('../backends/registry.ts') as Record<
+const candidates = (typeof import.meta.glob === 'function' ? import.meta.glob('../backends/registry.ts') : { ['../backends/registry.ts']: () => import('../backends/registry.ts') }) as Record<
   string,
   () => Promise<unknown>
 >

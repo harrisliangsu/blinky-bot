@@ -15,6 +15,7 @@ import type { Grant } from './tokens'
 import { assignMcpSessionId } from './tokens'
 import { describeTools, sessionMode } from './descriptors'
 import { invokeTool } from './invoke'
+import { taskJudgmentScope } from '../agent/taskJudgmentScope'
 import {
   type JsonRpcMessage,
   type JsonRpcResponse,
@@ -139,7 +140,9 @@ export async function dispatch(
          this is the other half of the double gate, withholding it from the
          model's list in the first place. */
       return success(id, {
-        tools: describeTools(grant.tools, grant.computerTarget, sessionMode(grant.sessionId))
+        // Registry defaults add clarification/review tools even to [].
+        // Private judgment advertises no App capabilities, including defaults.
+        tools: taskJudgmentScope(grant.sessionId) ? [] : describeTools(grant.tools, grant.computerTarget, sessionMode(grant.sessionId))
       })
     case 'tools/call':
       return callTool(grant, params, id, connection)

@@ -1,0 +1,7 @@
+.ob-bot-resource-links { overflow: hidden; border: 1px solid var(--ob-border-subtle); border-radius: var(--ob-control-radius); }
+.ob-bot-resource-links button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; background: var(--ob-bg-card); color: var(--ob-text-primary); border: 0; cursor: pointer; }
+.ob-bot-resource-links button + button { border-top: 1px solid var(--ob-border-subtle); }
+.ob-bot-resource-links button:hover { background: var(--ob-bg-hover); }
+.ob-bot-resource-links button:disabled { cursor: wait; opacity: .6; }
+.ob-bot-resource-links strong { display: block; font-size: var(--ob-font-size-sm); font-weight: var(--ob-weight-medium); }
+.ob-bot-resource-links small { display: block; margin-top: 3px; color: var(--ob-text-secondary); font-size: var(--ob-font-size-xs); }

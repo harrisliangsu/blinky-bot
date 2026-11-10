@@ -17,6 +17,7 @@ import type {
   ModelInfo
 } from '../types'
 import { runCodexAppServer } from './codexAppServer'
+import { runCodexModelOnly } from './codexModelOnly'
 import { presentCodexError } from './codexEvents'
 import { listCodexModels } from './codexModels'
 import { detectAgentCli } from './detect'
@@ -83,11 +84,17 @@ export const codexBackend: Backend = {
     try {
       const found = await listCodexModels(binary, readCliOptions(cfg).cwd)
       return found.length ? [CLI_DEFAULT_MODEL, ...found] : [CLI_DEFAULT_MODEL]
-    } catch {
+    } catch (error) {
+      console.warn('[openbot/codex] model discovery failed:', error)
       // A probe that never answers must not empty the picker.
       return [CLI_DEFAULT_MODEL]
     }
   },
 
-  chat: (req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> => runTurn(req, cfg)
+  chat: (req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> => runTurn(req, cfg),
+  modelOnlyChat: async function* (req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> {
+    if (cfg.extraArgs?.length) throw new Error('Model-only Codex does not accept extra CLI arguments')
+    const binary = await resolveBinary(CODEX_SPEC, cfg)
+    yield* runCodexModelOnly(binary, req)
+  }
 }

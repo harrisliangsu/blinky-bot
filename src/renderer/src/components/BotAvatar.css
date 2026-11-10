@@ -39,3 +39,16 @@
   height: var(--ob-space-14);
   font-size: var(--ob-font-size-2xl);
 }
+
+.ob-avatar-artwork { border-radius: 0; background: transparent; overflow: visible; }
+.ob-avatar-artwork.ob-avatar-ring, .ob-avatar-artwork.ob-avatar-active { box-shadow: none; }
+.ob-avatar-sprite { display: block; width: 100%; height: 100%; overflow: visible; }
+.ob-avatar-gaze { transition: transform 380ms cubic-bezier(.22,.68,.25,1); }
+.ob-avatar.is-replying .ob-avatar-gaze { transform: translateX(var(--avatar-gaze-x)); }
+.ob-avatar-eyelid { transition: transform 95ms ease-in-out; }
+.ob-avatar.is-blinking .ob-avatar-eyelid { transform: scaleY(.055); }
+.ob-bot-avatar-edit-preview { display: flex; justify-content: center; padding-bottom: var(--ob-space-3); }
+.ob-bot-avatar-edit-preview .ob-avatar { width: 88px; height: 88px; }
+@media (prefers-reduced-motion: reduce) {
+  .ob-avatar-gaze, .ob-avatar-eyelid { transition: none; transform: none !important; }
+}

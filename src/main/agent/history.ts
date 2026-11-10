@@ -8,12 +8,13 @@
  */
 
 import type { Attachment, Message } from '../../shared/types'
+import { isMessageQuote } from '../../shared/messageQuote'
 import { safeImageMime } from '../backends/messageContent'
 import type { ProviderMessage, ProviderPart } from './contracts'
 import { imagePart, textOf, textPart } from './contracts'
 import { estimateMessageTokens } from './tokens'
 import { oneLine, truncate } from './text'
-import { safeLine } from './untrusted'
+import { safeLine, untrustedToolText } from './untrusted'
 
 /** Tool output past this is truncated: one dump should not crowd out the transcript. */
 const MAX_TOOL_OUTPUT_CHARS = 8000
@@ -97,7 +98,7 @@ export function toProviderMessages(
   }
 
   for (const message of messages) {
-    if (message.role === 'system') continue
+    if (message.role === 'system' || message.uiOnly) continue
     if (message.role !== 'tool') settle()
 
     const converted =
@@ -211,7 +212,7 @@ function toToolMessage(message: Message, opts: HistoryOptions): ProviderMessage 
 
   return {
     role: 'tool',
-    content: withImages(body || '(no output)', images),
+    content: withImages(untrustedToolText(result?.name ?? 'tool', body || '(no output)'), images),
     toolCallId: result?.callId,
     name: result?.name,
     isError: result ? !result.ok : undefined
@@ -237,14 +238,21 @@ function renderAttachment(
       images.push({ data: attachment.data, mime: safeImageMime(attachment.mime || 'image/png') })
       return `[attached image: ${attachment.name}]`
     }
-    return `[attached image: ${attachment.name} — this model cannot see images]`
+    return optsImageNotice(attachment, supportsVision)
   }
   if (attachment.kind === 'selection') {
+    if (isMessageQuote(attachment)) return `[Referenced reply from ${attachment.name}]\n${attachment.data ?? ''}`
     return `[selection from ${attachment.name}]\n${truncate(attachment.data ?? '', 4000)}`
   }
   return attachment.path
     ? `[attached file: ${attachment.name} (${attachment.path})]`
     : `[attached file: ${attachment.name}]`
+}
+
+function optsImageNotice(attachment: Attachment, supportsVision: boolean): string {
+  // Stable text keeps the CLI resume watermark unchanged when an older image
+  // leaves the recent image window. The bytes are only sent while hydrated.
+  return supportsVision ? `[attached image: ${attachment.name}]` : `[attached image: ${attachment.name} — this model cannot see images]`
 }
 
 /** Group into blocks: a user message starts one; an assistant reply keeps its results. */

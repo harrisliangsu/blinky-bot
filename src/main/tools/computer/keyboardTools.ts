@@ -8,6 +8,7 @@ import { defineTool } from '../results'
 import { truncateEnd } from '../text'
 import { frameResult, withComputerApproval } from './gate'
 import { KEY_CODES } from './localKeymap'
+import { fillVaultReference } from './vaultTool'
 
 const SETTLE_MS = 350
 const MAX_TEXT_CHARS = 5000
@@ -16,11 +17,14 @@ export const typeTextSchema: ToolSchema = {
   name: 'type_text',
   description:
     'Type text into whatever currently has keyboard focus. Click the field first. Newlines and tabs in ' +
-    'the text are sent as Return and Tab, so this can fill a whole form in one call.',
+    'the text are sent as Return and Tab, so this can fill a whole form in one call. ' +
+    'To use a saved vault field, set text to the user-provided vault://ref/... and vault_field to its field name. ' +
+    'The browser-only vault path requires approval, fills only the saved origin and matching focused field, and returns status without values or screenshots. Never ask for the secret itself.',
   parameters: {
     type: 'object',
     properties: {
-      text: { type: 'string', description: 'The text to type.' }
+      text: { type: 'string', description: 'Text to type, or an opaque vault://ref/... reference.' },
+      vault_field: { type: 'string', description: 'For a vault reference only: username, password, holder, number, expiry, security_code, recipient, street, city, region, postal_code or country.' }
     },
     required: ['text']
   },
@@ -30,6 +34,7 @@ export const typeTextSchema: ToolSchema = {
 
 export const typeTextTool = defineTool(typeTextSchema, async (args, ctx) => {
   const text = reqStr(args, 'text', 'type_text').slice(0, MAX_TEXT_CHARS)
+  if (text.startsWith('vault://') || args.vault_field !== undefined) return fillVaultReference(text, reqStr(args, 'vault_field', 'type_text'), ctx)
   const preview = truncateEnd(text, 300, 'preview truncated')
 
   const outcome = await withComputerApproval(

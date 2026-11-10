@@ -5,6 +5,16 @@ interface Field {
   wildcard: boolean
 }
 
+export interface ScheduleOptions { tz?: string; earlyMinutes?: number; lateMinutes?: number }
+export function isValidScheduleOptions(options: ScheduleOptions | Record<string, unknown>): boolean {
+  if (![options.earlyMinutes, options.lateMinutes].every(value => value === undefined || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 366 * 24 * 60))) return false
+  if (options.tz !== undefined) {
+    if (typeof options.tz !== 'string' || !options.tz.trim()) return false
+    try { new Intl.DateTimeFormat('en-US', { timeZone: options.tz }).format(0) } catch { return false }
+  }
+  return true
+}
+
 export interface ParsedCron {
   minute: Field
   hour: Field
@@ -88,12 +98,21 @@ export function isValidCron(source: string): boolean {
   return parseCron(source) !== null
 }
 
-export function cronMatches(parsed: ParsedCron, date: Date): boolean {
-  if (!parsed.minute.values.has(date.getMinutes())) return false
-  if (!parsed.hour.values.has(date.getHours())) return false
-  if (!parsed.month.values.has(date.getMonth() + 1)) return false
-  const dayMatch = parsed.day.values.has(date.getDate())
-  const weekdayMatch = parsed.weekday.values.has(date.getDay())
+const zoneFormats = new Map<string, Intl.DateTimeFormat>()
+export function cronMatches(parsed: ParsedCron, date: Date, tz?: string): boolean {
+  let minute = date.getMinutes(), hour = date.getHours(), month = date.getMonth() + 1, day = date.getDate(), weekday = date.getDay()
+  if (tz) {
+    let formatter = zoneFormats.get(tz)
+    if (!formatter) { formatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, minute: 'numeric', hour: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short', hourCycle: 'h23' }); zoneFormats.set(tz, formatter) }
+    const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]))
+    minute = Number(parts.minute); hour = Number(parts.hour); month = Number(parts.month); day = Number(parts.day)
+    weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday ?? '')
+  }
+  if (!parsed.minute.values.has(minute)) return false
+  if (!parsed.hour.values.has(hour)) return false
+  if (!parsed.month.values.has(month)) return false
+  const dayMatch = parsed.day.values.has(day)
+  const weekdayMatch = parsed.weekday.values.has(weekday)
   // Traditional cron treats day-of-month and weekday as OR when both are
   // restricted, and as ordinary wildcard conjunction otherwise.
   const calendarMatch = !parsed.day.wildcard && !parsed.weekday.wildcard
@@ -104,6 +123,45 @@ export function cronMatches(parsed: ParsedCron, date: Date): boolean {
 
 const MINUTE_MS = 60_000
 const MAX_CATCH_UP_MS = 366 * 24 * 60 * MINUTE_MS
+
+/** Separate the current due minute from historical misses; never replay misses implicitly. */
+export function cronDueWindow(source: string, since: number, now: number, options: ScheduleOptions = {}): {
+  scheduledAt?: number
+  missed?: { firstAt: number; lastAt: number; count: number }
+  historyTruncated: boolean
+} {
+  const result: ReturnType<typeof cronDueWindow> = { historyTruncated: false }
+  const parsed = parseCron(source)
+  if (!parsed || !isValidScheduleOptions(options) || !Number.isFinite(since) || !Number.isFinite(now)) return result
+  const last = Math.floor(now / MINUTE_MS) * MINUTE_MS
+  const until = last + (options.earlyMinutes ?? 0) * MINUTE_MS
+  const eligibleFrom = last - (options.lateMinutes ?? 0) * MINUTE_MS
+  if (since >= until + MINUTE_MS) return result
+  const earliest = Math.floor(since / MINUTE_MS) * MINUTE_MS + MINUTE_MS
+  const first = Math.max(earliest, last - MAX_CATCH_UP_MS)
+  result.historyTruncated = first > earliest
+  const miss = (at: number): void => {
+    if (!result.missed) result.missed = { firstAt: at, lastAt: at, count: 1 }
+    else { result.missed.lastAt = at; result.missed.count++ }
+  }
+  for (let at = first; at <= until; at += MINUTE_MS) {
+    if (!cronMatches(parsed, new Date(at), options.tz)) continue
+    if (at < eligibleFrom) miss(at)
+    else if (at <= last) {
+      if (result.scheduledAt !== undefined) miss(result.scheduledAt)
+      result.scheduledAt = at
+    } else if (result.scheduledAt === undefined) result.scheduledAt = at
+  }
+  return result
+}
+
+/** Once uses the existing current-minute window; explicit late extends it. */
+export function onceDueWindow(at: number, since: number | undefined, now: number, lateMinutes = 0): 'pending' | 'due' | 'missed' | 'claimed' {
+  if (!Number.isSafeInteger(at) || at < 0 || !Number.isFinite(now) || !isValidScheduleOptions({ lateMinutes })) return 'pending'
+  if (since !== undefined && since >= at) return 'claimed'
+  if (now < at) return 'pending'
+  return Math.floor(now / MINUTE_MS) <= Math.floor(at / MINUTE_MS) + lateMinutes ? 'due' : 'missed'
+}
 
 /** Whether at least one scheduled minute has elapsed since the last attempt. */
 export function cronIsDue(source: string, since: number, now: number): boolean {

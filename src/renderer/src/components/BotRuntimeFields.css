@@ -15,18 +15,45 @@
   font-size: var(--ob-font-size-sm);
 }
 .ob-bot-runtime-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ob-space-2) var(--ob-space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--ob-space-1);
+  min-width: 0;
 }
 .ob-bot-runtime-grid label {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: var(--ob-space-1);
+  flex: 0 1 auto;
   min-width: 0;
   font-size: var(--ob-font-size-xs);
   color: var(--ob-text-tertiary);
+  white-space: nowrap;
+}
+.ob-bot-runtime-grid .ob-bot-runtime-fast {
+  cursor: pointer;
+}
+.ob-bot-runtime-grid .ob-bot-runtime-fast input:disabled {
+  cursor: not-allowed;
 }
 .ob-bot-runtime-grid .ob-settings-select {
-  width: 100%;
+  field-sizing: content;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--ob-height-sm);
+  padding: 0 var(--ob-space-2);
+  padding-right: 22px;
+  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--ob-font-size-xs);
+}
+.ob-bot-runtime-grid .ob-bot-runtime-connection { max-width: 36%; }
+.ob-bot-runtime-grid .ob-bot-runtime-model { flex-shrink: 1; }
+.ob-bot-runtime-caveat { grid-column: 1 / -1; }
+.ob-bot-runtime-grid .ob-bot-runtime-depth {
+  flex-shrink: 0;
+  max-width: 38%;
 }

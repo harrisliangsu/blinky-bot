@@ -6,6 +6,8 @@ export type { AppState, ModalName, RecordingUi, SessionMeta, ToastUi } from './t
 export {
   addBotToSession, setSessionCwd,
   loadSessions,
+  archiveAndClearChat,
+  clearChat,
   newSession,
   openBotChat,
   removeBotFromSession,
@@ -88,5 +90,6 @@ export {
   loadSkills,
   loadSkillsFor,
   skillsReady,
+  syncExistingSkills,
   uninstallSkill
 } from './skills'

@@ -8,10 +8,16 @@
  */
 
 import type { ComputerProvider, ComputerTarget } from '../../../shared/types'
-import { browserFor } from './browser'
+import { browserFor } from './browser/index'
+import { BrowserComputerProvider } from './browser/provider'
+import { forgetBrowser } from './browser/registry'
+import { EgoComputerProvider } from './browser/egoProvider'
 import { LocalComputerProvider } from './localProvider'
 import { VmComputerProvider } from './vmProvider'
 import { vmToken } from '../../store/vmSecrets'
+import { browserScopeId } from './browserScope'
+import { defaultUserDataDir } from './browser/profile'
+import { resolve } from 'node:path'
 
 export { LocalComputerProvider } from './localProvider'
 export { VmComputerProvider } from './vmProvider'
@@ -23,9 +29,9 @@ export {
   removeBrowser,
   stopAllBrowsers,
   APP_CATALOG
-} from './browser'
+} from './browser/index'
 
-const providers = new Map<string, ComputerProvider>()
+const providers = new Map<string, { provider: ComputerProvider; owner: string; kind: ComputerTarget['kind'] }>()
 
 export const LOCAL_TARGET: ComputerTarget = { kind: 'local' }
 
@@ -37,16 +43,18 @@ export interface ProviderOptions {
   dataDir?: string
   /** Owning bot, used for credentials and targeted lifecycle cleanup. */
   botId?: string
+  /** Browser conversation; session-scoped browsers require it. */
+  sessionId?: string
 }
 
-function keyOf(target: ComputerTarget, botId = ''): string {
+function keyOf(target: ComputerTarget, botId = '', browserId = '', dataDir = ''): string {
   switch (target.kind) {
     case 'local':
       return 'local'
     case 'browser':
-      return `browser:${target.botId}`
+      return JSON.stringify(['browser', target.botId, target.provider ?? 'chrome', browserId, dataDir])
     case 'vm':
-      return `vm:${botId}:${target.vmId}:${target.endpoint}`
+      return JSON.stringify(['vm', botId, target.vmId, target.endpoint])
   }
 }
 
@@ -55,18 +63,23 @@ export function getComputerProvider(
   target: ComputerTarget = LOCAL_TARGET,
   options: ProviderOptions = {}
 ): ComputerProvider {
-  const key = keyOf(target, options.botId)
+  if (target.kind === 'browser' && options.botId && options.botId !== target.botId) throw new Error('Browser owner does not match the Bot.')
+  const dataDir = target.kind === 'browser' ? resolve(options.dataDir ?? defaultUserDataDir()) : options.dataDir
+  const browserId = target.kind === 'browser' ? browserScopeId(target.botId, options.sessionId, dataDir).id : ''
+  const key = keyOf(target, options.botId, browserId, dataDir)
   const existing = providers.get(key)
-  if (existing) return existing
+  if (existing) return existing.provider
 
   const created: ComputerProvider =
     target.kind === 'vm'
       ? new VmComputerProvider(target, { token: () => (options.botId ? vmToken(options.botId) : target.token) })
       : target.kind === 'browser'
-        ? browserFor(target.botId, { userDataDir: options.dataDir })
+        ? target.provider === 'ego'
+          ? new EgoComputerProvider(browserId, dataDir)
+          : browserFor(browserId, { userDataDir: dataDir })
         : new LocalComputerProvider()
 
-  providers.set(key, created)
+  providers.set(key, { provider: created, owner: target.kind === 'browser' ? target.botId : (options.botId ?? ''), kind: target.kind })
   return created
 }
 
@@ -77,13 +90,12 @@ export function resetComputerProviders(): void {
 
 /** Stop and forget every cached provider owned by one bot. */
 export async function releaseComputerProvidersForBot(botId: string): Promise<void> {
-  const prefixBrowser = `browser:${botId}`
-  const prefixVm = `vm:${botId}:`
   const stopped = new Set<ComputerProvider>()
-  for (const [key, provider] of [...providers]) {
-    if (key !== prefixBrowser && !key.startsWith(prefixVm)) continue
+  for (const [key, record] of [...providers]) {
+    if (record.owner !== botId || (record.kind !== 'browser' && record.kind !== 'vm')) continue
     providers.delete(key)
-    stopped.add(provider)
+    if (record.provider instanceof BrowserComputerProvider) forgetBrowser(record.provider)
+    stopped.add(record.provider)
   }
   for (const provider of stopped) {
     const stop = (provider as ComputerProvider & { stop?: () => Promise<void> }).stop

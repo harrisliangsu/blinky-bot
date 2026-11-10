@@ -1,6 +1,7 @@
 /** The main window: creation, first paint, and how it loads the renderer. */
 
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
+import { applyNativeGlass, forgetNativeGlass } from './nativeGlass'
 import { getSettings, onSettingsChanged } from '../settings'
 import { devServerUrl, preloadScript, rendererHtml } from './bundlePaths'
 import { hardenWebContents } from './security'
@@ -14,24 +15,24 @@ const MIN_HEIGHT = 520
 /** Matches the renderer's dark canvas, so launch never flashes white. */
 const BACKGROUND = '#0b0b0c'
 
-/** Translucency is chosen in Settings. macOS also gets native vibrancy. */
-export function applyWindowChrome(window: BrowserWindow, vibrant: boolean): void {
+/** The legacy under-window transparency is retired. Native glass is confined to navigation. */
+export function applyWindowChrome(window: BrowserWindow, _legacyVibrant = false): void {
   if (window.isDestroyed()) return
-  if (process.platform === 'darwin') {
-    window.setVibrancy(vibrant ? 'under-window' : null)
-  }
-  window.setBackgroundColor(vibrant ? '#00000000' : BACKGROUND)
+  if (process.platform === 'darwin') window.setVibrancy(null)
+  const status = applyNativeGlass(window, getSettings().nativeGlass !== false)
+  window.setBackgroundColor(status.applied ? '#00000000' : BACKGROUND)
+  window.webContents.send('openbot:window:chromeChanged', status)
 }
 
 export function createWindow(): BrowserWindow {
-  const vibrant = getSettings().vibrant === true
+  const vibrant = false
   const window = new BrowserWindow({
     width: WIDTH,
     height: HEIGHT,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     show: false,
-    title: 'BlinkyBot',
+    title: app.getName(),
     transparent: true,
     backgroundColor: vibrant ? '#00000000' : BACKGROUND,
     vibrancy: vibrant && process.platform === 'darwin' ? 'under-window' : undefined,
@@ -53,8 +54,10 @@ export function createWindow(): BrowserWindow {
   })
 
   hardenWebContents(window.webContents)
+  window.on('closed', () => forgetNativeGlass(window))
 
   window.once('ready-to-show', () => {
+    applyWindowChrome(window)
     markSmokeReady()
     window.show()
     if (process.env.BLINKY_SHOTS === '1') {
@@ -76,12 +79,23 @@ export function createWindow(): BrowserWindow {
 
 /** Keep every open window in step with the translucent-window preference. */
 export function installWindowChrome(): void {
+  const trusted = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win && event.senderFrame?.frameTreeNodeId === event.sender.mainFrame.frameTreeNodeId ? win : null
+  }
+  ipcMain.handle('openbot:window:chromeStatus', event => { const win = trusted(event); if (!win) return { supported: false, applied: false, reduced: false }; const status = applyNativeGlass(win, getSettings().nativeGlass !== false); win.setBackgroundColor(status.applied ? '#00000000' : BACKGROUND); return status })
+  ipcMain.handle('openbot:window:chromeLayout', (event, width: unknown) => {
+    const win = trusted(event); if (!win || typeof width !== 'number' || !Number.isFinite(width)) return
+    const status = applyNativeGlass(win, getSettings().nativeGlass !== false, width)
+    win.setBackgroundColor(status.applied ? '#00000000' : BACKGROUND)
+    win.webContents.send('openbot:window:chromeChanged', status)
+  })
   const apply = (): void => {
-    const vibrant = getSettings().vibrant === true
-    for (const window of BrowserWindow.getAllWindows()) applyWindowChrome(window, vibrant)
+    for (const window of BrowserWindow.getAllWindows()) applyWindowChrome(window)
   }
   apply()
   onSettingsChanged(() => apply())
+  nativeTheme.on('updated', apply)
 }
 
 /** The window to act on, creating one if the app has none. */

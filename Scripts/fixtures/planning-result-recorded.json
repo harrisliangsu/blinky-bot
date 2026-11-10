@@ -1,0 +1,36 @@
+{
+  "events": [
+    {
+      "type": "tool-call",
+      "call": {
+        "name": "delegate_task",
+        "args": {
+          "title": "合成导出占位说明验收",
+          "prompt": "这是用户授权的隔离合成任务流验收。请在当前工作区的 src/export 范围内创建一份中文 Markdown 占位说明，建议文件名为 synthetic-placeholder.md。文档严格按三步组织：1）字段：列出 2–3 个明确标注为合成占位的字段及用途；2）时区：说明统一使用 Asia/Singapore（UTC+08:00）作为合成示例时区，不读取系统或业务时区；3）样例：提供一小段完全虚构、与字段和时区一致的占位数据。文档需醒目标明“仅用于合成任务流验收”，不得开发真实功能、不得连接或读取业务数据，不新增测试、脚本或其他交付物。完成后核对文件确已写入，并返回实际文件路径及简短内容核对结果。",
+          "plan": {
+            "workspace": "shared",
+            "workspace_reason": "交付物需直接写入本次用户指定工作区的 src/export 范围。",
+            "context": {
+              "summary": "在 src/export 内交付一份按字段、时区、样例三步组织的中文合成占位 Markdown 说明，并核对文件已写入。",
+              "categories": [
+                "合成验收",
+                "占位文档"
+              ],
+              "scope": [
+                "用户指定当前工作区",
+                "src/export/synthetic-placeholder.md"
+              ],
+              "boundaries": [
+                "仅创建一份合成占位文档",
+                "不开发真实功能",
+                "不连接或读取业务数据",
+                "不新增测试、脚本或其他交付物",
+                "不新建监控任务"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

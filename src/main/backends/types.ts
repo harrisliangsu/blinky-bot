@@ -7,7 +7,9 @@
  */
 
 import type { CliAuthInfo } from '../../shared/cliAuth'
+import type { AgentTrace } from '../../shared/chat'
 import type { ThinkingDepth } from '../../shared/thinking'
+import type { TimingObserver } from './chatTiming'
 import type {
   BackendConfig,
   BackendKind,
@@ -81,7 +83,15 @@ export interface BackendApproval {
 export type BackendApprovalDecision = 'approve' | 'approve-always' | 'reject'
 
 export interface ChatRequest {
+  /** Owning application session; used to approve an entire native CLI task. */
+  localExecutionSessionId?: string
+  /** Optional stage-only diagnostics; never receives text, tool args or credentials. */
+  onTiming?: TimingObserver
   model: string
+  /** Capture supported CLI tool events only for an independent executor. */
+  captureAgentTrace?: boolean
+  /** Capability resolved for this exact turn, including the CLI fallback. */
+  supportsVision?: boolean
   messages: ProviderMessage[]
   tools?: ToolSchema[]
   signal: AbortSignal
@@ -92,6 +102,8 @@ export interface ChatRequest {
    * silently auto-approve.
    */
   approve?: (request: BackendApproval) => Promise<BackendApprovalDecision>
+  /** Real interactive clarification; absent clients return no answer. */
+  requestInput?: (questions: import('../../shared/activity').AgentTaskQuestion[]) => Promise<Record<string, string[]> | null>
   /**
    * MCP servers the user configured. A CLI that can host MCP is given these so
    * the servers are actually reachable — they were previously accepted in
@@ -119,6 +131,8 @@ export interface ChatRequest {
    * permissive than what the user chose in OpenBOT.
    */
   approvalPolicy?: string
+  /** Explicitly authorized independent executor only; never inferred from auto-run. */
+  executionAccess?: 'full-access'
   /**
    * Folder this turn runs in — the session's working directory.
    *
@@ -147,6 +161,10 @@ export interface ChatRequest {
    * the reply had already been reported and with nobody watching.
    */
   readOnly?: boolean
+  /** Allow native inspection, but prohibit mutations without escalation. */
+  restrictNativeWrites?: boolean
+  /** Codex lead delegates substantive execution to a configured worker. */
+  coordinatorOnly?: boolean
   /** Disable every CLI-owned tool; OpenBOT will execute supplied tools itself. */
   disableNativeTools?: boolean
   /**
@@ -154,6 +172,11 @@ export interface ChatRequest {
    * it. Absent leaves the CLI or provider on its own default.
    */
   thinking?: ThinkingDepth
+  /**
+   * Route this turn over the provider's fast channel. Adapters without a
+   * real fast lane ignore it; adapters that do still validate the model.
+   */
+  fast?: boolean
 }
 
 /**
@@ -171,8 +194,12 @@ export interface TokenUsage {
 }
 
 export type ChatChunk =
-  | { type: 'text'; delta: string }
-  | { type: 'reasoning'; delta: string }
+  // `visible` is an adapter assertion that the source is public speech, not
+  // stdout, tool protocol or private reasoning. It does not imply commentary.
+  | { type: 'text'; delta: string; visible?: true; segment?: { id: string; phase: 'commentary' | 'partial_answer' | 'final_answer'; delta: string } }
+  | { type: 'reasoning'; delta: string; toolActivity?: boolean }
+  | { type: 'agent_trace'; entry: AgentTrace }
+  | { type: 'notice'; category: 'reconnect' | 'transport' | 'warning'; message: string }
   | { type: 'tool_call'; call: ToolCall }
   | { type: 'usage'; usage: TokenUsage }
   | { type: 'done' }
@@ -194,6 +221,8 @@ export interface Backend {
   detect(cfg: BackendConfig): Promise<DetectResult>
   listModels(cfg: BackendConfig): Promise<ModelInfo[]>
   chat(req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk>
+  /** Separate, verified text-only transport. Never inferred from readOnly. */
+  modelOnlyChat?(req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk>
 }
 
 /**

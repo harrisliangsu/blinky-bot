@@ -7,11 +7,12 @@ import { imagePreviewSrc } from './imageAttachments'
 
 /** Asks for files and turns the chosen paths into attachments. */
 export async function chooseAttachments(): Promise<Attachment[]> {
+  if (window.openbot.dialog.pickAttachments) return window.openbot.dialog.pickAttachments()
   const paths = await pickFiles()
   return paths.map((path, i) => ({
     id: `att-${Date.now()}-${i}`,
     kind: 'file' as const,
-    name: basename(path),
+    name: window.openbot.environment?.kind === 'browser' ? decodeURIComponent(basename(path)) : basename(path),
     path
   }))
 }

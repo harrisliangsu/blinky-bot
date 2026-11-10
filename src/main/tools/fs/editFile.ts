@@ -14,6 +14,7 @@ import { ToolError } from '../errors'
 import {
   displayPath,
   noteApprovedTarget,
+  outsideAccessRequiresConfirmation,
   outsideNotice,
   outsideResolvedTarget,
   resolveTarget
@@ -79,7 +80,7 @@ export const editFileTool = defineTool(schema, async (args, ctx) => {
             truncateEnd(newString, MAX_PREVIEW_CHARS / 2, 'truncated')
           ].join('\n')
         },
-        { force: true }
+        { force: outsideAccessRequiresConfirmation(ctx) }
       )
       noteApprovedTarget(ctx, outside, 'write')
     }

@@ -15,6 +15,7 @@ import { broadcastError } from './events'
 import { startIdleClock } from './idleClock'
 import { SUPERVISED_IDLE_TIMEOUT_MS, supervisedTimeoutMessage } from './backendMode'
 import { runTurn, type TurnResult } from './turn'
+import { traceChatTiming } from '../backends/chatTiming'
 
 export interface SupervisedTurnInput {
   session: Session
@@ -25,6 +26,7 @@ export interface SupervisedTurnInput {
   replyTo: string | null
   floor: string | null
   retry: boolean
+  internalAssistant?: boolean
 }
 
 /**
@@ -44,12 +46,15 @@ export interface SupervisedTurnInput {
  */
 export async function runSupervisedTurn(input: SupervisedTurnInput): Promise<TurnResult> {
   const { session, bot } = input
-  const gateway = await attachGateway({
+  traceChatTiming(session.id, 'gateway-start')
+  // Attach while the turn resolves the model, context and skills. The request
+  // still waits for the gateway before starting the CLI.
+  const gateway = attachGateway({
     sessionId: session.id,
     botId: bot.id,
     cwd: session.cwd,
     backendId: bot.backendId
-  })
+  }).then((value) => { traceChatTiming(session.id, 'gateway-ready'); return value })
 
   const clock = startIdleClock(SUPERVISED_IDLE_TIMEOUT_MS, () => {
     // Aborting the session's controller is what kills the CLI's child process.
@@ -66,7 +71,8 @@ export async function runSupervisedTurn(input: SupervisedTurnInput): Promise<Tur
       replyTo: input.replyTo,
       floor: input.floor,
       retry: input.retry,
-      gateway: gateway ?? undefined,
+      internalAssistant: input.internalAssistant,
+      gateway,
       onActivity: clock.touch
     })
     if (clock.expired()) {
@@ -76,6 +82,9 @@ export async function runSupervisedTurn(input: SupervisedTurnInput): Promise<Tur
     }
     return result
   } finally {
+    // Finish attachment before the caller schedules gateway cleanup even if
+    // the turn fails early (for example, an unavailable backend).
+    await gateway
     clock.stop()
   }
 }

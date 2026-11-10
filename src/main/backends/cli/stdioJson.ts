@@ -7,13 +7,15 @@
  */
 
 import { safeJsonParse } from '../lenientJson'
-import { diagnosticTail } from '../secretRedaction'
+import { diagnosticTail } from '../vaultRedaction'
 import { type ExitInfo, spawnLines } from '../spawnProcess'
 import type { ChatChunk } from '../types'
 import type { EventMapper } from './events'
 import type { AgentCliSpec, CliRunContext } from './spec'
+import { noteTiming, type TimingObserver } from '../chatTiming'
 
 export interface StdioJsonRun {
+  onTiming?: TimingObserver
   spec: AgentCliSpec
   binaryPath: string
   args: string[]
@@ -64,6 +66,7 @@ function describeExit(info: ExitInfo): string {
 
 export async function* runStdioJson(run: StdioJsonRun): AsyncGenerator<ChatChunk> {
   const handle = await spawnLines(run.binaryPath, {
+    onTiming: run.onTiming,
     args: run.args,
     cwd: run.ctx.cwd,
     signal: run.signal,
@@ -74,6 +77,7 @@ export async function* runStdioJson(run: StdioJsonRun): AsyncGenerator<ChatChunk
 
   try {
     if (run.promptInput !== 'none') {
+      noteTiming(run.onTiming, 'model-request')
       const payload =
         run.promptInput === 'stdin-json' && run.encodePrompt
           ? `${run.encodePrompt(run.prompt)}\n`

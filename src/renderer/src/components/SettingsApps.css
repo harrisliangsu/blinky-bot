@@ -1,27 +1,49 @@
-.ob-apps-toolbar,
-.ob-apps-git {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ob-space-2);
-  margin-top: var(--ob-space-2);
-}
-
-.ob-apps-git .ob-input {
-  flex: 1 1 140px;
-}
-
-.ob-app-soon {
-  opacity: 0.72;
-}
-
-.ob-app-soon-head {
-  display: flex;
+.ob-apps { display: flex; flex-direction: column; gap: var(--ob-space-5); padding: var(--ob-space-2) var(--ob-space-2) var(--ob-space-6); }
+.ob-apps-intro { display: flex; align-items: center; justify-content: space-between; gap: var(--ob-space-4); }
+.ob-apps-intro p { margin: 0; }
+.ob-apps-search { width: 100%; }
+.ob-apps-filters { display: flex; flex-wrap: wrap; gap: var(--ob-space-2); }
+.ob-apps-filters button[aria-pressed='true'] { background: var(--ob-text-primary); color: var(--ob-bg-editor); }
+.ob-apps-heading { margin: var(--ob-space-3) 0 0; font-size: var(--ob-font-size-lg); }
+.ob-apps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); column-gap: var(--ob-space-8); row-gap: var(--ob-space-4); }
+.ob-app-card {
+  display: grid;
+  grid-template-columns: var(--ob-space-12) minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--ob-space-2);
+  gap: var(--ob-space-4);
+  min-width: 0;
+  padding: var(--ob-space-2) 0;
 }
-
-.ob-app-soon-head h3,
-.ob-app-soon .ob-set-value {
-  margin: 0;
+.ob-app-icon {
+  display: grid;
+  place-items: center;
+  width: var(--ob-space-12);
+  height: var(--ob-space-12);
+  border-radius: var(--ob-radius-xl);
+  background: var(--ob-bg-raised);
+  color: var(--ob-text-primary);
+  font-size: var(--ob-font-size-sm);
+  font-weight: var(--ob-weight-semibold);
 }
+.ob-app-summary { min-width: 0; }
+.ob-app-summary h3 { margin: 0 0 var(--ob-space-1); font-size: var(--ob-font-size-base); }
+.ob-app-summary p { margin: 0; overflow-wrap: anywhere; }
+.ob-app-summary .ob-set-value { margin-top: var(--ob-space-1); color: var(--ob-text-secondary); font-size: var(--ob-font-size-sm); }
+.ob-apps-git { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--ob-space-2); }
+.ob-apps-git .ob-input { flex: 1 1 140px; }
+.ob-apps-google p { flex-basis: 100%; margin: 0; }
+.ob-apps-google-actions { display: flex; flex-wrap: wrap; gap: var(--ob-space-2); }
+.ob-app-card > .ob-apps-google-actions { grid-column: 3; min-width: 0; }
+.ob-apps-configure { grid-column: 2 / -1; justify-self: start; }
+.ob-apps-connection-note { grid-column: 2 / -1; margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 540px) {
+  .ob-apps-intro { align-items: flex-start; }
+  .ob-app-card { grid-template-columns: var(--ob-space-10) minmax(0, 1fr); gap: var(--ob-space-3); }
+  .ob-app-icon { width: var(--ob-space-10); height: var(--ob-space-10); }
+  .ob-app-card > button { grid-column: 2; justify-self: start; }
+  .ob-app-card > .ob-apps-google-actions { grid-column: 2; }
+  .ob-apps-git { grid-column: 1 / -1; }
+}
+.ob-google-account-picker { display: grid; gap: 8px; min-width: 0; }
+.ob-google-account-picker label { display: grid; gap: 6px; min-width: 0; }
+.ob-google-account-picker select { width: 100%; max-width: 100%; min-width: 0; }

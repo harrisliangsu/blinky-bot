@@ -1,0 +1,12 @@
+.ob-vault { display: flex; flex-direction: column; gap: 18px; }
+.ob-vault-intro { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ob-vault-intro p { margin: 0; color: var(--ob-text-secondary); line-height: 1.5; }
+.ob-vault-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 18px; border-radius: 16px; background: var(--ob-bg-raised); }
+.ob-vault-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ob-text-secondary); }
+.ob-vault-form button { justify-self: start; align-self: end; }
+.ob-vault-items { display: flex; flex-direction: column; gap: 8px; }
+.ob-vault-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--ob-bg-raised); }
+.ob-vault-item > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ob-vault-item small { color: var(--ob-text-tertiary); overflow-wrap: anywhere; }
+.ob-vault-actions { display: flex; gap: 6px; }
+@media (max-width: 640px) { .ob-vault-form { grid-template-columns: 1fr; } }

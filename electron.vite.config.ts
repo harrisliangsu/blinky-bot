@@ -36,6 +36,9 @@ function stripDevCsp(): Plugin {
 
 export default defineConfig({
   main: {
+    // MAIN_VITE_* from .env / .env.local / the process environment. Renderer
+    // builds do not use this prefix, so publisher client values stay out of it.
+    envDir: resolve('.'),
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
@@ -63,6 +66,6 @@ export default defineConfig({
     root: resolve('src/renderer'),
     resolve: { alias: { '@': resolve('src/renderer/src') } },
     plugins: [react(), stripDevCsp()],
-    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html') } } }
+    build: { rollupOptions: { input: { index: resolve('src/renderer/index.html'), remote: resolve('src/renderer/remote.html') } } }
   }
 })

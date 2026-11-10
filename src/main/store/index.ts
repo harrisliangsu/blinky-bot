@@ -7,11 +7,13 @@ import { adoptReadyDefaultBackend } from '../backends/adoptDefault'
 import { initSettings } from '../settings'
 import { flushAll, type FlushReport } from './jsonStore'
 import { ensureAllDirs } from './paths'
+import { migrateBotHomes } from './botHome'
 import { loadBots, seedBotsIfEmpty } from './bots'
+import { loadProviderBindings } from './providerBindings'
 import { loadMemory } from './memory'
 import { getProject, loadProjects, projectsLoadWasIncomplete } from './projects'
 import { loadRoutines } from './routines'
-import { loadSessions, unfileOrphanedSessions } from './sessions'
+import { loadSessions, sessionsLoadWasIncomplete, unfileOrphanedSessions } from './sessions'
 import { loadVmSecrets } from './vmSecrets'
 import { loadBackendSecrets } from './backendSecrets'
 import { loadMcpSecrets } from './mcpSecrets'
@@ -19,12 +21,13 @@ import { loadActivity } from './activity'
 import { loadTasks } from './tasks'
 import { loadGroups } from './groups'
 import { loadRooms } from './rooms'
+import { loadMessageQueues } from './messageQueue'
 
 /**
  * Create the data directories, load settings, then load every collection.
  * Settings come first because bot seeding reads the default backend/model.
  */
-export async function initStore(): Promise<void> {
+export async function initStore(options?: { background?: boolean }): Promise<void> {
   ensureAllDirs()
   await loadBackendSecrets()
   await loadMcpSecrets()
@@ -41,8 +44,15 @@ export async function initStore(): Promise<void> {
     loadActivity(),
     loadTasks(),
     loadGroups(),
-    loadRooms()
+    loadRooms(),
+    loadMessageQueues().catch((error) => console.error('[openbot/store] message queue unavailable', error)),
+    loadProviderBindings().catch((error) => {
+      console.warn('[openbot/store] provider bindings were not loaded', error)
+    })
   ])
+  // A periodic wake must not perform foreground migrations, seed new Bots or
+  // probe and rewrite defaults merely because the user closed the window.
+  if (options?.background) return
   /*
    * Starter bots copy `defaultBackendId`. Choose a signed-in CLI first, and
    * move bots that are still on an unavailable factory default, so a 0.2
@@ -68,11 +78,17 @@ export async function initStore(): Promise<void> {
    */
   if (projectsLoadWasIncomplete()) {
     console.warn('[openbot/store] some projects could not be read — leaving chat filing untouched')
-    return
+  } else {
+    const rescued = unfileOrphanedSessions((id) => getProject(id) !== null)
+    if (rescued.length > 0) {
+      console.warn('[openbot/store] unfiled', rescued.length, 'chat(s) from deleted projects')
+    }
   }
-  const rescued = unfileOrphanedSessions((id) => getProject(id) !== null)
-  if (rescued.length > 0) {
-    console.warn('[openbot/store] unfiled', rescued.length, 'chat(s) from deleted projects')
+  // An unreadable legacy session may be a Bot's home. Never rebind away from
+  // it while importing only part of the historical set.
+  const homes = sessionsLoadWasIncomplete() ? { assigned: 0, archived: 0 } : migrateBotHomes()
+  if (homes.assigned > 0 || homes.archived > 0) {
+    console.warn('[openbot/store] bound', homes.assigned, 'bot home(s); archived', homes.archived, 'older chat(s)')
   }
 }
 

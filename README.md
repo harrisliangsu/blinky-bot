@@ -1,6 +1,6 @@
 # BlinkyBot
 
-BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模型，也不需要注册账号。它调用你已经安装的 CLI（`claude`、`codex`、`kimi`、`grok`，以及 `opencode`、`pi`、`droid`），或者用你在设置里保存的 API key 直接请求服务商。对话、Bot 和设置都是本机上的 JSON。
+BlinkyBot 是装在这台 Mac 上的本地多智能体应用。它不自带模型，也不需要注册账号。它调用你已经安装的 CLI（`claude`、`codex`、`kimi`、`grok`，以及 `opencode`、`pi`、`droid`），或者用你在设置里保存的 API key 直接请求服务商。会话记录保存在本机 SQLite 数据库，Bot、设置、任务等其余数据是本机 JSON 文件。
 
 打 tag 发布安装包见 [docs/releasing.md](docs/releasing.md)。
 
@@ -12,7 +12,7 @@ This tree is an MIT fork of [OpenBOT](https://github.com/ashhart/OpenBot). The p
 
 ![BlinkyBot — a conversation, the bot roster, and the activity rail](docs/images/openbot.png)
 
-**Status: 0.3.9, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it. A tagged release publishes the disk image; see [docs/releasing.md](docs/releasing.md).
+**Status: 0.3.12, early.** The parts under "What works" are real. Read "Current limitations" before you rely on it. A tagged release publishes the disk image; see [docs/releasing.md](docs/releasing.md).
 
 ## 在 Mac 上从源码安装
 
@@ -159,8 +159,9 @@ Pick an `available` backend, start a chat, and send a short message. A CLI backe
 
 BlinkyBot is an Electron desktop app. It does not ship a model and it is not a
 service: it either shells out to an agent CLI that is already on your `PATH`, or
-talks directly to a provider API with a key you supply. Chats, projects, bots
-and settings are plain JSON files under the app's data directory.
+talks directly to a provider API with a key you supply. Chats are stored in a
+local SQLite database (`sessions.sqlite`); bots, tasks and settings are plain
+JSON files under the app's data directory.
 
 The design assumption throughout is that you own the machine and the keys, and
 that the app should be able to explain exactly what it is about to do before it
@@ -374,8 +375,9 @@ full authentication, screen/input, lifecycle, and RPC contract is in
 
 ### Where your data lives
 
-Everything is plain JSON under Electron's user-data directory for the app
-(override with `OPENBOT_DATA_DIR`):
+Data lives under Electron's user-data directory for the app (override with
+`OPENBOT_DATA_DIR`). Chat messages live in `sessions.sqlite` (transactional,
+WAL); the other records are plain JSON:
 
 ```
 settings.json          non-secret settings
@@ -383,10 +385,9 @@ backend-secrets.json   OS-encrypted model API credentials
 mcp-secrets.json       OS-encrypted remote MCP bearer credentials
 vm-secrets.json        OS-encrypted box control credentials
 boxes/<vmId>/          managed-box runtime and persistent workspace
-sessions/<id>.json     one chat each
+sessions.sqlite        all chat messages (legacy sessions/<id>.json is retained only for one-time import)
 bots/<id>.json         one bot each
 groups/<id>.json       named bot groups
-projects/<id>.json     project and its board
 routines/<id>.json     recorded routines
 memory/<botId>.json    long-term memory per bot
 tasks/<id>.json        independently running agent tasks

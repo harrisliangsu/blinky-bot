@@ -10,6 +10,7 @@ import { optStr, reqStr } from '../args'
 import { ToolError } from '../errors'
 import { defineTool } from '../results'
 import { frameResult, withComputerApproval } from './gate'
+import { APP_CATALOG } from './browser/apps'
 
 const OPEN_SETTLE_MS = 1500
 const NAVIGATE_SETTLE_MS = 2500
@@ -69,6 +70,8 @@ export const navigateTool = defineTool(navigateSchema, async (args, ctx) => {
   const raw = reqStr(args, 'url', 'navigate').trim()
   const app = optStr(args, 'app')
   const url = normalizeUrl(raw)
+  const browserTarget = ctx.computerTarget?.kind === 'browser'
+  const knownNames = browserTarget ? APP_CATALOG.filter((entry) => new URL(entry.url).hostname === url.hostname).map((entry) => entry.name) : []
 
   const outcome = await withComputerApproval(
     ctx,
@@ -76,11 +79,14 @@ export const navigateTool = defineTool(navigateSchema, async (args, ctx) => {
       toolName: 'navigate',
       summary: `Open ${url.host} in ${app ?? 'the default browser'}`,
       detail: `Navigate to:\n${url.toString()}${app ? `\n\nIn: ${app}` : ''}`,
-      targetApp: app,
+      // For a browser target the action reaches the destination site, not the
+      // currently open page or an arbitrary model-supplied app label.
+      targetApp: browserTarget ? url.hostname : app,
+      targetAliases: knownNames,
       settleMs: NAVIGATE_SETTLE_MS
     },
     async (provider) => {
-      if (app && typeof (provider as { openApp?: unknown }).openApp === 'function') {
+      if (app && !browserTarget && typeof (provider as { openApp?: unknown }).openApp === 'function') {
         await provider.openApp(app, ctx.signal)
       }
       await provider.navigate(url.toString(), ctx.signal)

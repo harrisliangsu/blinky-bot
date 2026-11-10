@@ -1,10 +1,9 @@
 /**
  * The official xAI Grok CLI as a backend (`grok` from `@xai-official/grok`).
  *
- * Headless mode is `grok --prompt-file … --output-format streaming-json`.
- * `--always-approve` is how that mode runs without a TTY: there is no
- * permission callback to route into BlinkyBot, so a chat turn uses the CLI's
- * own tools. `--no-auto-update` keeps a daily-updated binary from stalling the
+ * Chat uses ACP when an application permission handler or MCP servers are
+ * available. The legacy print transport is retained for simple callers that
+ * do not provide those capabilities. `--no-auto-update` keeps a daily-updated binary from stalling the
  * turn on its updater. Sign-in is `grok login` (`~/.grok/auth.json`); an API
  * key saved on this row is passed as `XAI_API_KEY`, which the CLI accepts when
  * no session is active. The direct `xai` cloud backend is a separate adapter.
@@ -27,6 +26,7 @@ import { cliSessionToken, forgetCliSession, rememberCliSession, rememberedCliSes
 import { detectAgentCli } from './detect'
 import { grokMapper } from './events'
 import { refuseUngovernedSideCall } from './printMode'
+import { flushProviderBindings } from '../../store/providerBindings'
 import { fingerprints, firstUnsent, forgetSent, rememberSent } from './resumePrompt'
 import {
   type AgentCliSpec,
@@ -36,8 +36,10 @@ import {
   resolveBinary,
   runContext
 } from './spec'
-import { runStdioJson } from './stdioJson'
+import { captureCli, runStdioJson } from './stdioJson'
 import { flattenTranscript, latestUserTurn, systemPromptOf } from './transcript'
+import { imagePartsOf } from '../messageContent'
+import { runGrokAcp } from './kimiAcp'
 
 export const GROK_SPEC: AgentCliSpec = {
   id: 'grok',
@@ -52,6 +54,27 @@ export const GROK_SPEC: AgentCliSpec = {
     homepage: 'https://docs.x.ai/build/cli/headless-scripting',
     paths: () => [homePath('.grok', 'auth.json')]
   }
+}
+
+/** Parse only model rows printed by `grok models`, never arbitrary diagnostic text. */
+export function parseGrokModels(output: string): ModelInfo[] {
+  const models: ModelInfo[] = []
+  const seen = new Set<string>()
+  let inModels = false
+  for (const line of output.split(/\r?\n/)) {
+    if (/^\s*Available models:\s*$/i.test(line)) {
+      inModels = true
+      continue
+    }
+    if (!inModels) continue
+    const match = /^\s*[*-]\s+([A-Za-z0-9._:@/-]{1,120})(?:\s+\(default\))?\s*$/i.exec(line)
+    if (!match) continue
+    const id = match[1]!
+    if (id === 'default' || seen.has(id)) continue
+    seen.add(id)
+    models.push({ id, label: id })
+  }
+  return models
 }
 
 export interface GrokArgInput {
@@ -105,7 +128,7 @@ async function* runOnce(
   const apiKey = cfg.apiKey?.trim()
   try {
     await writeFile(promptFile, prompt, { mode: 0o600 })
-    yield* runStdioJson({
+    for await (const chunk of runStdioJson({
       spec: GROK_SPEC,
       binaryPath,
       args: buildGrokArgs({
@@ -121,10 +144,12 @@ async function* runOnce(
       promptInput: 'none',
       mapper: grokMapper((id) => {
         captured = id
-      }),
+      }, req.captureAgentTrace === true),
       signal: req.signal,
       ...(apiKey ? { extraEnv: { XAI_API_KEY: apiKey } } : {})
-    })
+    })) {
+      if (chunk.type !== 'done') yield chunk
+    }
     if (captured) rememberCliSession(GROK_SPEC.id, req.sessionKey, captured)
   } finally {
     await rm(dir, { recursive: true, force: true })
@@ -137,6 +162,25 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   const marks = fingerprints(req.messages)
   let resumeId = rememberedCliSession(GROK_SPEC.id, req.sessionKey)
 
+  const latestUser = [...req.messages].reverse().find((message) => message.role === 'user')
+  const images = latestUser && req.supportsVision !== false ? imagePartsOf(latestUser.content) : []
+  if (req.executionAccess === 'full-access' || req.approve || req.mcpServers?.length || images.length) {
+    const opts = readCliOptions(cfg, req.cwd), ctx = runContext(req.model, opts)
+    const body = turnPrompt(req, Boolean(resumeId)).trim(), system = systemPromptOf(req.messages).trim()
+    const prompt = [system, body || (images.length ? '[Image attached]' : '')].filter(Boolean).join('\n\n')
+    if (!prompt) throw new Error('Grok was given an empty prompt.')
+    const apiKey = cfg.apiKey?.trim()
+    for await (const chunk of runGrokAcp({
+      binaryPath, ctx, req, prompt, resumeId, images,
+      ...(apiKey ? { extraEnv: { XAI_API_KEY: apiKey } } : {}),
+      onSession: async (id) => { rememberCliSession(GROK_SPEC.id, req.sessionKey, id); if (req.sessionKey) await flushProviderBindings() }
+    })) {
+      if (chunk.type === 'done') { rememberSent(req.sessionKey, marks); if (req.sessionKey) await flushProviderBindings() }
+      yield chunk
+    }
+    return
+  }
+
   for (let attempt = 0; attempt < 2; attempt++) {
     const resumed = Boolean(resumeId)
     const prompt = turnPrompt(req, resumed).trim()
@@ -148,6 +192,8 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
         yield chunk
       }
       rememberSent(req.sessionKey, marks)
+      if (req.sessionKey) await flushProviderBindings()
+      yield { type: 'done' }
       return
     } catch (err) {
       if (answered || req.signal.aborted || !resumed) throw err
@@ -166,8 +212,15 @@ export const grokBackend: Backend = {
 
   detect: (cfg: BackendConfig): Promise<DetectResult> => detectAgentCli(GROK_SPEC, cfg),
 
-  async listModels(): Promise<ModelInfo[]> {
-    return [CLI_DEFAULT_MODEL]
+  async listModels(cfg: BackendConfig): Promise<ModelInfo[]> {
+    try {
+      const binaryPath = await resolveBinary(GROK_SPEC, cfg)
+      const opts = readCliOptions(cfg)
+      const result = await captureCli(binaryPath, ['models'], opts.cwd, 5000)
+      return result.code === 0 ? [CLI_DEFAULT_MODEL, ...parseGrokModels(result.stdout)] : [CLI_DEFAULT_MODEL]
+    } catch {
+      return [CLI_DEFAULT_MODEL]
+    }
   },
 
   chat: (req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> => runTurn(req, cfg)

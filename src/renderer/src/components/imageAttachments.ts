@@ -62,25 +62,22 @@ function extensionFor(mime: string): string {
   return subtype || 'png'
 }
 
-/** Clipboard and drop events share this shape. Files and items are deduped. */
+/** Clipboard and drop events expose the same files in two different lists. */
 export function filesFromTransfer(data: {
   files?: ArrayLike<ImageFileLike>
   items?: ArrayLike<{ kind: string; type: string; getAsFile?: () => ImageFileLike | null }>
 }): ImageFileLike[] {
+  // Chromium may create different File wrappers (and timestamps or names) for
+  // the same clipboard image in `files` and `items`. Use a single source;
+  // comparing metadata across both lists is not a reliable identity check.
+  const files = data.files ? Array.from(data.files).filter(isImageFile) : []
+  if (files.length) return files
   const out: ImageFileLike[] = []
-  const seen = new Set<string>()
-  const add = (file: ImageFileLike | null | undefined): void => {
-    if (!file || !isImageFile(file)) return
-    const key = `${file.name}\0${file.size}\0${file.lastModified ?? 0}\0${file.type}`
-    if (seen.has(key)) return
-    seen.add(key)
-    out.push(file)
-  }
-  if (data.files) for (const file of Array.from(data.files)) add(file)
   if (data.items) {
     for (const item of Array.from(data.items)) {
       if (item.kind !== 'file' || !item.type.toLowerCase().startsWith('image/')) continue
-      add(item.getAsFile?.() ?? null)
+      const file = item.getAsFile?.()
+      if (file && isImageFile(file)) out.push(file)
     }
   }
   return out

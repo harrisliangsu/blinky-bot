@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.12
+
+- **Apps lists GitHub, Gmail, and X.** Calendar and Slack stay in the product and stay off this grid. Git identity is no longer a card here.
+- **GitHub signs in with BlinkyBot’s own GitHub App.** Authorization opens in the browser. An earlier `gh auth login` no longer counts as connected. Disconnecting removes only the token BlinkyBot saved, and leaves `gh` and github.com signed in.
+- **Gmail and X use official OAuth.** Gmail can search, read, and draft mail. X this wave is posts only: read a post, or publish a text post or reply. Sending mail and publishing a post still wait for a confirmed draft.
+- **A GitHub comment or an X post leaves only from its draft card.** The shell refuses a comment posted with `gh` or the GitHub API, so that command cannot replace the card. Other GitHub writes still ask before they run.
+- **The packaged app receives its OAuth clients at package time.** Google, X, and GitHub client values come from `MAIN_VITE_*` and are not stored in the repository. When a client is missing, that app says browser sign-in is not enabled and does not start it.
+- **A device on the same Wi-Fi can open a workspace you approve.** The Mac sets the scope and whether that device can view or act. Sign-in, credentials, and local approvals stay on the Mac. Revoking the share closes that remote workspace.
+- **A running task shows its current step and any blocker.** When a task comes back, the notice names where the deliverable is. New delegated work uses the conversation’s folder. A task that depends on one earlier task reuses that task’s folder. An isolated folder needs a specific reason.
+- **A Bot can use a provider’s fast lane.** The switch appears for an OpenRouter model, and for an OpenAI model that accepts priority service. Every other backend hides it. Faster replies cost more.
+- **Settings and the chat are quieter.** The models page is labeled Agent and describes these as the runtimes a Bot runs on. A message sent during a run says it is queued, and a paused queue can be resumed. Tools can show which Agents have each tool, and syncing only adds a tool that is missing.
+- **Codex finishes a file change with BlinkyBot’s edit tools.** Its own sandbox stays read-only. A refusal there no longer ends the turn by pasting the change into the chat.
+
 ## 0.3.9
 
 - **The model picker lists the CLI's real models.** Codex fills the list from `model/list`, so it is no longer only the word default. Claude Code offers the aliases Opus, Sonnet, and Haiku.

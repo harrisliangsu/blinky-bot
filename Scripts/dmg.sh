@@ -19,6 +19,10 @@ cd "$(dirname "$0")/.."
 # shellcheck source=mac-app.sh
 source Scripts/mac-app.sh
 require_macos "dmg.sh"
+source Scripts/package-timing.sh
+package_timing_init
+level="${BLINKY_DMG_ZLIB_LEVEL:-6}"
+if [[ ! "$level" =~ ^[1-9]$ ]]; then echo 'BLINKY_DMG_ZLIB_LEVEL must be 1–9.' >&2; exit 1; fi
 
 VERSION="$(package_version)"
 VOLUME="BlinkyBot"
@@ -42,11 +46,12 @@ done
 
 if [[ "$REUSE" -eq 0 ]]; then
     export CSC_IDENTITY_AUTO_DISCOVERY=false
-    npm run build
+    node Scripts/require-publisher-oauth.mjs
+    package_step build npm run build
     if ! node -e "require('electron')" >/dev/null 2>&1; then
-        node node_modules/electron/install.js
+        package_step electron-install node node_modules/electron/install.js
     fi
-    npx electron-builder --mac --dir
+    package_step app npx --no-install electron-builder --mac --dir -c.electronDist=node_modules/electron/dist
 fi
 
 APP="$(find_blinky_app)"
@@ -76,8 +81,16 @@ case "$(uname -m)" in
         ;;
 esac
 
+if [[ "${BLINKY_LOCAL_BUILD:-0}" == "1" ]]; then
+    SOURCE_EN="This is a local development build from the current working tree; it is not the v${VERSION} release."
+    SOURCE_ZH="这是当前工作区生成的本地开发包，不是 v${VERSION} 正式发布版。"
+else
+    SOURCE_EN="Source for this version is the git tag v${VERSION} in the BlinkyBot repository."
+    SOURCE_ZH="这一版的源代码是 BlinkyBot 仓库里的 git tag v${VERSION}。"
+fi
+
 echo "Staging the disk image…"
-rm -rf "$STAGING" "$FINAL"
+rm -rf "$STAGING"
 mkdir -p "$STAGING"
 ditto "$APP" "$STAGING/BlinkyBot.app"
 ln -s /Applications "$STAGING/Applications"
@@ -91,7 +104,7 @@ This build is not notarized. If macOS blocks the first launch, open BlinkyBot, d
 
 BlinkyBot is the Mac package of this OpenBOT desktop app. Requires macOS 14 or newer. This download is for ${ARCH_EN}. Docker is not required.
 
-Source for this version is the git tag v${VERSION} in the BlinkyBot repository. Licensed under the MIT License. The license text is the LICENSE file at that tag.
+${SOURCE_EN} Licensed under the MIT License. The license text is included in the app.
 
 ---
 
@@ -101,11 +114,14 @@ Source for this version is the git tag v${VERSION} in the BlinkyBot repository. 
 
 BlinkyBot 是这棵 OpenBOT 桌面应用的 Mac 安装包。需要 macOS 14 或更高版本。这个安装包适用于 ${ARCH_ZH}。不需要 Docker。
 
-这一版的源代码是 BlinkyBot 仓库里的 git tag v${VERSION}。许可协议是 MIT。协议全文是该 tag 上的 LICENSE。
+${SOURCE_ZH}许可协议是 MIT。协议全文随应用附带。
 EOF
 
-hdiutil create -srcfolder "$STAGING" -volname "$VOLUME" -fs HFS+ \
-    -format UDZO -imagekey zlib-level=9 -ov "$FINAL"
+temporary="${FINAL%.dmg}.building-$$.dmg"
+trap 'rm -rf "$STAGING"; rm -f "$temporary"' EXIT
+package_step dmg hdiutil create -srcfolder "$STAGING" -volname "$VOLUME" -fs HFS+ \
+    -format UDZO -imagekey "zlib-level=$level" "$temporary"
+mv -f "$temporary" "$FINAL"
 
 rm -rf "$STAGING"
 echo "→ $FINAL"

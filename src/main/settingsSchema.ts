@@ -11,6 +11,8 @@ import type { AppId, AppLinks } from '../shared/apps'
 import { CLI_CATALOG } from '../shared/cliCatalog'
 import { PROVIDER_CATALOG } from '../shared/providerCatalog'
 import { isThinkingDepth } from '../shared/thinking'
+import { profileImageSource } from '../shared/userProfile'
+import { localExecutionPolicy } from '../shared/localExecution'
 import type {
   AccentColor,
   AgentMode,
@@ -32,13 +34,17 @@ const LINK_OPENS: ReadonlyArray<LinkOpen> = ['browser', 'window']
 const ACCENTS: ReadonlyArray<AccentColor> = ['theme', 'amber', 'blue', 'purple', 'pink', 'green', 'slate', 'orange', 'red']
 const CHANNELS: ReadonlyArray<UpdateChannel> = ['stable', 'beta']
 export const UI_SCALES: readonly UiScale[] = [80, 90, 100, 110, 125, 150]
+
+function normaliseQuickDecision(raw: unknown): Settings['quickDecision'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const value = raw as Record<string, unknown>
+  if (typeof value.backendId !== 'string' || !value.backendId.trim() || value.backendId.length > 200 ||
+      typeof value.modelId !== 'string' || !value.modelId.trim() || value.modelId.length > 300) return null
+  return { backendId: value.backendId.trim(), modelId: value.modelId.trim() }
+}
 const MODES: ReadonlyArray<AgentMode> = ['agent', 'ask', 'plan']
-/**
- * Where a memory-extraction side call may run. `api` keeps it on direct HTTP
- * backends: an agent-CLI extraction spawns a second billable CLI process after
- * every turn, which is rarely what someone wants by default.
- */
-const MEMORY_EXTRACTION = ['off', 'api', 'all'] as const
+/** Explicit saved extraction choices are retained; new installs use the product default. */
+const MEMORY_EXTRACTION: ReadonlyArray<NonNullable<Settings['memoryExtraction']>> = ['off', 'api', 'all']
 
 const POLICIES: ReadonlyArray<ApprovalPolicy> = [
   'ask-every-time',
@@ -55,10 +61,10 @@ const MAX_FONT_SIZE = 24
  * this is only the persisted per-backend configuration. Local and cloud are
  * peers — identical interface, identical tool support.
  */
-const APP_IDS: readonly AppId[] = ['github', 'git', 'gmail']
+const APP_IDS: readonly AppId[] = ['github', 'git', 'gmail', 'calendar', 'slack', 'x']
 
 function defaultApps(): AppLinks {
-  return { github: {}, git: {}, gmail: {} }
+  return { github: {}, git: {}, gmail: {}, calendar: {}, slack: {}, x: {} }
 }
 
 function defaultBackends(): Record<string, BackendConfig> {
@@ -78,6 +84,10 @@ function defaultBackends(): Record<string, BackendConfig> {
  */
 export const KNOWN_BACKEND_IDS: readonly string[] = Object.keys(defaultBackends())
 
+export function isCustomBackendId(id: string): boolean {
+  return /^custom-[a-z0-9-]{1,64}$/.test(id)
+}
+
 /** `default` means "whatever the agent is configured to use". */
 export const DEFAULT_MODEL_ID = 'default'
 export const DEFAULT_BACKEND_ID = 'opencode'
@@ -88,25 +98,33 @@ export function defaultSettings(): Settings {
     fontSize: 14,
     uiScale: 100,
     vibrant: false,
+    nativeGlass: true,
     language: 'zh-CN',
     accent: 'theme',
     sendShortcut: 'enter',
     expandSteps: false,
     linkOpen: 'browser',
     launchAtLogin: false,
+    runRoutinesWhenClosed: true,
     profileName: '',
+    profileImage: '',
     profileEmoji: '🙂',
     profileColor: '#7c9cff',
     notifications: true,
     notifyOnTurn: false,
+    voiceLanguage: 'system',
+    decisionSkillReview: false,
     updateChannel: 'stable',
     defaultBackendId: DEFAULT_BACKEND_ID,
     defaultModelId: DEFAULT_MODEL_ID,
     defaultMode: 'agent',
-    approvalPolicy: 'ask-every-time',
+    approvalPolicy: 'auto-run',
     allowlist: [],
+    asklist: [],
+    semanticPermissionRules: [],
+    automaticReview: true,
     denylist: [],
-    memoryExtraction: 'api',
+    memoryExtraction: 'all',
     runInBackground: false,
     rules: '',
     backends: defaultBackends(),
@@ -173,6 +191,9 @@ function normaliseBackends(
     const command = raw['command'] ?? base.command
     const extraArgs = raw['extraArgs'] ?? base.extraArgs
     if (typeof baseUrl === 'string') config.baseUrl = baseUrl
+    if (typeof raw['providerName'] === 'string') config.providerName = raw['providerName'].trim().slice(0, 80)
+    if (raw['providerProtocol'] === 'openai' || raw['providerProtocol'] === 'anthropic') config.providerProtocol = raw['providerProtocol']
+    if (typeof raw['credentialOrigin'] === 'string') config.credentialOrigin = raw['credentialOrigin']
     if (typeof apiKey === 'string') config.apiKey = apiKey
     const hasSecret =
       (typeof apiKey === 'string' && apiKey.trim() !== '') ||
@@ -189,6 +210,10 @@ function normaliseBackends(
     const defaultModelId = raw['defaultModelId'] ?? base.defaultModelId
     if (typeof defaultModelId === 'string' && /^[A-Za-z0-9._:@/-]{1,120}$/.test(defaultModelId)) {
       config.defaultModelId = defaultModelId
+    }
+    const modelThinking = raw['modelThinking'] ?? base.modelThinking
+    if (isPlainObject(modelThinking)) {
+      config.modelThinking = Object.fromEntries(Object.entries(modelThinking).filter(([model, depth]) => /^[A-Za-z0-9._:@/-]{1,120}$/.test(model) && !UNSAFE_KEYS.has(model) && isThinkingDepth(depth))) as BackendConfig['modelThinking']
     }
     out[id] = config
   }
@@ -252,7 +277,7 @@ function retireUnknownBackends(
 ): Record<string, BackendConfig> {
   const kept: Record<string, BackendConfig> = {}
   for (const [id, config] of Object.entries(backends)) {
-    if (KNOWN_BACKEND_IDS.includes(id)) kept[id] = config
+    if (KNOWN_BACKEND_IDS.includes(id) || (isCustomBackendId(id) && config.providerName && config.providerProtocol && config.baseUrl)) kept[id] = config
   }
   return kept
 }
@@ -283,7 +308,7 @@ export function normaliseSettings(raw: unknown): Settings {
 
   const storedBackendId = merged['defaultBackendId']
   const backendId =
-    typeof storedBackendId === 'string' && KNOWN_BACKEND_IDS.includes(storedBackendId)
+    typeof storedBackendId === 'string' && (KNOWN_BACKEND_IDS.includes(storedBackendId) || (isCustomBackendId(storedBackendId) && isPlainObject(rawObj['backends']) && isPlainObject(rawObj['backends'][storedBackendId])))
       ? storedBackendId
       : defaults.defaultBackendId
   // A model slug only means something next to its backend, so reset both together.
@@ -299,31 +324,46 @@ export function normaliseSettings(raw: unknown): Settings {
       ? Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(fontSize)))
       : defaults.fontSize,
     uiScale: pickScale(merged['uiScale']),
-    vibrant: merged['vibrant'] === true,
+    vibrant: false,
+    nativeGlass: merged['nativeGlass'] !== false,
     language: pickEnum(merged['language'], LANGUAGES, defaults.language),
     accent: pickEnum(merged['accent'], ACCENTS, defaults.accent),
     sendShortcut: pickEnum(merged['sendShortcut'], SHORTCUTS, defaults.sendShortcut),
     expandSteps: merged['expandSteps'] === true,
     linkOpen: pickEnum(merged['linkOpen'], LINK_OPENS, defaults.linkOpen),
     launchAtLogin: hadLaunchAtLogin ? merged['launchAtLogin'] === true : merged['runInBackground'] === true,
+    runRoutinesWhenClosed: merged['runRoutinesWhenClosed'] !== false,
     profileName: typeof merged['profileName'] === 'string' ? merged['profileName'].trim().slice(0, 80) : '',
+    profileImage: profileImageSource(merged['profileImage']) ?? '',
     profileEmoji: shortText(merged['profileEmoji'], 8, defaults.profileEmoji),
     profileColor: /^#[0-9a-fA-F]{6}$/.test(String(merged['profileColor'] ?? ''))
       ? String(merged['profileColor'])
       : defaults.profileColor,
     notifications: merged['notifications'] !== false,
     notifyOnTurn: merged['notifyOnTurn'] === true,
+    voiceLanguage: typeof merged['voiceLanguage'] === 'string' && /^(system|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3})$/.test(merged['voiceLanguage']) ? merged['voiceLanguage'] : 'system',
+    decisionSkillReview: merged['decisionSkillReview'] === true,
     updateChannel: pickEnum(merged['updateChannel'], CHANNELS, defaults.updateChannel),
     defaultBackendId: backendId,
     defaultModelId: modelId,
     ...(isThinkingDepth(merged['defaultThinking']) ? { defaultThinking: merged['defaultThinking'] } : {}),
     defaultMode: pickEnum(merged['defaultMode'], MODES, defaults.defaultMode),
     approvalPolicy: pickEnum(merged['approvalPolicy'], POLICIES, defaults.approvalPolicy),
+    localExecutionPolicy: localExecutionPolicy({
+      localExecutionPolicy: merged['localExecutionPolicy'] as Settings['localExecutionPolicy'],
+      approvalPolicy: pickEnum(merged['approvalPolicy'], POLICIES, defaults.approvalPolicy)
+    }),
+    automaticReview: typeof merged['automaticReview'] === 'boolean' ? merged['automaticReview'] : true,
+    asklist: stringList(merged['asklist']),
+    // Preserve unknown/corrupt rule records too. The reviewer fails closed;
+    // dropping an unrecognised ask rule could silently broaden authorization.
+    semanticPermissionRules: (merged['semanticPermissionRules'] ?? []) as Settings['semanticPermissionRules'],
     allowlist: stringList(merged['allowlist']),
     denylist: stringList(merged['denylist']),
-    memoryExtraction: pickEnum(merged['memoryExtraction'], MEMORY_EXTRACTION, defaults.memoryExtraction ?? 'api'),
+    memoryExtraction: pickEnum(merged['memoryExtraction'], MEMORY_EXTRACTION, defaults.memoryExtraction ?? 'all'),
     runInBackground: merged['runInBackground'] === true,
     rules: typeof merged['rules'] === 'string' ? merged['rules'] : defaults.rules,
+    quickDecision: normaliseQuickDecision(merged['quickDecision']),
     // Use the file's own backend map, not the deep-merged one. Defaults set
     // `added: false`, and merging them in first would hide a saved key that
     // never had the flag.

@@ -4,7 +4,7 @@ import { anthropicThinking, modelAcceptsThinking } from '../../shared/thinking'
 import { needsKey } from './cloudDetect'
 import { DETECT_TIMEOUT_MS, LIST_TIMEOUT_MS, fetchJson, withTimeout } from './httpClient'
 import { errorMessage, isOffline, keyRejectionDetail } from './httpErrors'
-import { type HostBoundKey, bindKeyToHost } from './keyHost'
+import { type HostBoundKey, bindKeyToHost, bindCustomKey } from './keyHost'
 import { maxTokensFor, toAnthropicMessages, toAnthropicTools } from './anthropicMessages'
 import { streamAnthropic } from './anthropicStream'
 import type { Backend, BackendConfig, ChatChunk, ChatRequest, DetectResult, ModelInfo } from './types'
@@ -55,14 +55,19 @@ async function fetchModels(ep: HostBoundKey, signal: AbortSignal): Promise<Anthr
   return res.data ?? []
 }
 
-export const anthropicBackend: Backend = {
-  id: 'anthropic',
-  label: 'Anthropic',
+export function anthropicCompatibleBackend(id: string, label: string): Backend {
+ const custom = id !== 'anthropic'
+ const resolve = (cfg: BackendConfig): HostBoundKey => custom
+   ? bindCustomKey(cfg.baseUrl || '', cfg.apiKey, cfg.credentialOrigin)
+   : bound(cfg)
+ return {
+  id,
+  label,
   kind: 'cloud-api',
   local: false,
 
   async detect(cfg: BackendConfig): Promise<DetectResult> {
-    const ep = bound(cfg)
+    const ep = resolve(cfg)
     if (ep.withheld) return { status: 'error', detail: ep.withheld }
     if (!ep.apiKey) return needsKey('Anthropic', 'console.anthropic.com/settings/keys')
     try {
@@ -82,7 +87,7 @@ export const anthropicBackend: Backend = {
   },
 
   async listModels(cfg: BackendConfig): Promise<ModelInfo[]> {
-    const ep = bound(cfg)
+    const ep = resolve(cfg)
     if (ep.withheld) throw new Error(ep.withheld)
     if (!ep.apiKey) return []
     try {
@@ -90,15 +95,15 @@ export const anthropicBackend: Backend = {
       const models = entries
         .filter((e): e is AnthropicModelEntry & { id: string } => typeof e.id === 'string' && !!e.id)
         .map((e) => toModel(e.id, e.display_name))
-      return models.length ? models : FALLBACK_MODELS.map((id) => toModel(id))
+      return models.length || custom ? models : FALLBACK_MODELS.map((id) => toModel(id))
     } catch (err) {
-      if (isOffline(err)) return FALLBACK_MODELS.map((id) => toModel(id))
+      if (isOffline(err) && !custom) return FALLBACK_MODELS.map((id) => toModel(id))
       throw new Error(`Could not list Anthropic models: ${errorMessage(err)}`)
     }
   },
 
   chat(req: ChatRequest, cfg: BackendConfig): AsyncIterable<ChatChunk> {
-    const ep = bound(cfg)
+    const ep = resolve(cfg)
     if (ep.withheld) throw new Error(ep.withheld)
     const key = ep.apiKey
     if (!key) throw new Error('Anthropic API key required — add one in Settings.')
@@ -124,3 +129,6 @@ export const anthropicBackend: Backend = {
     })
   }
 }
+}
+
+export const anthropicBackend = anthropicCompatibleBackend('anthropic', 'Anthropic')

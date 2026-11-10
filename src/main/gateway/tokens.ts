@@ -165,6 +165,13 @@ export function revokeAllGrants(): number {
   return count
 }
 
+/** A tool withdrawal invalidates existing CLI sessions as well as the next turn. */
+export function revokeBotGrants(botId: string): number {
+  let count = 0
+  for (const grant of byToken.values()) if (grant.botId === botId && revokeToken(grant.token)) count++
+  return count
+}
+
 export function activeGrantCount(): number {
   return byToken.size
 }

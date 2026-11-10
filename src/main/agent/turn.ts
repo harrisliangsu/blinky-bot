@@ -1,3 +1,6 @@
+import { taskProgressContext } from '../tasks/progressObservations'
+import { taskJudgmentScope, currentTaskJudgmentMessages } from './taskJudgmentScope'
+import { toProviderMessages } from './history'
 /**
  * One model round-trip: build the context, stream the reply, and — when we own the loop —
  * run whatever tools it asked for.
@@ -21,6 +24,7 @@ import {
 } from '../../shared/backendPrompt'
 import type { Message, Session } from '../../shared/types'
 import { assistantMessage, begin, commit } from './messages'
+import { scrubVaultMessage } from '../store/vaultPrivacy'
 import {
   backendConfigFor,
   detectBackends,
@@ -31,34 +35,52 @@ import {
 import { broadcastError } from './events'
 import { buildChatRequest } from './chatRequest'
 import { buildContext } from './context'
+import { loadSemanticMemory } from './semanticMemory'
+import { applicationContextWindow, ContextBudgetError } from './budget'
 import { collapseRepeatedLines } from './repetition'
 import { errorMessage, isAbortError } from './errors'
 import { mergeBuiltins } from './builtins'
 import { memoryStore } from './memoryGateway'
 import { modeFor, type TurnMode } from './backendMode'
 import { noteGatewayMessage } from './mcpGateway'
+import { requireRuntimeMcpServer } from './runtimeMcp'
 import { applyAction, readAction } from './turnAction'
 import { takePendingNote } from './handoff'
-import { bots } from './sessionGateway'
+import { bots, sessions } from './sessionGateway'
+import { isExecutionAgent, isTracedBackgroundRun } from './executionAgent'
+import { flushAll } from '../store/jsonStore'
 import { applyBotBinding } from '../store/bots'
+import { hydrateRecentImages } from '../store/sessions'
 import { runCalls } from './calls'
 import { schemasFor } from './toolGateway'
 import { skillsSection } from './skillsGateway'
 import { streamAssistantTurn } from './stream'
 import { isEmptyTurn } from './turnCarry'
 import { backendSeesImages } from '../backends/cli/cliImages'
+import { listTasks } from '../store/tasks'
+import { traceChatTiming } from '../backends/chatTiming'
 
 export type { TurnStatus, TurnInput, TurnResult } from './turnTypes'
 import type { TurnInput, TurnResult } from './turnTypes'
 
 export async function runTurn(input: TurnInput): Promise<TurnResult> {
   const { session, settings, signal } = input
-  const bot = applyBotBinding(input.bot)
+  // The driver already resolved the private execution agent. Never persist
+  // that temporary model or its inferred thinking depth onto the lead Bot.
+  const bot = isExecutionAgent(session.id) ? input.bot : applyBotBinding(input.bot)
+  const existingTasks = new Set(listTasks().filter((task) => task.sourceSessionId === session.id).map((task) => task.id))
+  const existingReviews = new Set(listTasks().filter((task) => task.sourceSessionId === session.id && task.review).map((task) => task.id))
   const message = assistantMessage(bot)
+  if(taskJudgmentScope(session.id))message.id='agent-judgment-draft-'+message.id
+  const timing = (stage: string): void => traceChatTiming(session.id, stage, message.id)
+  timing('turn-start')
+  if (input.internalAssistant) message.internal = true
   // Links this reply back to the teammate message that prompted it.
   if (input.replyTo) message.replyTo = input.replyTo
 
+  timing('backend-info-start')
   const infos = await detectBackends()
+  timing('backend-info-ready')
   const info = infos.find((item) => item.id === bot.backendId) ?? null
   const mode = modeFor(info, bot.computerTarget)
   const blocked = chatStartBlock(info, infos, bot.backendId, settings.language)
@@ -79,13 +101,15 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
     )
   }
 
-  /*
-   * The bubble goes up before skills, memory and the CLI. Those are the gap
-   * the user was staring at: a "Working" pill and no caret until a probe or
-   * a cold process finished. The caret is the acknowledgement.
-   */
+  // Open the message lifecycle before startup work, without inventing text.
+  // The renderer waits for public model content before showing a reply.
+  const checkpointExecution = isTracedBackgroundRun(session.id)
+  if (checkpointExecution) {
+    const inserted = await sessions.update(session, (fresh) => { fresh.messages.push(structuredClone(message)) })
+    const saved = inserted ? await flushAll() : null
+    if (!inserted || !saved || saved.failed.length || saved.stillWriting) return failTurn(session, message, mode, 'The execution transcript could not be saved; the agent was not started.', false)
+  }
   begin(session.id, message)
-  if (mode === 'supervised') void noteGatewayMessage(session.id, message.id)
 
   let streamed
   try {
@@ -95,24 +119,34 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
      * Resolution reads disk (cached), which is why it happens here rather than in
      * the synchronous prompt composer. None of these reads depend on each other.
      */
+    timing('context-start')
+    timing('model-info-start')
     const [model, skills, memory, schemas, roster] = await Promise.all([
-      getModelInfo(bot.backendId, bot.modelId),
+      getModelInfo(bot.backendId, bot.modelId).then((value) => { timing('model-info-ready'); return value }),
       skillsSection(bot, session),
       memoryStore.list(bot.id),
       schemasFor(bot.tools ?? [], bot.computerTarget),
       bots.many(session.botIds ?? [])
     ])
+    const supportsVision = backendSeesImages(bot.backendId, model)
+    const semanticMemory = await loadSemanticMemory(session.id).catch(() => null)
     const context = buildContext({
-      session,
+      session: hydrateRecentImages(checkpointExecution ? { ...session, messages: session.messages.filter((item) => item.id !== message.id) } : session),
       bot,
       settings,
       memory,
+      ...(semanticMemory ? { semantic: semanticMemory } : {}),
       schemas: mergeBuiltins(schemas, bot.tools ?? []),
       roster,
-      contextWindow: model?.contextWindow,
-      supportsVision: backendSeesImages(bot.backendId, model),
-      extras: skills ? [...(input.extras ?? []), skills] : input.extras
+      // Codex maintains its native transcript and compacts it itself. Bound the
+      // app's handoff history independently, without mistaking the 8k generic
+      // API fallback for the model's real capacity when its catalog omits it.
+      contextWindow: applicationContextWindow(bot.backendId, model?.contextWindow),
+      supportsVision,
+      extras: [...(input.extras ?? []), skills, taskProgressContext(session.id, bot.id)].filter((value): value is string => Boolean(value))
     })
+    const judgment=taskJudgmentScope(session.id)
+    if(judgment?.prompt)context.messages=[{role:'system',content:context.systemPrompt},{role:'user',content:judgment.prompt},...toProviderMessages(currentTaskJudgmentMessages(session.id,session.messages).filter(m=>m.id!==message.id),{supportsVision:false,selfBotId:bot.id})]
 
     /*
      * The moderator hands over the floor as a USER turn rather than a system
@@ -124,33 +158,54 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
     if (input.floor) {
       context.messages.push({ role: 'user', content: input.floor })
     }
+    timing('context-ready')
 
+    const attachedGateway = await input.gateway
+    const gateway = mode === 'supervised' ? requireRuntimeMcpServer(bot.backendId, attachedGateway) : attachedGateway
+    if (signal.aborted) throw signal.reason ?? new Error('Turn cancelled')
+    if (mode === 'supervised' && gateway) await noteGatewayMessage(session.id, message.id)
     const stream = await openChatStream(
       backend,
-      buildChatRequest({
+      { ...buildChatRequest({
         session,
         bot,
         settings,
         signal,
         mode,
         messages: context.messages,
+        supportsVision,
         tools: context.tools,
-        gateway: input.gateway
-      }),
+        gateway: gateway ?? undefined
+      }), onTiming: (stage) => timing(stage) },
       backendConfigFor(settings, bot.backendId)
     )
+    timing('adapter-open')
     streamed = await streamAssistantTurn({
       sessionId: session.id,
       messageId: message.id,
       stream,
       signal,
       contextWindow: model?.contextWindow,
-      onActivity: input.onActivity
+      onActivity: input.onActivity,
+      onTiming: (stage) => timing(stage),
+      ...(checkpointExecution ? { onCheckpoint: async (partial: { text: string; reasoning: string; calls: NonNullable<Message['toolCalls']>; agentTrace: NonNullable<Message['agentTrace']> }) => {
+        const snapshot: Message = scrubVaultMessage({ ...message, content: partial.text, ...(partial.reasoning ? { reasoning: partial.reasoning } : {}), ...(partial.calls.length ? { toolCalls: partial.calls } : {}), ...(partial.agentTrace.length ? { agentTrace: partial.agentTrace } : {}) })
+        const updated = await sessions.update(session, (fresh) => { const at = fresh.messages.findIndex((item) => item.id === message.id); if (at >= 0) fresh.messages[at] = snapshot })
+        if (!updated) throw new Error('Execution session unavailable.')
+        const saved = await flushAll()
+        if (saved.failed.length || saved.stillWriting) throw new Error('Execution checkpoint failed.')
+      } } : {})
     })
   } catch (err) {
     if (isAbortError(err) || signal.aborted) {
+      if (signal.reason instanceof Error && signal.reason.message === 'superseded by user follow-up') message.internal = true
       await commit(session, message)
       return { status: 'aborted', message, mode }
+    }
+    if (err instanceof ContextBudgetError) {
+      return failTurn(session, message, mode, settings.language === 'zh-CN'
+        ? '当前消息和 Bot 指令超出本次可用的上下文空间，请缩短消息或指令后重试。'
+        : err.message, true)
     }
     const raw = errorMessage(err)
     return failTurn(
@@ -177,9 +232,17 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
    * so the ACTION line is found even when the stutter reached the end.
    */
   const reply = collapseRepeatedLines(streamed.text)
+  if (streamed.agentTrace?.length) message.agentTrace = streamed.agentTrace
 
   const live = !streamed.aborted && !signal.aborted
   message.content = reply
+  // Keep public phase boundaries even on failure or stop. Otherwise a failed
+  // stream is replayed as undifferentiated text when the session is reopened.
+  message.segments = streamed.segments
+  message.reasoning = streamed.reasoning || undefined
+  message.toolCalls = streamed.calls.length ? streamed.calls : undefined
+  if (streamed.displayText !== undefined) message.displayContent = streamed.displayText
+  if (signal.aborted && signal.reason instanceof Error && signal.reason.message === 'superseded by user follow-up') message.internal = true
 
   /*
    * The stream broke partway. What arrived first is kept — it is already on
@@ -202,21 +265,31 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
   }
 
   /*
-   * Nothing came back at all: no text, no reasoning, no tool call. Committing
-   * that left an empty assistant bubble with no explanation, which reads as the
-   * app having lost the reply rather than the model having produced none.
+   * No public response or tool call. Private reasoning alone is not a reply;
+   * ending silently would leave the user without either an answer or an error.
    */
-  if (live && isEmptyTurn(reply, streamed.reasoning, streamed.calls.length)) {
+  if (live && isEmptyTurn(reply, '', streamed.calls.length)) {
+    // A supervised CLI executes MCP tools itself, so their calls need not be
+    // present in `streamed.calls`. A newly persisted delegation is real work,
+    // even when the CLI ends without a prose acknowledgement.
+    const hasRecordedAction = listTasks().some((task) => task.sourceSessionId === session.id && task.botId === bot.id && (!existingTasks.has(task.id) || (task.review && !existingReviews.has(task.id))))
+    if (hasRecordedAction) {
+      message.internal = true
+      await commit(session, message)
+      return { status: 'final', message, mode }
+    }
     const detail =
-      `${bot.name} produced an empty reply — the model returned nothing at all. ` +
+      `${bot.name} produced no public reply. ` +
       'Send the message again, or try a different model for this bot.'
     return failTurn(session, message, mode, detail, true)
   }
 
   const read = await readAction(session, reply)
   message.content = read.content
-  message.reasoning = streamed.reasoning || undefined
-  message.toolCalls = streamed.calls.length ? streamed.calls : undefined
+  if (streamed.displayText !== undefined) {
+    const final = (await readAction(session, collapseRepeatedLines(streamed.displayText))).content
+    message.displayContent = final.trim() ? final : (settings.language === 'zh-CN' ? '本轮已结束，但没有收到最终答复。' : 'The turn ended without a final response.')
+  }
   await commit(session, message)
 
   if (streamed.aborted || signal.aborted) return { status: 'aborted', message, mode }

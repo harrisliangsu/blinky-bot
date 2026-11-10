@@ -29,13 +29,13 @@ const TASKS: ShutdownTask[] = [
     label: 'active agent runs',
     fn: 'shutdown',
     // @ts-ignore `import.meta.glob` is a Vite build-time transform.
-    candidates: import.meta.glob('../agent/loop.ts') as Record<string, () => Promise<unknown>>
+    candidates: (typeof import.meta.glob === 'function' ? import.meta.glob('../agent/loop.ts') : { ['../agent/loop.ts']: () => import('../agent/loop.ts') }) as Record<string, () => Promise<unknown>>
   },
   {
     label: 'agent CLI servers',
     fn: 'stopAgentCliServers',
     // @ts-ignore `import.meta.glob` is a Vite build-time transform.
-    candidates: import.meta.glob('../backends/cli/serverPool.ts') as Record<
+    candidates: (typeof import.meta.glob === 'function' ? import.meta.glob('../backends/cli/serverPool.ts') : { ['../backends/cli/serverPool.ts']: () => import('../backends/cli/serverPool.ts') }) as Record<
       string,
       () => Promise<unknown>
     >
@@ -44,7 +44,7 @@ const TASKS: ShutdownTask[] = [
     label: 'browsers',
     fn: 'stopAllBrowsers',
     // @ts-ignore `import.meta.glob` is a Vite build-time transform.
-    candidates: import.meta.glob('../tools/computer/browser/registry.ts') as Record<
+    candidates: (typeof import.meta.glob === 'function' ? import.meta.glob('../tools/computer/browser/registry.ts') : { ['../tools/computer/browser/registry.ts']: () => import('../tools/computer/browser/registry.ts') }) as Record<
       string,
       () => Promise<unknown>
     >
@@ -53,7 +53,7 @@ const TASKS: ShutdownTask[] = [
     label: 'provisional private boxes',
     fn: 'cleanupProvisionalAppleVms',
     // @ts-ignore `import.meta.glob` is a Vite build-time transform.
-    candidates: import.meta.glob('../vm/appleVmSupervisor.ts') as Record<string, () => Promise<unknown>>
+    candidates: (typeof import.meta.glob === 'function' ? import.meta.glob('../vm/appleVmSupervisor.ts') : { ['../vm/appleVmSupervisor.ts']: () => import('../vm/appleVmSupervisor.ts') }) as Record<string, () => Promise<unknown>>
   }
 ]
 

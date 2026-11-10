@@ -32,7 +32,7 @@ interface GatewayModule {
   noteMessage?(sessionId: string, messageId: string | undefined): unknown
 }
 
-const candidates = import.meta.glob('../gateway/index.ts')
+const candidates = (typeof import.meta.glob === 'function' ? import.meta.glob('../gateway/index.ts') : { ['../gateway/index.ts']: () => import('../gateway/index.ts') })
 
 let cached: Promise<GatewayModule | null> | null = null
 let warned = false
@@ -120,7 +120,9 @@ export async function noteGatewayMessage(
  * covers reading the reply and sending the next one. Stop and quit still
  * detach immediately.
  */
-const DETACH_AFTER_MS = 120_000
+// Match the Codex warm-session window; otherwise its scoped token is revoked
+// before the process and every follow-up after two minutes starts cold.
+const DETACH_AFTER_MS = 300_000
 
 const detachTimers = new Map<string, ReturnType<typeof setTimeout>>()
 

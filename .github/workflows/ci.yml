@@ -16,8 +16,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install validation dependencies
+        run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Remote authorization and data boundaries
+        run: >-
+          node --experimental-transform-types --import ./scripts/register-ts.mjs --test
+          src/main/collaboration/access.test.ts
+          src/main/collaboration/botAccess.test.ts
+          src/main/collaboration/taskAccess.test.ts
+          src/main/collaboration/history.test.ts
+          src/main/collaboration/realtime.test.ts
+          src/main/collaboration/publicData.test.ts
+          src/main/collaboration/search.test.ts
+          src/main/collaboration/uploads.test.ts
+          src/renderer/src/remote/transport.test.mjs
       - name: Backend selection
-        run: node --experimental-strip-types --import ./scripts/register-ts.mjs --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts src/main/backends/cli/codexEvents.test.ts src/main/backends/cli/codexModels.test.ts src/main/backends/cli/cliImages.test.ts src/main/backends/cli/authStatus.test.ts src/main/backends/cli/kimiEvents.test.ts src/main/gateway/tokens.test.ts src/renderer/src/components/imageAttachments.test.ts src/main/store/starterBots.test.ts src/renderer/src/lib/backendDetail.test.ts src/shared/botBinding.test.ts src/shared/thinking.test.ts
+        run: node --experimental-strip-types --import ./scripts/register-ts.mjs --test src/main/backends/defaultBackend.test.ts src/main/settingsSchema.test.ts src/renderer/src/components/SettingsAppsGrid.test.mjs src/main/backends/cli/codexEvents.test.ts src/main/backends/cli/codexModels.test.ts src/main/backends/cli/cliImages.test.ts src/main/backends/cli/authStatus.test.ts src/main/backends/cli/kimiEvents.test.ts src/main/gateway/tokens.test.ts src/renderer/src/components/imageAttachments.test.ts src/main/store/starterBots.test.ts src/renderer/src/lib/backendDetail.test.ts src/shared/botBinding.test.ts src/shared/thinking.test.ts
+      - name: Publisher OAuth packaging gate
+        run: node --test Scripts/require-publisher-oauth.test.mjs
       - name: Release notes and Sparkle feed
         run: |
           python3 Scripts/release_test.py
@@ -28,32 +46,3 @@ jobs:
           bash -n Scripts/open-smoke.sh
           bash -n Scripts/mac-app.sh
           bash -n Scripts/capture-shots.sh
-
-  screenshots:
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npm ci
-      - name: Build
-        run: npm run build
-      - name: Capture settings and chat
-        run: bash Scripts/capture-shots.sh
-      - name: Upload screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: settings-screenshots
-          path: |
-            shots/*.png
-            shots/chat-no-backend.txt
-            shots/failed
-            shots/electron.log
-          if-no-files-found: error

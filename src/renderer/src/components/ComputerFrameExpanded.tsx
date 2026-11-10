@@ -32,6 +32,7 @@ interface ExpandedProps {
   onRefresh: () => void
   onRestartVm: () => void
   onToggleTakeover: () => void
+  vaultControls?: ReactNode
 }
 
 /**
@@ -61,7 +62,8 @@ export function ComputerFrameExpanded({
   onClose,
   onRefresh,
   onRestartVm,
-  onToggleTakeover
+  onToggleTakeover,
+  vaultControls
 }: ExpandedProps): ReactNode {
   return (
     <Modal
@@ -141,6 +143,7 @@ export function ComputerFrameExpanded({
             {takeover ? (
               <div className="ob-cframe-controls ob-cframe-controls-expanded">
                 <NavigateRow url={url} onUrl={onUrl} onNavigate={onNavigate} busy={busy} />
+                {vaultControls}
                 <p className="ob-hint ob-cframe-direct-hint">Click the screen to focus it, then use your mouse, trackpad and keyboard normally. Dragging and right-click are supported.</p>
               </div>
             ) : (

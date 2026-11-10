@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parseCodexModelPage } from './codexModelList.ts'
+import { parseCodexContextWindows, parseCodexModelPage } from './codexModelList.ts'
+
+test('Codex model context metadata is accepted only for exact valid model IDs and sizes', () => {
+  const windows = parseCodexContextWindows({ models: [
+    { slug: 'model-a', context_window: 500000 },
+    { slug: 'bad id', context_window: 500000 },
+    { slug: 'bad-size', context_window: -1 }
+  ] })
+  assert.deepEqual([...windows], [['model-a', 500000]])
+  assert.equal(parseCodexModelPage({ data: [{ id: 'model-a', contextWindow: 500000 }] }).models[0]?.contextWindow, 500000)
+})
 
 test('model/list becomes picker rows and skips hidden and unsafe ids', () => {
   const page = parseCodexModelPage({
@@ -46,4 +56,19 @@ test('a missing modality list is treated as vision-capable', () => {
 test('an unreadable page does not invent a cursor', () => {
   assert.deepEqual(parseCodexModelPage(null), { models: [], nextCursor: null })
   assert.equal(parseCodexModelPage({ data: [], nextCursor: 'has\nnewline' }).nextCursor, null)
+})
+
+test('reasoning levels come from each model and preserve max and ultra', () => {
+  const page = parseCodexModelPage({ data: [
+    { id: 'a', supportedReasoningEfforts: [
+      { reasoningEffort: 'low' }, { reasoningEffort: 'max' },
+      { reasoningEffort: 'ultra' }, { reasoningEffort: 'none' },
+      { reasoningEffort: 'ultra' }, { reasoningEffort: 'unrecognized' }
+    ] },
+    { id: 'b', supportedReasoningEfforts: [{ reasoningEffort: 'high' }] },
+    { id: 'legacy' }, { id: 'no-thinking', supportedReasoningEfforts: [] }
+  ] })
+  assert.deepEqual(page.models.map((model) => model.supportedThinking), [
+    ['low', 'max', 'ultra', 'off'], ['high'], undefined, []
+  ])
 })

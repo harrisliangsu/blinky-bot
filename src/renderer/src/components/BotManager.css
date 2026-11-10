@@ -1,9 +1,10 @@
 .ob-bots {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ob-space-6);
 }
-.ob-bot-groups { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.ob-bots-grid-wrap { min-width: 0; }
+.ob-bot-groups { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
 .ob-group-name { width: 130px; height: 30px; }
 .ob-group-panel { display: grid; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--ob-border); border-radius: 12px; background: var(--ob-bg-card); }
 .ob-group-panel header, .ob-group-panel header > div, .ob-group-panel header > span { display: flex; align-items: center; gap: 8px; }
@@ -13,7 +14,8 @@
 .ob-group-members { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .ob-group-broadcast { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .ob-bots.is-editing {
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 42%);
+  align-items: start;
 }
 
 .ob-bots-grid {
@@ -25,20 +27,27 @@
   list-style: none;
 }
 
+.ob-template-categories { margin-top: 12px; }
+.ob-template-grid { margin-top: 12px; }
+
 .ob-bot-card {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--ob-bg-card);
+  border: 1px solid var(--ob-border-subtle);
   border-radius: var(--ob-card-radius);
   overflow: hidden;
-  transition: background var(--ob-transition-fast);
+  transition: background var(--ob-transition-fast), border-color var(--ob-transition-fast), box-shadow var(--ob-transition-fast);
 }
 .ob-bot-card:hover {
   background: var(--ob-bg-hover);
+  border-color: var(--ob-border-strong);
 }
 .ob-bot-card.is-active {
-  background: var(--ob-bg-focused);
+  background: var(--ob-bg-hover);
+  border-color: var(--ob-border-subtle);
+  box-shadow: none;
 }
 
 .ob-bot-card-main {
@@ -93,4 +102,6 @@
   .ob-bots.is-editing {
     grid-template-columns: 1fr;
   }
+  .ob-bots.is-editing .ob-bots-drawer { order: -1; }
+  .ob-group-broadcast { grid-template-columns: 1fr; }
 }

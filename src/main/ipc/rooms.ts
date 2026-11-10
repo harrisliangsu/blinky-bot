@@ -1,51 +1,52 @@
 import type { CollaborationRoom } from '../../shared/types'
-import { collaborationOrigin, ensureCollaborationServer, stopCollaborationServer } from '../collaboration/server'
+import { collaborationOrigin, ensureCollaborationServer, roomInviteUrl, stopCollaborationServer } from '../collaboration/server'
+import { invitationQr } from '../collaboration/qr'
 import { getSession } from '../store/sessions'
-import { removeRoom, shareRoom, sharedRooms, storedRooms, type StoredRoom } from '../store/rooms'
+import { removeRoom, roomById, shareRoom, sharedRooms, storedRooms, restoreRoomDocument, type StoredRoom } from '../store/rooms'
+import { forgetSharing, rememberSharing, sharingRecoveryState } from '../collaboration/recovery'
 import { CHANNELS } from './channels'
-import { emptyArray, handle, handleVoid, nullResult } from './handler'
+import { emptyArray, handle, handleEvent, nullResult } from './handler'
 import { asId, asString } from './validate'
+import { roomAccess } from '../collaboration/access'
+import { broadcast } from './broadcast'
 
-/** The room as the renderer may see it: everything except the token, which stays in main. */
-function publicRoom(room: StoredRoom, origin: string): CollaborationRoom {
-  const { token, ...visible } = room
-  return { ...visible, inviteUrl: room.enabled && origin ? `${origin}/room/${token}` : '' }
-}
-
-/*
- * Listing rooms must never start the listener.
- *
- * `roomsList` runs on every renderer boot, so calling `ensureCollaborationServer`
- * from here meant that creating a single room, once, bound an HTTP server on
- * 0.0.0.0 at every launch from then on — no prompt, nothing on screen, and no
- * way to stop it short of quitting. Listing now only reports what is already
- * being served, so rooms come back without an invite URL until the user shares
- * one deliberately.
- */
-function publicRooms(): CollaborationRoom[] {
-  const origin = collaborationOrigin()
-  return storedRooms().map((room) => publicRoom(room, origin))
-}
-
+function publicRoom(room: StoredRoom): CollaborationRoom { const { token: _token, ...visible } = room; return { ...visible, inviteUrl: roomInviteUrl(room), recovery: sharingRecoveryState() } }
+let mutations: Promise<unknown> = Promise.resolve()
+function serial<T>(action: () => Promise<T>): Promise<T> { const result = mutations.then(action, action); mutations = result.catch(() => {}); return result }
 export function registerRoomIpc(): void {
-  handle<CollaborationRoom[]>(CHANNELS.roomsList, () => publicRooms(), emptyArray)
-  /*
-   * The only channel that may start the server: it is the user pressing share,
-   * either on a chat with no room yet or on one whose room is currently off.
-   */
-  handle<CollaborationRoom | null>(CHANNELS.roomsCreate, async ([sessionId, name]) => {
-    const session = getSession(asId(sessionId))
-    if (!session) return null
-    const room = shareRoom(session.id, name === undefined ? session.title : asString(name, 200))
-    return publicRoom(room, await ensureCollaborationServer())
-  }, nullResult)
-  /*
-   * Deleting the last shared room takes the listener down with it. Without this
-   * the port stayed open until quit, long after the panel said nothing was
-   * shared and every invite URL had stopped resolving to a room.
-   */
-  handleVoid(CHANNELS.roomsRemove, async ([id]) => {
+  roomAccess.onChange(roomId => broadcast({ type: 'room-devices-changed', roomId }))
+  // Host authorization is an explicit current-window user action, never an Agent/native API.
+  handleEvent('openbot:rooms:devices', (_event, [id]) => roomAccess.list(asId(id)), emptyArray)
+  handleEvent<boolean>('openbot:rooms:decideDevice', async (event, [roomId, deviceId, action, permission, scope]) => {
+    if (!event.sender.isFocused() || !await event.senderFrame?.executeJavaScript('navigator.userActivation.isActive')) return false
+    if ((scope !== undefined && !['room', 'workspace'].includes(String(scope))) || !['approve', 'deny', 'revoke', 'remove'].includes(String(action)) || (permission !== undefined && !['view', 'control'].includes(String(permission)))) return false
+    const room = roomById(asId(roomId))
+    return !!room && roomAccess.decide(room, asId(deviceId), action as 'approve' | 'deny' | 'revoke' | 'remove', permission === 'control' ? 'control' : 'view', scope === 'workspace' ? 'workspace' : 'room')
+  }, () => false)
+  // Discovery/listing must never start a listener or restore an old invitation.
+  handle<CollaborationRoom[]>(CHANNELS.roomsList, () => storedRooms().map(publicRoom), emptyArray)
+  handle<CollaborationRoom | null>(CHANNELS.roomsCreate, ([sessionId, name, permission]) => serial(async () => {
+    const session = getSession(asId(sessionId)); if (!session) return null
+    if (permission !== undefined && permission !== 'view' && permission !== 'control') throw new Error('Invalid room permission')
+    const label = name === undefined ? session.title : asString(name, 200)
+    // Only report sharing enabled after the listener actually exists.
+    await ensureCollaborationServer()
+    const previous = storedRooms().find(room => room.sessionId === session.id)
+    const room = shareRoom(session.id, label, permission ?? 'control')
+    try { rememberSharing() } catch (error) { if (previous) restoreRoomDocument(previous); else removeRoom(room.id); throw error }
+    return publicRoom(room)
+  }), nullResult)
+  handle<boolean>(CHANNELS.roomsRemove, ([id]) => serial(async () => {
+    roomAccess.revokeRoom(asId(id))
+    forgetSharing(asId(id))
     removeRoom(asId(id))
     if (sharedRooms().length === 0) await stopCollaborationServer()
-  })
+    return roomById(asId(id)) === null
+  }), () => false)
+  handle<string | null>('openbot:rooms:qr', async ([id]) => {
+    const room = roomById(asId(id)), invite = room && collaborationOrigin() ? roomInviteUrl(room) : ''
+    if (!invite) return null
+    const data = await invitationQr(invite)
+    return roomById(asId(id))?.enabled && roomInviteUrl(roomById(asId(id))!) === invite ? data : null
+  }, nullResult)
 }

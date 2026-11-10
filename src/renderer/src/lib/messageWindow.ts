@@ -28,11 +28,14 @@ export interface Windowed<T> {
 }
 
 /** The newest `limit` entries, and the count of what that left behind. */
-export function tailWindow<T>(items: readonly T[], limit: number): Windowed<T> {
+export function tailWindow<T>(items: readonly T[], limit: number, include?: (item:T)=>boolean): Windowed<T> {
+  // Private orchestration may be frequent, but must never evict real chat from
+  // the visible window or inflate the user's "earlier messages" count.
+  const records=include?items.filter(include):items
   // A nonsense limit must never blank the transcript: render everything and let
   // it be slow rather than let a bad number hide the conversation.
-  if (!Number.isFinite(limit) || limit < 1 || items.length <= limit) {
-    return { visible: items.slice(), hidden: 0 }
+  if (!Number.isFinite(limit) || limit < 1 || records.length <= limit) {
+    return { visible: records.slice(), hidden: 0 }
   }
-  return { visible: items.slice(items.length - limit), hidden: items.length - limit }
+  return { visible: records.slice(records.length - limit), hidden: records.length - limit }
 }

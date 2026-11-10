@@ -15,7 +15,16 @@ import type { Bot } from '../../shared/types'
 import { handoff, saveMemoryEntry } from '../agent/sessionActions'
 import { listBots } from '../store/bots'
 import { setTodos } from '../store/sessions'
-import { delegateBackgroundTask } from '../tasks'
+import { delegateBackgroundTask, reviewBackgroundTask, manageBackgroundTask } from '../tasks'
+import { requestToolClarification } from '../tasks/clarifications'
+import { listBotMemory } from '../store/memory'
+import { recallMemories } from '../agent/memoryRecall'
+import { createGitHubWatch, createScheduledInstruction, createGmailWatch, createWebhookWatch, createOnceInstruction, createFolderWatch } from '../routines/create'
+import { createGitHubCommentDraft } from '../connectors/githubDrafts'
+import { createGmailDraft } from '../connectors/gmailDrafts'
+import { createCalendarDraft } from '../connectors/calendarDrafts'
+import { createXDraft } from '../connectors/xDrafts'
+import { createSlackDraft } from '../connectors/slackDrafts'
 import type { ToolHost } from '../tools/types'
 
 function warn(what: string, err: unknown): void {
@@ -24,6 +33,9 @@ function warn(what: string, err: unknown): void {
 }
 
 export const gatewayHost: ToolHost = {
+  manageTask: manageBackgroundTask,
+  requestInput: requestToolClarification,
+  recallMemory: (botId, query, kind, limit) => recallMemories(listBotMemory(botId), query, { kind, limit }),
   /*
    * Through `sessionActions`, not straight to the store: that is where a candidate
    * is screened and deduped. Writing to the store directly meant a CLI's `remember`
@@ -32,11 +44,12 @@ export const gatewayHost: ToolHost = {
    * the identical call. The store still mints the id; the tool's emitted entry is
    * the same text.
    */
-  async saveMemory(entry): Promise<void> {
+  async saveMemory(entry) {
     try {
-      await saveMemoryEntry(entry)
+      return await saveMemoryEntry(entry)
     } catch (err) {
       warn('memory save', err)
+      return { entry: null, reason: 'memory could not be saved' }
     }
   },
 
@@ -66,9 +79,21 @@ export const gatewayHost: ToolHost = {
     if (!result.ok) throw new Error(result.message)
   },
 
-  delegateTask(sessionId, fromBotId, toBotId, prompt, title) {
-    return delegateBackgroundTask(sessionId, fromBotId, toBotId, prompt, title)
+  delegateTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, plan) {
+    return delegateBackgroundTask(sessionId, fromBotId, toBotId, prompt, title, continueTaskId, signal, outputFiles, plan)
   },
+  reviewTask: reviewBackgroundTask,
+  scheduleRoutine: createScheduledInstruction,
+  scheduleOnceRoutine: createOnceInstruction,
+  watchFolderRoutine: createFolderWatch,
+  watchGitHubIssue: createGitHubWatch,
+  watchGmail: createGmailWatch,
+  watchWebhook: createWebhookWatch,
+  createGitHubDraft: createGitHubCommentDraft,
+  createGmailDraft,
+  createCalendarDraft,
+  createXDraft,
+  createSlackDraft,
 
   listBots(): Bot[] {
     try {

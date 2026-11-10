@@ -29,13 +29,15 @@ export interface TurnInput {
    * otherwise the guard would swallow the very handoff the nudge asked for.
    */
   retry?: boolean
+  /** Keep result-review turns out of the user-facing chat until assessed. */
+  internalAssistant?: boolean
   /**
    * An MCP server to hand this turn's backend, on top of the user's own.
    *
    * How OpenBOT's tools reach an agent CLI running its own loop: the gateway
    * endpoint plus the bearer token minted for this bot and session.
    */
-  gateway?: RuntimeMcpServer
+  gateway?: RuntimeMcpServer | null | Promise<RuntimeMcpServer | null>
   /** Called whenever the backend produces a chunk; resets the inactivity clock. */
   onActivity?: () => void
 }

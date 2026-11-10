@@ -4,8 +4,8 @@
  * Rules, in order:
  *   1. `~` expands to the current user's home directory (never hardcoded).
  *   2. A relative path resolves against `ctx.cwd` and may not climb out of it.
- *   3. An absolute path outside `ctx.cwd` is allowed only after an explicit
- *      approval, which is then remembered for that root for the session.
+ *   3. An absolute path outside `ctx.cwd` goes through the approval policy.
+ *      Auto-run allows directory access; other policies confirm it explicitly.
  *   4. Symlinks are re-checked after `realpath`, so a link inside the workspace
  *      cannot smuggle access to a target outside it.
  */
@@ -15,13 +15,22 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { approve } from './approval'
 import { isInside } from './containment'
-import { alreadyApproved, rememberRoot, type AccessMode } from './grants'
+import { alreadyApproved, noteApprovedTarget, type AccessMode } from './grants'
 import { ToolError } from './errors'
+import { settingsOf } from './settings'
 import type { ToolContext } from './types'
+import { localExecutionPolicy } from '../../shared/localExecution'
 
 export { isInside } from './containment'
 
 export { forgetSession, noteApprovedTarget, type AccessMode } from './grants'
+
+/** Directory access follows auto-run; this does not grant macOS privacy permissions. */
+export function outsideAccessRequiresConfirmation(ctx: ToolContext): boolean {
+  // The local switch now gates each call. Do not raise a second, broader
+  // directory approval after the user has approved that exact operation.
+  return localExecutionPolicy(settingsOf(ctx)) === 'never-allow'
+}
 
 /**
  * Every spelling of "home" a shell accepts, plus `$PWD`.
@@ -247,13 +256,8 @@ async function ensureAllowed(ctx: ToolContext, absolute: string, opts: ResolveOp
       summary: `${verb} a path outside the workspace`,
       detail: [`Path:      ${absolute}`, `Workspace: ${ctx.cwd}`, '', `Requested by: ${opts.tool}`].join('\n')
     },
-    /*
-     * Forced, like every other gate that leaves the workspace. Without it this
-     * was the one containment check `auto-run` skipped, so `read_file` returned
-     * any file on the machine with no card while `shell`'s `cat` of the same
-     * path still asked.
-     */
-    { force: true }
+    // Still reach the gate so explicit deny rules apply in auto-run as well.
+    { force: outsideAccessRequiresConfirmation(ctx) }
   )
 
   if (!granted) {
@@ -262,5 +266,5 @@ async function ensureAllowed(ctx: ToolContext, absolute: string, opts: ResolveOp
       'Work inside the workspace instead, or ask the user to open that folder as the working directory.'
     )
   }
-  rememberRoot(ctx.sessionId, absolute, opts.mode)
+  noteApprovedTarget(ctx, absolute, opts.mode)
 }

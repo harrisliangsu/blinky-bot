@@ -18,8 +18,18 @@ import {
 import {
   agentTools,
   delegateTaskTool,
+  reviewTaskTool,
+  manageTaskTool,
+  askUserTool,
+  scheduleRoutineTool,
+  scheduleOnceTool,
+  watchFolderTool,
+  githubCommentDraftTool,
+  watchGitHubIssueTool,
+  googleAccountsTool,
   handoffTool,
   rememberTool,
+  recallTool,
   requestHelpTool,
   todoWriteTool
 } from './agent'
@@ -40,9 +50,19 @@ import { screenshotTool } from './computer/screenTools'
 import { shellTool } from './shell'
 import { visualizeTool } from './visualize'
 import { fetchTool, webSearchTool, webTools } from './web'
+import { listCalendarTool, readGmailTool, searchGmailTool } from './agent/googleRead'
+import { gmailDraftTool } from './agent/gmailDraft'
+import { calendarDraftTool } from './agent/calendarDraft'
+import { watchGmailTool } from './agent/gmailWatch'
+import { webhookWatchTool } from './agent/webhookWatch'
+import { readXTool, xDraftTool } from './agent/x'
+import { slackDraftTool } from './agent/slackDraft'
 import type { Tool, ToolContext } from './types'
 import { runVmTool, vmTargetSupportsTools } from './computer/vmTools'
 import { hasVmComputerCapability } from './computer/vmProtocol'
+import { decisionReviewTool } from './agent/decisionReview'
+import { reviewToolExecution } from '../agent/decisionReview'
+import { getSettings } from '../settings'
 
 /** Every id in the shared contract, implemented. */
 const TOOLS: Record<ToolId, Tool> = {
@@ -65,8 +85,29 @@ const TOOLS: Record<ToolId, Tool> = {
   navigate: navigateTool,
   todo_write: todoWriteTool,
   remember: rememberTool,
+  recall: recallTool,
   handoff: handoffTool,
   delegate_task: delegateTaskTool,
+  review_task: reviewTaskTool,
+  decision_review: decisionReviewTool,
+  manage_task: manageTaskTool,
+  ask_user: askUserTool,
+  schedule_routine: scheduleRoutineTool,
+  schedule_once: scheduleOnceTool,
+  watch_folder: watchFolderTool,
+  github_comment_draft: githubCommentDraftTool,
+  watch_github_issue: watchGitHubIssueTool,
+  search_gmail: searchGmailTool,
+  list_google_accounts: googleAccountsTool,
+  read_gmail: readGmailTool,
+  gmail_draft: gmailDraftTool,
+  calendar_event_draft: calendarDraftTool,
+  watch_gmail_query: watchGmailTool,
+  create_webhook_routine: webhookWatchTool,
+  read_x_post: readXTool,
+  x_post_draft: xDraftTool,
+  slack_message_draft: slackDraftTool,
+  list_calendar_events: listCalendarTool,
   request_help: requestHelpTool,
   visualize: visualizeTool
 }
@@ -91,6 +132,7 @@ const VM_BOX_TOOLS = new Set<string>([
   'fetch',
   'web_search'
 ])
+const HOST_CONNECTOR_TOOLS = new Set<string>(['github_comment_draft', 'watch_github_issue', 'search_gmail', 'read_gmail', 'gmail_draft', 'list_google_accounts', 'calendar_event_draft', 'watch_gmail_query', 'create_webhook_routine', 'read_x_post', 'x_post_draft', 'slack_message_draft', 'list_calendar_events', 'watch_folder'])
 
 export function isVmBoxTool(name: string): boolean {
   const tool = getTool(name)
@@ -127,12 +169,25 @@ export function hasTool(name: string): boolean {
  */
 export function schemasFor(enabledIds: string[], target?: ComputerTarget): ToolSchema[] {
   const wanted = new Set(enabledIds.map((id) => id.trim()))
+  // Clarification is conversation coordination, not a separately granted effect.
+  wanted.add('ask_user')
+  if (getSettings().decisionSkillReview === true && target?.kind !== 'vm') wanted.add('decision_review')
+  else wanted.delete('decision_review')
+  if (wanted.has('remember')) wanted.add('recall')
+  if (wanted.has('schedule_routine')) {
+    wanted.add('schedule_once')
+    if (wanted.has('read_file') || wanted.has('list_dir')) wanted.add('watch_folder')
+  }
+  if (['search_gmail', 'read_gmail', 'watch_gmail_query', 'gmail_draft', 'list_calendar_events', 'calendar_event_draft'].some(id => wanted.has(id))) wanted.add('list_google_accounts')
+  // Reviewing an executor's result is part of delegation. Account access and
+  // routine creation are separate capabilities and must be granted explicitly.
+  if (wanted.has('delegate_task')) { wanted.add('review_task'); wanted.add('manage_task') }
   return TOOL_IDS.filter(
     (id) =>
       wanted.has(id) &&
       !(
         target?.kind === 'vm' &&
-        ((VM_BOX_TOOLS.has(id) && !vmTargetSupportsTools(target)) ||
+        (HOST_CONNECTOR_TOOLS.has(id) || (VM_BOX_TOOLS.has(id) && !vmTargetSupportsTools(target)) ||
           (TOOLS[id].schema.computerUse === true && !hasVmComputerCapability(target.capabilities)))
       )
   ).map((id) => TOOLS[id].schema)
@@ -169,6 +224,7 @@ export async function runTool(call: ToolCall, ctx: ToolContext): Promise<ToolRes
       durationMs: Date.now() - started
     }
   }
+  if (ctx.computerTarget?.kind === 'vm' && HOST_CONNECTOR_TOOLS.has(tool.schema.name)) return { callId: call.id, name: call.name, ok: false, output: 'This host account connector is unavailable to VM-targeted Bots.', durationMs: Date.now() - started }
   if (
     ctx.computerTarget?.kind === 'vm' &&
     tool.schema.computerUse === true &&
@@ -201,6 +257,6 @@ export async function runTool(call: ToolCall, ctx: ToolContext): Promise<ToolRes
     }
   }
   const scoped: ToolContext = { ...ctx, callId: call.id }
-  const result = await tool.handler(call.args ?? {}, scoped)
+  const result = await reviewToolExecution(call, scoped, context => tool.handler(call.args ?? {}, context))
   return { ...result, callId: call.id }
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { RichCardSpec } from '../../../shared/types'
 import { store } from '../state'
+import { copyText } from '../lib/clipboard'
 import { IconCopy } from './Icons'
 import './RichCard.css'
 
@@ -42,7 +43,7 @@ function mailtoUrl(spec: Extract<RichCardSpec, { type: 'email-draft' }>): string
 /**
  * The host a link card would really open, or null when the URL will not parse.
  *
- * Parsed rather than read off the string: `https://google.com@evil.example/reset`
+ * Parsed rather than read off the string: `https://person1@example.test/reset`
  * reads as google.com to a person but its host is `evil.example`, and `new URL()`
  * additionally punycode-normalises an IDN homograph into something inspectable.
  * Electron has no status bar, so this is the only place the destination of a
@@ -65,7 +66,7 @@ function CardShell({ kind, title, actions, children }: { kind: string; title: st
 /**
  * Addresses one per line, with a count.
  *
- * Joined into a sentence, `alex@acme.com, sam@acme.com, drop@evil.example` reads
+ * Joined into a sentence, `person2@example.test, person3@example.test, person4@example.test` reads
  * as one grey blur — and these recipients were chosen by the model, not typed by
  * the user. An address appended after two plausible ones has to be countable,
  * not merely present.
@@ -81,7 +82,7 @@ function Recipients({ label, addresses }: { label: string; addresses: string[] }
 }
 
 export function RichCard({ spec }: { spec: RichCardSpec }): ReactNode {
-  const copy = (value: string): void => { void navigator.clipboard.writeText(value).then(() => store.toast('Draft copied.'), () => store.toast('The clipboard is unavailable.', 'error')) }
+  const copy = (value: string): void => { void copyText(value).then(() => store.toast('Draft copied.'), () => store.toast('The clipboard is unavailable.', 'error')) }
   if (spec.type === 'email-draft') {
     const full = `To: ${spec.to.join(', ')}${spec.cc?.length ? `\nCc: ${spec.cc.join(', ')}` : ''}\nSubject: ${spec.subject}\n\n${spec.body}`
     /*

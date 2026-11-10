@@ -79,19 +79,19 @@ function serverRequest(
   }
 }
 
-function eventChunks(event: { type: string; data?: Record<string, unknown> }, sessionId: string): ChatChunk[] {
+export function opencodeEventChunks(event: { type: string; data?: Record<string, unknown> }, sessionId: string): ChatChunk[] {
   const data = event.data ?? {}
   if (data.sessionID && data.sessionID !== sessionId) return []
 
   switch (event.type) {
     case 'session.next.text.delta':
-      return typeof data.delta === 'string' && data.delta ? [{ type: 'text', delta: data.delta }] : []
+      return typeof data.delta === 'string' && data.delta ? [{ type: 'text', delta: data.delta, visible: true }] : []
     case 'session.next.reasoning.delta':
       return typeof data.delta === 'string' && data.delta ? [{ type: 'reasoning', delta: data.delta }] : []
     case 'session.next.tool.called': {
       const tool = typeof data.tool === 'string' ? data.tool : 'tool'
       const input = data.input && typeof data.input === 'object' ? JSON.stringify(data.input).slice(0, 120) : ''
-      return [{ type: 'reasoning', delta: `⏺ ${tool}${input ? `(${input})` : ''}\n` }]
+      return [{ type: 'reasoning', delta: `⏺ ${tool}${input ? `(${input})` : ''}\n`, toolActivity: true }]
     }
     default:
       return []
@@ -214,7 +214,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
         if (await answerPermission(req, event, server.baseUrl, headers, sessionId)) continue
         const failure = failureOf(event)
         if (failure) throw new Error(failure)
-        yield* eventChunks(event, sessionId)
+        yield* opencodeEventChunks(event, sessionId)
         if (event.type === 'session.idle' && event.data?.sessionID === sessionId) break
       }
     } finally {

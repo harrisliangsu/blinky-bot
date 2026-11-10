@@ -2,14 +2,16 @@
  * IPC for `OpenBotApi.skills`.
  *
  * Skills are executed by the agent CLIs themselves, not by us — this surface
- * only discovers what is installed, installs into the shared directory so every
- * CLI can see it, and removes what we put there.
+ * discovers installed skills, manages the shared copy and creates owned links
+ * in available local Agent directories. Native loading is host-dependent.
  */
 
 import type { Skill, SkillInstallResult, SkillUninstallResult } from '../../shared/types'
+import type { SkillBulkSyncResult } from '../../shared/skills'
 import {
   installSkill,
   listSkills,
+  syncExistingSkills,
   skillsFor,
   uninstallSkill
 } from '../skills'
@@ -82,4 +84,5 @@ export function registerSkillIpc(): void {
     ([id]) => uninstallSkill(asId(id)),
     () => ({ ok: false, error: 'The skill could not be removed.' })
   )
+  handle<SkillBulkSyncResult>(CHANNELS.skillsSyncExisting, () => syncExistingSkills(), () => ({ ok: false, skills: 0, linked: 0, unavailable: 0, issues: [], error: 'Skills could not be synchronized.' }))
 }

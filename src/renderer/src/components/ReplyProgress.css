@@ -1,0 +1,15 @@
+.ob-reply-progress {
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: var(--ob-height-base);
+}
+.ob-reply-progress-avatar { display: flex; flex-shrink: 0; }
+.ob-reply-progress .ob-model-progress-text { min-width: 0; }
+.ob-reply-progress-pulse { animation: ob-reply-progress-pulse 1.4s ease-in-out infinite; }
+@keyframes ob-reply-progress-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .ob-reply-progress-pulse { animation: none; }
+}
+@media (forced-colors: active) {
+  .ob-reply-progress { color: CanvasText; }
+}

@@ -15,7 +15,7 @@ import { DEFAULT_PRESET, fitPanes, isLayoutPreset, type LayoutPreset } from '../
 import { overlayOwnsKeys } from '../lib/shortcutRules'
 import { bridge } from './bridge'
 import { store } from './core'
-import { newSession, selectSession } from './sessions'
+import { openBotChat, selectSession } from './sessions'
 import type { WorkspaceUi } from './types'
 
 /** Renderer-local UI preference; deliberately not main-process settings. */
@@ -60,13 +60,13 @@ function firstFilled(panes: readonly (string | null)[]): number {
 
 export function openWorkspace(): void {
   const state = store.getState()
-  if (state.workspace.open) return
+  if (state.workspace.open) { if (state.projectHome) store.patch({ projectHome: null }); return }
   const preset = loadPreset()
   const panes = fitPanes(state.workspace.panes, preset)
   // Opening from a conversation carries it into the first pane, so the
   // workspace starts where the user already was rather than blank.
   if (!panes.some((id) => id !== null) && state.currentSessionId) panes[0] = state.currentSessionId
-  store.patch({ workspace: { open: true, preset, panes, focused: firstFilled(panes) } })
+  store.patch({ projectHome: null, workspace: { open: true, preset, panes, focused: firstFilled(panes) } })
 }
 
 /** Leaves the pane assignments intact, so reopening restores the arrangement. */
@@ -75,7 +75,7 @@ export function closeWorkspace(): void {
 }
 
 export function toggleWorkspace(): void {
-  if (current().open) closeWorkspace()
+  if (current().open && !store.getState().projectHome) closeWorkspace()
   else openWorkspace()
 }
 
@@ -156,7 +156,9 @@ export async function fetchPaneSession(id: string): Promise<Session | null> {
 
 /** Starts a fresh chat directly in a slot. */
 export async function startPaneChat(index: number): Promise<void> {
-  await newSession()
+  const botId = store.getState().bots.find((bot) => !bot.archived)?.id
+  if (!botId) return
+  await openBotChat(botId)
   const id = store.getState().currentSessionId
   if (id) assignPane(index, id)
 }

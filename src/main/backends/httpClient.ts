@@ -3,7 +3,7 @@
 import { HttpError } from './httpErrors'
 import { safeJsonParse } from './lenientJson'
 import { MAX_LINE_CHARS } from './lineStream'
-import { redactSecrets } from './secretRedaction'
+import { redactSecrets } from './vaultRedaction'
 
 /** Detection runs on the startup path, so it must be short. */
 export const DETECT_TIMEOUT_MS = 1500

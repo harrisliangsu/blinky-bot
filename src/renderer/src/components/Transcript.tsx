@@ -1,23 +1,61 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { clarificationTimeline } from '../lib/clarificationTimeline'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
-import { showsJump, useStickyScroll } from '../lib/stickyScroll'
+import { showsJump } from '../lib/stickyScroll'
+import { copyText } from '../lib/clipboard'
+import { useTranscriptScroll } from '../lib/useTranscriptScroll'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { store, useAppState } from '../state'
+import { respondToApproval, store, useAppState } from '../state'
+import { ApprovalDialog } from './ApprovalDialog'
 import { BackendSetupLink } from './BackendSetupLink'
 import { EarlierMessages } from './EarlierMessages'
 import { IconArrowDown, IconSpinner, IconWarning } from './Icons'
 import { MessageView } from './Message'
-import { WorkingPill } from './WorkingPill'
+import { BotAvatar } from './BotAvatar'
+import { GitHubDraftCards } from './GitHubDraftCards'
+import { GmailDraftCards } from './GmailDraftCards'
+import { CalendarDraftCards } from './CalendarDraftCards'
+import { XDraftCards } from './XDraftCards'
+import { SlackDraftCards } from './SlackDraftCards'
+import { TaskClarificationEntry, useTaskClarifications } from './TaskClarificationCards'
+import { ReplyProgress } from './ReplyProgress'
+import type { Bot } from '../../../shared/types'
+import { imagePreviewSrc } from './imageAttachments'
+import type { MessageQueue, QueuedMessage } from '../../../shared/messageQueue'
 import './Transcript.css'
+import { RoomDevices } from './RoomDevices'
 
-function EmptyTranscript({ hasSession }: { hasSession: boolean }): ReactNode {
+function EmptyTranscript({ hasSession, bot }: { hasSession: boolean; bot?: Bot }): ReactNode {
   const chat = useSettingsCopy().chat
   return (
     <div className="ob-transcript-empty">
+      {bot ? <BotAvatar bot={bot} size="lg" /> : null}
       <h2 className="ob-empty-title">{hasSession ? chat.ready : chat.emptyTitle}</h2>
       <p className="ob-empty-body">{chat.emptyBody}</p>
     </div>
   )
+}
+
+/** Messages waiting for the execution backend are still ordinary chat bubbles. */
+function useTranscriptLanguage(): 'zh' | 'en' {
+  const settings = useAppState().settings
+  return (settings?.language ?? (typeof navigator === 'undefined' ? 'zh-CN' : navigator.language)) === 'zh-CN' ? 'zh' : 'en'
+}
+
+function PendingMessage({ item, queue, known }: { item: QueuedMessage; queue: MessageQueue; known: boolean }): ReactNode {
+  const zh = useTranscriptLanguage()
+  return <article className="ob-msg ob-msg-user" aria-label="You">
+    <div className="ob-msg-shell">
+      {!known && item.text ? <div className="ob-msg-bubble">{item.text}</div> : null}
+      {item.status === 'waiting' ? <small className="ob-msg-queue-state" role="status">{zh === 'zh' ? '排队中，将在当前运行结束后送达' : 'Queued; it will be delivered when the current run finishes'}</small> : null}
+      {!known && item.attachments.length ? <div className="ob-msg-pictures">{item.attachments.map((attachment) => {
+        const src = imagePreviewSrc(attachment)
+        return src ? <img key={attachment.id} className="ob-msg-picture" src={src} alt={attachment.name} /> : <span key={attachment.id}>{attachment.name}</span>
+      })}</div> : null}
+      {item.status === 'interrupted' ? <p className="ob-msg-error">发送状态未确认，请核对对话后处理。 <button type="button" onClick={() => void copyText(item.text).then(() => store.toast('已复制'), () => store.toast('无法访问剪贴板，请选中文本复制。', 'error'))}>复制</button> <button type="button" onClick={() => void window.openbot.agent.removeQueued(queue.sessionId, item.id)}>移除</button></p> : null}
+      {queue.paused && item.status === 'waiting' ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => void window.openbot.agent.pauseQueue(queue.sessionId, false).then((result) => { if (!result) store.toast('请先处理发送状态未确认的消息。', 'error') })}>继续处理</button> : null}
+    </div>
+  </article>
 }
 
 /**
@@ -27,21 +65,47 @@ function EmptyTranscript({ hasSession }: { hasSession: boolean }): ReactNode {
  * Only the newest turns are rendered; see `lib/messageWindow` for why.
  */
 export function Transcript(): ReactNode {
-  const { messageIds, bots, session, sessionLoading, runError, streaming, settings } = useAppState()
+  const { messageIds, bots, session, sessionLoading, runError, settings, streaming, approvals } = useAppState()
+  const localApprovals = approvals.filter((request) => request.sessionId === session?.id)
   const [showJump, setShowJump] = useState(false)
   const [limit, setLimit] = useState(TRANSCRIPT_WINDOW)
+  const [queue, setQueue] = useState<MessageQueue | null>(null)
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const [, historyChanged] = useState(0)
+  const earlierBusy = useRef(false)
+  useEffect(() => window.openbot.history?.subscribe(() => historyChanged(n => n + 1)), [])
 
-  const { scrollerRef, contentRef, onScroll, pin, jump } = useStickyScroll((geometry) =>
+  useEffect(() => {
+    const id = session?.id
+    setQueue(null)
+    if (!id) return
+    let active = true
+    let updated = false
+    void window.openbot.agent.queue(id).then((value) => { if (active && !updated) setQueue(value) })
+    const unsubscribe = window.openbot.on((event) => {
+      if (event.type === 'message-queue-updated' && event.queue.sessionId === id) {
+        updated = true
+        setQueue(event.queue)
+      }
+    })
+    return () => { active = false; unsubscribe() }
+  }, [session?.id])
+
+  const { scrollerRef, contentRef, onScroll, onWheel, onKeyDown, onPointerDown, onTouchStart, onTouchMove, pin, jump, preservePrepend, restorePrepend } = useTranscriptScroll(session?.id, !sessionLoading, (geometry) =>
     setShowJump(showsJump(geometry))
   )
 
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b] as const)), [bots])
   const multiBot = (session?.botIds.length ?? 0) > 1
-  const { visible, hidden } = tailWindow(messageIds, limit)
+  const { requests: clarificationRequests, error: clarificationError } = useTaskClarifications(session?.id)
+  const more = !!session && window.openbot.history?.hasMore(session.id) === true
+  const timeline = clarificationTimeline(messageIds.flatMap(id => { const message = store.getMessage(id); return message ? [message] : [] }), clarificationRequests, more)
+  const entries = new Map(timeline.map(entry => [entry.id, entry]))
+  const { visible, hidden } = tailWindow(timeline.map(entry => entry.id), limit, id => { const entry = entries.get(id); return !!entry && ('request' in entry || !store.getMessage(entry.messageId)?.internal) })
 
   const toBottom = useCallback(
-    (behavior?: ScrollBehavior) => {
-      jump(behavior)
+    () => {
+      jump()
       setShowJump(false)
     },
     [jump]
@@ -49,9 +113,9 @@ export function Transcript(): ReactNode {
 
   // `messageIds`, not the windowed slice: a full window keeps the same length
   // when a turn arrives, and the list must still follow it down.
-  useEffect(() => {
+  useLayoutEffect(() => {
     pin()
-  }, [pin, messageIds])
+  }, [pin, messageIds, clarificationRequests, localApprovals[0]?.id])
 
   useEffect(() => {
     // A different chat starts at its newest turn, and rewinds the window: the
@@ -59,6 +123,18 @@ export function Transcript(): ReactNode {
     setLimit(TRANSCRIPT_WINDOW)
     toBottom()
   }, [session?.id, toBottom])
+
+  useLayoutEffect(restorePrepend, [limit, messageIds, restorePrepend])
+  const earlier = async () => {
+    if (earlierBusy.current) return
+    preservePrepend()
+    if (hidden > 0) { setLimit(n => n + TRANSCRIPT_WINDOW); return }
+    if (!more || !session) return
+    earlierBusy.current = true; setLoadingEarlier(true)
+    try { await window.openbot.history!.loadEarlier(session.id, preservePrepend); setLimit(n => n + TRANSCRIPT_WINDOW) }
+    catch (error) { store.toast(error instanceof Error ? error.message : 'History could not be loaded.', 'error') }
+    finally { earlierBusy.current = false; setLoadingEarlier(false) }
+  }
 
   if (sessionLoading) {
     return (
@@ -73,21 +149,31 @@ export function Transcript(): ReactNode {
 
   return (
     <div className="ob-transcript">
-      <div className="ob-transcript-scroller" ref={scrollerRef} onScroll={onScroll} role="log" aria-live="polite" aria-label="Conversation">
+      <div className="ob-transcript-scroller" ref={scrollerRef} onScroll={event => { onScroll(); if (event.currentTarget.scrollTop < 80 && (hidden > 0 || more)) void earlier() }} onWheel={onWheel} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onTouchStart={onTouchStart} onTouchMove={onTouchMove} tabIndex={0} role="log" aria-live="polite" aria-label="Conversation">
         <div className="ob-transcript-content" ref={contentRef}>
-          {messageIds.length === 0 && !runError ? <EmptyTranscript hasSession={session !== null} /> : null}
+          <RoomDevices pendingOnly />
+          {visible.length === 0 && !runError && !queue?.items.length ? <EmptyTranscript hasSession={session !== null} bot={session?.botIds[0] ? botMap.get(session.botIds[0]) : undefined} /> : null}
 
-          <EarlierMessages hidden={hidden} onShow={() => setLimit((n) => n + TRANSCRIPT_WINDOW)} />
+          <EarlierMessages hidden={hidden} more={more} loading={loadingEarlier} onShow={() => void earlier()} />
 
-          {visible.map((id) => (
-            <MessageView key={id} id={id} bots={botMap} multiBot={multiBot} expandSteps={settings?.expandSteps === true} />
-          ))}
+          {visible.map(id => {
+            const entry = entries.get(id)!
+            return 'request' in entry ? <TaskClarificationEntry key={id} request={entry.request} zh={settings?.language !== 'en'} />
+              : <MessageView key={id} id={entry.messageId} bots={botMap} multiBot={multiBot} expandSteps={settings?.expandSteps === true} />
+          })}
+          {clarificationError ? <p className="ob-msg-error" role="status">{settings?.language !== 'en' ? '暂时无法读取问题记录。' : 'Question history could not be loaded.'}</p> : null}
 
-          {streaming && messageIds.length > 0 ? (
-            <div className="ob-transcript-working">
-              <WorkingPill size="md" />
-            </div>
-          ) : null}
+          {queue?.items.map((item) => <PendingMessage key={item.id} item={item} queue={queue} known={messageIds.includes(item.id)} />)}
+
+          {localApprovals[0] ? <ApprovalDialog key={localApprovals[0].id} request={localApprovals[0]} queued={localApprovals.length - 1} onDecide={(decision) => void respondToApproval(localApprovals[0].id, decision)} /> : null}
+
+          {session ? <GitHubDraftCards key={session.id} sessionId={session.id} /> : null}
+          {session ? <GmailDraftCards key={`gmail-${session.id}`} sessionId={session.id} /> : null}
+          {session ? <CalendarDraftCards key={`calendar-${session.id}`} sessionId={session.id} /> : null}
+          {session ? <XDraftCards key={`x-${session.id}`} sessionId={session.id} /> : null}
+          {session ? <SlackDraftCards key={`slack-${session.id}`} sessionId={session.id} /> : null}
+
+          {session ? <ReplyProgress key={`reply-${session.id}`} sessionId={session.id} active={streaming && !runError} bot={botMap.get(session.activeBotId ?? session.botIds[0])} waitingForApproval={localApprovals.length > 0} zh={settings?.language !== 'en'} /> : null}
 
           {runError ? (
             <div className="ob-notice ob-notice-error ob-transcript-error" role="alert">
@@ -103,7 +189,7 @@ export function Transcript(): ReactNode {
       </div>
 
       {showJump ? (
-        <button type="button" className="ob-transcript-jump" onClick={() => toBottom('smooth')} aria-label="Jump to latest message">
+        <button type="button" className="ob-transcript-jump" onClick={toBottom} aria-label="Jump to latest message">
           <IconArrowDown size={13} />
           Latest
         </button>

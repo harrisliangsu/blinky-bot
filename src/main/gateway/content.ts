@@ -9,6 +9,7 @@
  */
 
 import type { ToolResult } from '../../shared/types'
+import { untrustedToolText } from '../agent/untrusted'
 
 /** Beyond this the text is a liability for the client's context, not a help. */
 const MAX_TEXT = 200_000
@@ -50,7 +51,9 @@ function imageBlock(screenshot: string): McpImageContent | null {
 }
 
 export function toCallResult(result: ToolResult): McpToolCallResult {
-  const content: McpContent[] = [text(result.output || (result.ok ? '(no output)' : 'Failed.'))]
+  const output = result.output || (result.ok ? '(no output)' : 'Failed.')
+  const truncated = output.length > MAX_TEXT ? `${output.slice(0, MAX_TEXT)}\n… truncated, ${output.length - MAX_TEXT} more characters.` : output
+  const content: McpContent[] = [{ type: 'text', text: untrustedToolText(result.name, truncated) }]
   if (result.screenshot) {
     const image = imageBlock(result.screenshot)
     if (image) content.push(image)

@@ -13,6 +13,8 @@
 import { isPlainObject } from '../lenientJson'
 import type { ChatChunk } from '../types'
 import { str, type CodexItems } from './codexItems'
+import { agentTraceEntry } from './agentTrace'
+import { redactSecrets } from '../vaultRedaction'
 
 /*
  * The two approval halves live in `codexApprovals.ts` and the notification
@@ -33,9 +35,9 @@ function deltaOf(params: unknown): string {
 }
 
 /** A notice the user can see that must not end the turn. */
-function activity(text: string): ChatChunk[] {
+function activity(text: string, category: 'reconnect' | 'transport' | 'warning' = 'warning'): ChatChunk[] {
   const line = text.trim()
-  return line ? [{ type: 'reasoning', delta: `⚠ ${line}\n` }] : []
+  return line ? [{ type: 'notice', category, message: line }] : []
 }
 
 /**
@@ -81,7 +83,11 @@ function agentText(value: unknown, items?: CodexItems): ChatChunk[] {
       : raw.type === 'agentMessage'
         ? str(raw.text)
         : ''
-    if (text) out.push({ type: 'text', delta: text })
+    if (text) {
+      const id = str(raw.id)
+      const phase = items?.agentPhase(id)
+      out.push({ type: 'text', delta: `${items?.agentTextPrefix(id) ?? ''}${text}`, visible: true, ...(phase ? { segment: { id, phase, delta: text } } : {}) })
+    }
   }
   return out
 }
@@ -119,16 +125,32 @@ export function presentCodexError(err: unknown): Error {
 export function codexNotification(
   method: string,
   params: unknown,
-  items?: CodexItems
+  items?: CodexItems,
+  captureAgentTrace = false
 ): ChatChunk[] {
   // Before the switch, so the notifications this file has no chunk for are
   // still not thrown away — they are what makes an approval card readable.
   items?.observe(method, params)
 
   switch (method) {
+    case 'item/autoApprovalReview/completed': {
+      const root = isPlainObject(params) ? params : {}, review = isPlainObject(root.review) ? root.review : {}, action = isPlainObject(root.action) ? root.action : {}
+      const status = str(review.status)
+      if (status !== 'denied' && status !== 'timedOut' && status !== 'aborted') return []
+      const kind = str(action.type) || 'operation'
+      const target = str(action.command) || str(action.program) || str(action.toolName) || str(action.host) || (Array.isArray(action.files) ? action.files.filter((v): v is string => typeof v === 'string').join(', ') : '')
+      const safeAction = redactSecrets(`${kind}${target ? `: ${target}` : ''}`).slice(0, 400)
+      const reason = redactSecrets(str(review.rationale)).slice(0, 800).trim()
+      const summary = status === 'denied' ? 'Codex 自动审批复审拒绝了此操作' : status === 'timedOut' ? 'Codex 自动审批复审超时' : 'Codex 自动审批复审被中止'
+      throw new CodexTurnError(`${summary}：${safeAction}。${reason ? `原因：${reason}。` : '复审未提供原因。'}本轮已停止，请先检查已发生的操作。`)
+    }
     case 'item/agentMessage/delta': {
       const delta = deltaOf(params)
-      return delta ? [{ type: 'text', delta }] : []
+      const id = isPlainObject(params) ? str(params.itemId) : ''
+      const phase = items?.agentPhase(id)
+      // agentMessage is public assistant speech even when older servers omit
+      // phase. Reasoning, plans and tool events have separate method families.
+      return delta ? [{ type: 'text', delta: `${items?.agentTextPrefix(id) ?? ''}${delta}`, visible: true, ...(phase ? { segment: { id, phase, delta } } : {}) }] : []
     }
 
     case 'item/reasoning/textDelta':
@@ -161,6 +183,13 @@ export function codexNotification(
 
     case 'item/started':
     case 'item/completed': {
+      if (captureAgentTrace && isPlainObject(params) && isPlainObject(params.item)) {
+        const item = params.item
+        const kind = str(item.type)
+        if (['commandExecution', 'fileChange', 'mcpToolCall', 'dynamicToolCall', 'webSearch'].includes(kind)) {
+          return [{ type: 'agent_trace', entry: agentTraceEntry(str(item.id), kind, method === 'item/started' ? 'started' : 'completed', item) }]
+        }
+      }
       /*
        * `item/completed` repeats the finished item after any deltas. Only an
        * agentMessage is part of the reply, and only the part deltas did not
@@ -180,7 +209,7 @@ export function codexNotification(
       if (method === 'guardianWarning' && message.startsWith('Automatic approval review approved (')) {
         return []
       }
-      return activity(message)
+      return activity(message, /falling back from websockets to https/i.test(message) ? 'transport' : 'warning')
     }
 
     case 'error': {
@@ -190,7 +219,7 @@ export function codexNotification(
        * `error` as fatal aborted those turns. `willRetry: false` is terminal.
        */
       const text = codexTurnErrorText(params)
-      if (isRetryableError(params)) return activity(text)
+      if (isRetryableError(params)) return activity(text, 'reconnect')
       throw new CodexTurnError(text || 'codex reported an error')
     }
 

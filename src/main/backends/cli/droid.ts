@@ -96,6 +96,7 @@ async function* runTurn(req: ChatRequest, cfg: BackendConfig): AsyncGenerator<Ch
   const ctx = runContext(req.model, opts)
 
   yield* runStdioJson({
+    onTiming: req.onTiming,
     spec: DROID_SPEC,
     binaryPath,
     args: buildArgs(ctx.model, systemPromptOf(req.messages), ctx.extraArgs),

@@ -10,7 +10,7 @@
  * folders at prompt time, so a skill removed on disk simply drops out.
  */
 
-export type SkillOrigin = 'claude' | 'opencode' | 'codex' | 'kimi' | 'grok' | 'pi' | 'agents' | 'project'
+export type SkillOrigin = 'claude' | 'opencode' | 'codex' | 'kimi' | 'grok' | 'pi' | 'droid' | 'agents' | 'project'
 
 export interface Skill {
   /** Stable: `${origin}:${name}`. */
@@ -35,6 +35,23 @@ export interface SkillInstallResult {
   ok: boolean
   skill?: Skill
   error?: string
+  sync?: SkillSyncResult[]
+}
+
+export interface SkillSyncResult {
+  agent: string
+  path: string
+  status: 'linked' | 'existing' | 'conflict' | 'unavailable' | 'error'
+  detail?: string
+}
+
+export interface SkillBulkSyncResult {
+  ok: boolean
+  skills: number
+  linked: number
+  unavailable: number
+  issues: Array<{ skill: string; agent: string; detail: string }>
+  error?: string
 }
 
 export interface SkillUninstallResult {
@@ -56,18 +73,20 @@ export const SKILL_ORIGINS: readonly SkillOrigin[] = [
   'kimi',
   'grok',
   'pi',
+  'droid',
   'project'
 ]
 
 /** Short labels for the UI; the shared one says why it matters. */
 export const SKILL_ORIGIN_LABELS: Record<SkillOrigin, string> = {
-  agents: 'Shared — every CLI',
+  agents: 'Shared directory',
   claude: 'Claude Code',
   opencode: 'OpenCode',
   codex: 'Codex',
   kimi: 'Kimi Code',
   grok: 'Grok',
   pi: 'pi',
+  droid: 'Droid',
   project: 'This project'
 }
 
@@ -81,7 +100,8 @@ export const SKILL_PREFERENCE: Record<string, readonly SkillOrigin[]> = {
   claude: ['claude', 'agents'],
   codex: ['codex', 'agents'],
   kimi: ['kimi', 'agents'],
-  grok: ['grok', 'agents']
+  grok: ['grok', 'agents'],
+  droid: ['droid', 'agents']
 }
 
 /**
@@ -96,7 +116,8 @@ export const DEFAULT_SKILL_PREFERENCE: readonly SkillOrigin[] = [
   'codex',
   'kimi',
   'grok',
-  'pi'
+  'pi',
+  'droid'
 ]
 
 /**

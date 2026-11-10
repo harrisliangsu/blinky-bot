@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { cx } from '../lib/format'
 import { TRANSCRIPT_WINDOW, tailWindow } from '../lib/messageWindow'
 import { useStickyScroll } from '../lib/stickyScroll'
-import { clearPane, fetchPaneSession, focusPane, useAppState } from '../state'
+import { clearPane, fetchPaneSession, focusPane, respondToApproval, stopTurn, useAppState, store } from '../state'
+import { ApprovalDialog } from './ApprovalDialog'
 import { BotAvatar } from './BotAvatar'
 import { EarlierMessages } from './EarlierMessages'
 import { IconClose } from './Icons'
 import { MessageView } from './Message'
 import { PaneChatBody, type PaneSnapshot } from './PaneChatBody'
-import { WorkingPill } from './WorkingPill'
 import './PaneChat.css'
 
 interface PaneChatProps {
@@ -28,7 +28,8 @@ interface PaneChatProps {
  * admits it is a copy.
  */
 export function PaneChat({ sessionId, index, focused }: PaneChatProps): ReactNode {
-  const { bots, sessions, session, messageIds, currentSessionId, streaming, sessionLoading } = useAppState()
+  const { bots, sessions, session, messageIds, currentSessionId, streaming, sessionLoading, approvals } = useAppState()
+  const localApprovals = approvals.filter((request) => request.sessionId === sessionId)
 
   const isCurrent = currentSessionId === sessionId
   const live = focused && isCurrent && session?.id === sessionId
@@ -68,14 +69,14 @@ export function PaneChat({ sessionId, index, focused }: PaneChatProps): ReactNod
   const { scrollerRef, contentRef, onScroll, pin } = useStickyScroll()
   useEffect(() => {
     pin()
-  }, [pin, live, sessionId, messageIds, snapshot])
+  }, [pin, live, sessionId, messageIds, snapshot, localApprovals[0]?.id])
 
   // The live pane pays the transcript's parsing cost, so it windows the same
   // way. `limit` rewinds with the chat: the page the reader opened belonged to
   // whatever conversation was in this slot before.
   const [limit, setLimit] = useState(TRANSCRIPT_WINDOW)
   useEffect(() => setLimit(TRANSCRIPT_WINDOW), [sessionId])
-  const shown = tailWindow(messageIds, limit)
+  const shown = tailWindow(messageIds, limit, id=>!store.getMessage(id)?.internal)
 
   return (
     <section
@@ -133,7 +134,8 @@ export function PaneChat({ sessionId, index, focused }: PaneChatProps): ReactNod
               {shown.visible.map((id) => (
                 <MessageView key={id} id={id} bots={botMap} multiBot={multiBot} />
               ))}
-              {streaming && messageIds.length > 0 ? <WorkingPill size="md" /> : null}
+              {localApprovals[0] ? <ApprovalDialog key={localApprovals[0].id} request={localApprovals[0]} queued={localApprovals.length - 1} onDecide={(decision) => void respondToApproval(localApprovals[0].id, decision)} /> : null}
+              {streaming ? <div className="ob-transcript-working"><button type="button" className="ob-btn ob-btn-sm" onClick={() => void stopTurn()}>Stop</button></div> : null}
             </>
           ) : (
             <PaneChatBody

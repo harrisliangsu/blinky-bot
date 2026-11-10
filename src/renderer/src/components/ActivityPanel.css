@@ -4,7 +4,7 @@
 .ob-activity-compose { display: grid; gap: 8px; margin-bottom: 24px; }
 .ob-activity-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ob-activity-item { display: flex; align-items: flex-start; gap: 6px; padding: 8px; border: 1px solid var(--ob-border); border-radius: 10px; }
-.ob-activity-item.is-unread { background: color-mix(in srgb, var(--ob-accent) 8%, transparent); border-color: color-mix(in srgb, var(--ob-accent) 35%, var(--ob-border)); }
+.ob-activity-item.is-unread { background: var(--ob-bg-hover); border-color: var(--ob-border-subtle); }
 .ob-activity-main { display: flex; align-items: flex-start; gap: 9px; min-width: 0; flex: 1; padding: 0; border: 0; background: transparent; color: var(--ob-text-primary); text-align: left; cursor: pointer; }
 .ob-activity-main > span:not(.ob-avatar):not(.ob-activity-dot) { display: grid; gap: 3px; min-width: 0; }
 .ob-activity-main strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -8,19 +8,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { forgetSent } from './resumePrompt'
-
-/** Conversation key -> whether Claude has been given that id yet. */
-const started = new Set<string>()
-/**
- * Conversation key -> how many times its thread has been restarted.
- *
- * Part of the derived id, so a restart is a genuinely new conversation. Reusing
- * the same UUID after a failed resume made Claude Code reject the retry as
- * well: `--session-id` refuses an id it has already seen, so a resume that
- * failed for a transient reason stranded the thread for good.
- */
-const restarts = new Map<string, number>()
+import { forgetProviderBinding, getProviderBinding, putProviderBinding } from '../../store/providerBindings'
 
 /**
  * Derive a stable UUIDv4-shaped id from an arbitrary conversation key.
@@ -43,15 +31,33 @@ export function sessionUuid(sessionKey: string, restart = 0): string {
 }
 
 /**
- * Flags that continue this session, plus whether it is the first turn.
+ * Flags that continue this session.
  * `--session-id` creates; `--resume` continues an existing conversation.
+ *
+ * `started` is persisted with the binding. It is set only after Claude has
+ * actually accepted the id (the turn succeeded, or Claude reported the id
+ * already in use). Setting it inside this function, before the CLI answered,
+ * made the relaunch recovery refuse to switch from `--session-id` to `--resume`.
  */
 export function continuityArgs(sessionKey: string | undefined): string[] {
   if (!sessionKey) return []
-  const uuid = sessionUuid(sessionKey, restarts.get(sessionKey) ?? 0)
-  if (started.has(sessionKey)) return ['--resume', uuid]
-  started.add(sessionKey)
+  const binding = getProviderBinding('claude', sessionKey)
+  const restarts = binding?.restarts ?? 0
+  const uuid = binding?.started && binding.nativeThreadId ? binding.nativeThreadId : sessionUuid(sessionKey, restarts)
+  if (binding?.started && binding.nativeThreadId) return ['--resume', binding.nativeThreadId]
   return ['--session-id', uuid]
+}
+
+/** Remember that Claude accepted this conversation, so the next launch resumes it. */
+export function confirmClaudeSession(sessionKey: string | undefined): void {
+  if (!sessionKey) return
+  const binding = getProviderBinding('claude', sessionKey)
+  const restarts = binding?.restarts ?? 0
+  putProviderBinding('claude', sessionKey, {
+    nativeThreadId: sessionUuid(sessionKey, restarts),
+    restarts,
+    started: true
+  })
 }
 
 /**
@@ -67,8 +73,15 @@ export function continuityArgs(sessionKey: string | undefined): string[] {
  * happened. Returns false when the id was ours to begin with.
  */
 export function adoptExistingSession(sessionKey: string | undefined): boolean {
-  if (!sessionKey || started.has(sessionKey)) return false
-  started.add(sessionKey)
+  if (!sessionKey) return false
+  const binding = getProviderBinding('claude', sessionKey)
+  if (binding?.started) return false
+  const restarts = binding?.restarts ?? 0
+  putProviderBinding('claude', sessionKey, {
+    nativeThreadId: sessionUuid(sessionKey, restarts),
+    restarts,
+    started: true
+  })
   return true
 }
 
@@ -93,9 +106,7 @@ export function isSessionIdInUse(err: unknown): boolean {
  */
 export function forgetSession(sessionKey: string | undefined): void {
   if (!sessionKey) return
-  started.delete(sessionKey)
-  restarts.set(sessionKey, (restarts.get(sessionKey) ?? 0) + 1)
-  forgetSent(sessionKey)
+  forgetProviderBinding('claude', sessionKey)
 }
 
 /**

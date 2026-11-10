@@ -5,7 +5,8 @@
  * binaries installed by homebrew, nvm/fnm, bun, pnpm or pipx are simply not on
  * PATH, so detection silently fails for most users — and it never reproduces
  * when the app is started from a terminal. Recover the real environment by
- * asking the user's login shell for it, then cache the answer.
+ * asking the user's login shell for it. Non-sensitive values are cached as a
+ * fallback when the shell is unavailable.
  *
  * Version managers need no special-casing: an interactive login shell sources
  * them itself.
@@ -21,6 +22,11 @@ const run = promisify(execFile)
 
 const MARKER = '__openbot_env__'
 const SHELL_TIMEOUT_MS = 5000
+
+const PROXY_VARS = [
+  'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+  'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'
+]
 
 /**
  * Variables worth carrying into probes and child agents.
@@ -54,8 +60,14 @@ const CAPTURE = new Set([
   'CLAUDE_CONFIG_DIR',
   'KIMI_CODE_HOME',
   'GROK_HOME',
-  'PI_CODING_AGENT_DIR'
+  'PI_CODING_AGENT_DIR',
+  ...PROXY_VARS
 ])
+
+/** Proxy URLs may contain credentials and must not be persisted. */
+export function cacheableShellEnv(env: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !PROXY_VARS.includes(key)))
+}
 
 function safeHome(): string {
   try {
@@ -187,18 +199,18 @@ async function hydrate(): Promise<NodeJS.ProcessEnv> {
 
   const shell = loginShell()
   const fingerprint = await shellFingerprint(shell)
-  let captured = await readShellEnvCache(fingerprint)
-
-  if (!captured) {
-    captured = (await captureFromShell(shell)) ?? (await launchctlPath())
-    if (captured) await writeShellEnvCache(fingerprint, captured)
-  }
+  const cached = await readShellEnvCache(fingerprint)
+  // Proxy settings can change without an rc file changing, and can contain
+  // credentials. Always read them afresh and never write them to disk.
+  const live = await captureFromShell(shell)
+  const captured = live ?? (cached ? cacheableShellEnv(cached) : await launchctlPath())
+  if (live) await writeShellEnvCache(fingerprint, cacheableShellEnv(live))
   return withUserIdentity(base, captured)
 }
 
 /**
  * The environment to use for every probe and every spawned child.
- * Hydration happens at most once per process (plus the disk cache across runs).
+ * Hydration happens at most once per process; the disk cache is a fallback.
  */
 export async function hydratedEnv(): Promise<NodeJS.ProcessEnv> {
   pending ??= hydrate().catch(() => withUserIdentity({ ...process.env }))

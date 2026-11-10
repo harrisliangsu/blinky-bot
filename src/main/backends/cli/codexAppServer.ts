@@ -15,9 +15,12 @@
 
 import { AsyncQueue } from '../asyncQueue'
 import { JsonRpcPeer } from '../jsonRpc'
-import { diagnosticTail } from '../secretRedaction'
+import { diagnosticTail } from '../vaultRedaction'
 import { type ProcessHandle, spawnLines } from '../spawnProcess'
-import type { ChatChunk, ChatRequest } from '../types'
+import { noteTiming, type TimingObserver } from '../chatTiming'
+import type { ChatChunk, ChatRequest, ProviderMessage } from '../types'
+import { isPlainObject } from '../lenientJson'
+import { imagePartsOf, textOf } from '../messageContent'
 import {
   approvalResponse,
   CodexItems,
@@ -26,9 +29,14 @@ import {
   isTurnEnd
 } from './codexEvents'
 import { type CodexPoolIdentity, codexPoolKey } from './codexPool'
+import { codexSafety, codexSandboxPolicy, confirmsFullAccess } from './codexSafety'
+import { allowCoordinatorGatewayCall, answerCodexUserInput } from './codexElicitation'
 import type { CliRunContext } from './spec'
-import { codexTurnItems, materializeCodexImages, turnImages } from './cliImages'
-import { codexTurnPrompt } from './transcript'
+import { codexTurnItems, materializeCodexImages, turnImages, MAX_TURN_IMAGES } from './cliImages'
+import { codexTurnPrompt } from './codexThread'
+import { codexThreadCall, forgetCodexThread, rememberCodexThread, rememberedCodexThread, threadIdOf } from './codexThread'
+import { fingerprints, rememberSent } from './resumePrompt'
+import { flushProviderBindings, sessionKeyMatches } from '../../store/providerBindings'
 
 /**
  * Ceiling on the handshake. An app-server that starts and then never answers
@@ -36,8 +44,9 @@ import { codexTurnPrompt } from './transcript'
  */
 const HANDSHAKE_TIMEOUT_MS = 20_000
 
-/** Quiet period before a warm server is killed. Matches the gateway detach delay. */
-const WARM_IDLE_MS = 120_000
+/** Keep recent sessions ready across short pauses, with a bound on idle processes. */
+const WARM_IDLE_MS = 300_000
+const MAX_IDLE_SERVERS = 3
 
 const MAX_DIAGNOSTIC_LINES = 200
 
@@ -63,6 +72,9 @@ const APPROVAL_METHODS = [
 interface ThreadStarted {
   threadId?: string
   thread?: { id?: string }
+  approvalsReviewer?: string
+  approvalPolicy?: unknown
+  sandbox?: unknown
 }
 
 export interface AppServerRun {
@@ -75,6 +87,7 @@ export interface AppServerRun {
 
 interface WarmCodex {
   key: string
+  sessionKey?: string
   handle: ProcessHandle
   peer: JsonRpcPeer
   threadId: string
@@ -87,8 +100,18 @@ interface WarmCodex {
   turnEnded: boolean
   /** Bumps on every turn so a late RPC rejection cannot fail the next one. */
   generation: number
+  activeTurnId?: string
+  /** Bound to the model used by this turn, even if settings change mid-run. */
+  supportsVision: boolean
+  captureAgentTrace: boolean
+  onTiming?: TimingObserver
+  steered: ProviderMessage[]
+  pendingSteers: Set<Promise<unknown>>
+  turnImageCleanups: Array<() => Promise<void>>
   approve?: ChatRequest['approve']
+  requestInput?: ChatRequest['requestInput']
   idle?: ReturnType<typeof setTimeout>
+  idleSince?: number
   unbind?: () => void
   disposed: boolean
 }
@@ -121,6 +144,7 @@ function dispose(live: WarmCodex): void {
   live.disposed = true
   if (live.idle) clearTimeout(live.idle)
   live.idle = undefined
+  live.idleSince = undefined
   live.unbind?.()
   live.unbind = undefined
   if (warm.get(live.key) === live) warm.delete(live.key)
@@ -131,8 +155,22 @@ function dispose(live: WarmCodex): void {
 
 function armIdle(live: WarmCodex): void {
   if (live.idle) clearTimeout(live.idle)
+  live.idleSince = Date.now()
   live.idle = setTimeout(() => dispose(live), WARM_IDLE_MS)
   live.idle.unref?.()
+}
+
+/** Never evict an active turn; oldest idle servers are discarded first. */
+function trimIdleServers(): void {
+  const idle = [...warm.values()].filter((live) => live.idle && live.sink === null && !live.disposed).sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0))
+  while (idle.length > MAX_IDLE_SERVERS) dispose(idle.shift()!)
+}
+
+/** Discard cached processes for a reset conversation before its next turn. */
+export function stopWarmCodexForSession(sessionId: string): void {
+  for (const live of [...warm.values()]) {
+    if (live.sessionKey && sessionKeyMatches(live.sessionKey, sessionId)) dispose(live)
+  }
 }
 
 /** Kill every warm Codex process. Called on app quit beside the other pools. */
@@ -146,10 +184,21 @@ function wire(live: WarmCodex, handle: ProcessHandle, run: AppServerRun): void {
     (line) => handle.write(`${line}\n`),
     (method, params) => {
       try {
-        const chunks = codexNotification(method, params, live.items)
+        // An app-server connection may report events for more than one thread.
+        // Never let an explicitly foreign thread advance or finish this turn.
+        if (isPlainObject(params) && typeof params.threadId === 'string' && live.threadId && params.threadId !== live.threadId) return
+        const eventTurn = isPlainObject(params) && typeof params.turnId === 'string' ? params.turnId
+          : isPlainObject(params) && isPlainObject(params.turn) && typeof params.turn.id === 'string' ? params.turn.id : undefined
+        if (eventTurn && live.activeTurnId && eventTurn !== live.activeTurnId) return
+        if (method === 'turn/started' && isPlainObject(params) && isPlainObject(params.turn) && typeof params.turn.id === 'string') {
+          live.activeTurnId = params.turn.id
+          noteTiming(live.onTiming, 'model-request-accepted')
+        }
+        const chunks = codexNotification(method, params, live.items, live.captureAgentTrace)
         for (const chunk of chunks) live.sink?.push(chunk)
         if (isTurnEnd(method)) {
           live.turnEnded = true
+          live.activeTurnId = undefined
           live.sink?.close()
         }
       } catch (err) {
@@ -161,6 +210,12 @@ function wire(live: WarmCodex, handle: ProcessHandle, run: AppServerRun): void {
 
   for (const method of APPROVAL_METHODS) {
     live.peer.onRequest(method, async (params) => {
+      if (isPlainObject(params) && typeof params.threadId === 'string' && live.threadId && params.threadId !== live.threadId) {
+        return approvalResponse(method, params, 'reject')
+      }
+      if (isPlainObject(params) && typeof params.turnId === 'string' && live.activeTurnId && params.turnId !== live.activeTurnId) {
+        return approvalResponse(method, params, 'reject')
+      }
       const request = describeApproval(method, params, live.items)
       const approve = live.approve
       if (!request || !approve) return approvalResponse(method, params, 'reject')
@@ -169,9 +224,25 @@ function wire(live: WarmCodex, handle: ProcessHandle, run: AppServerRun): void {
     })
   }
 
-  // Codex asks the client to read files and fetch time; refuse politely rather
-  // than leaving the request hanging and stalling the turn.
-  live.peer.onRequest('item/tool/requestUserInput', () => ({ response: null }))
+  // Codex asks for MCP approval before contacting our gateway. For the
+  // coordinator's own gateway, let the call reach that gateway, where the
+  // bot's tool grant, coordinator restrictions and approval policy are enforced.
+  // Do not accept arbitrary MCP elicitations or other servers' tool calls.
+  live.peer.onRequest('mcpServer/elicitation/request', (params) => {
+    const allowed = allowCoordinatorGatewayCall(params, {
+      coordinator: run.req.coordinatorOnly === true,
+      hasGateway: run.req.mcpServers?.some((server) => server.name === 'openbot') === true,
+      active: !!live.sink,
+      threadId: live.threadId,
+      turnId: live.activeTurnId
+    })
+    return { action: allowed ? 'accept' : 'decline' }
+  })
+
+  live.peer.onRequest('item/tool/requestUserInput', (params) => {
+    const generation = live.generation, turnId = live.activeTurnId
+    return answerCodexUserInput(params, { threadId: live.threadId, turnId, active: () => Boolean(live.sink && !live.disposed && !live.turnEnded && live.generation === generation && live.activeTurnId === turnId) }, live.requestInput)
+  })
 
   const pump = (async () => {
     for await (const { stream, line } of handle.lines) {
@@ -203,24 +274,43 @@ async function handshake(live: WarmCodex, run: AppServerRun): Promise<void> {
     HANDSHAKE_TIMEOUT_MS,
     'initialize'
   )
+  live.peer.notify('initialized')
+  noteTiming(run.req.onTiming, 'runtime-ready')
 
-  const started = await withDeadline(
-    live.peer.request<ThreadStarted>('thread/start', {
-      cwd: run.ctx.cwd,
-      ...(run.ctx.model && run.ctx.model !== 'default' ? { model: run.ctx.model } : {})
-    }),
-    HANDSHAKE_TIMEOUT_MS,
-    'thread/start'
-  )
-  const threadId = started?.threadId ?? started?.thread?.id
+  const oldThread = reusable(run) ? rememberedCodexThread(run.req.sessionKey) : undefined
+  const safety = codexSafety(run.req)
+  let call = codexThreadCall({ threadId: oldThread, cwd: run.ctx.cwd, model: run.ctx.model, ...safety })
+  let started: ThreadStarted
+  try {
+    started = await withDeadline(live.peer.request<ThreadStarted>(call.method, call.params), HANDSHAKE_TIMEOUT_MS, call.method)
+    live.primed = Boolean(oldThread)
+  } catch (error) {
+    // A full-access resume error may be a managed refusal. Do not turn it
+    // into a fresh request on another thread, even for a stale binding.
+    if (!oldThread || run.req.signal.aborted || safety.sandbox === 'danger-full-access') throw error
+    forgetCodexThread(run.req.sessionKey)
+    call = codexThreadCall({ cwd: run.ctx.cwd, model: run.ctx.model, ...safety })
+    started = await withDeadline(live.peer.request<ThreadStarted>(call.method, call.params), HANDSHAKE_TIMEOUT_MS, call.method)
+    live.primed = false
+  }
+  if (safety.sandbox === 'danger-full-access' && !confirmsFullAccess(started)) throw new Error('Codex did not confirm the explicitly selected full-access executor profile. Managed policy may restrict it; this run was not started.')
+  const threadId = threadIdOf(started)
   if (!threadId) throw new Error('codex app-server did not return a thread id')
+  if (safety.approvalsReviewer === 'auto_review' && (started.approvalsReviewer !== 'auto_review' || started.approvalPolicy !== 'on-request' || !isPlainObject(started.sandbox) || started.sandbox.type !== 'workspaceWrite' || started.sandbox.networkAccess !== false)) throw new Error('Codex did not confirm sandboxed automatic approval review. Update Codex or choose an interactive approval policy; this run was not started.')
+  if (run.req.coordinatorOnly && (started.approvalsReviewer !== 'user' || started.approvalPolicy !== 'on-request' || !isPlainObject(started.sandbox) || started.sandbox.type !== 'readOnly' || started.sandbox.networkAccess !== false)) throw new Error('Codex did not confirm the read-only coordinator boundary; the turn was not started.')
   live.threadId = threadId
+  noteTiming(run.req.onTiming, 'thread-ready')
+  if (reusable(run)) {
+    rememberCodexThread(run.req.sessionKey, threadId)
+    await flushProviderBindings()
+  }
 }
 
 async function boot(run: AppServerRun, key: string): Promise<WarmCodex> {
   installExitHook()
   const handle = await spawnLines(run.binaryPath, {
-    args: ['app-server', ...(run.mcp?.args ?? [])],
+    onTiming: run.req.onTiming,
+    args: ['app-server', ...(run.req.coordinatorOnly ? ['-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false'] : []), ...(run.mcp?.args ?? [])],
     cwd: run.ctx.cwd,
     stdin: 'pipe',
     ...(run.mcp?.env ? { extraEnv: run.mcp.env } : {})
@@ -228,6 +318,7 @@ async function boot(run: AppServerRun, key: string): Promise<WarmCodex> {
 
   const live: WarmCodex = {
     key,
+    sessionKey: run.req.sessionKey,
     handle,
     peer: null as unknown as JsonRpcPeer,
     threadId: '',
@@ -237,7 +328,12 @@ async function boot(run: AppServerRun, key: string): Promise<WarmCodex> {
     diagnostics: [],
     failure: null,
     turnEnded: false,
+    supportsVision: run.req.supportsVision ?? true,
+    captureAgentTrace: run.req.captureAgentTrace === true,
     generation: 0,
+    steered: [],
+    pendingSteers: new Set(),
+    turnImageCleanups: [],
     disposed: false
   }
   wire(live, handle, run)
@@ -269,20 +365,34 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
   live.items = new CodexItems()
   live.failure = null
   live.turnEnded = false
+  live.activeTurnId = undefined
+  live.supportsVision = run.req.supportsVision ?? true
+  live.captureAgentTrace = run.req.captureAgentTrace === true
+  live.onTiming = run.req.onTiming
+  live.steered = []
+  live.turnImageCleanups = []
   live.approve = run.req.approve
+  live.requestInput = run.req.requestInput
   live.diagnostics = []
   bindAbort(live, run.req.signal)
 
-  const prompt = codexTurnPrompt(live.primed, run.req.messages)
+  const prompt = codexTurnPrompt(run.req.messages, run.req.sessionKey, live.primed)
   let releaseImages: () => Promise<void> = async () => undefined
   try {
     // Warm threads already have earlier images. Only this turn's pictures go out.
     const images = await materializeCodexImages(turnImages(run.req.messages, live.primed))
     releaseImages = images.cleanup
+    noteTiming(run.req.onTiming, 'model-request')
     void live.peer
       .request('turn/start', {
         threadId: live.threadId,
         input: codexTurnItems(prompt, images.paths),
+        // A resumed thread retains its old model unless the new turn
+        // explicitly overrides it. Thread identity alone is not a model choice.
+        ...(run.ctx.model && run.ctx.model !== 'default' ? { model: run.ctx.model } : {}),
+        approvalPolicy: codexSafety(run.req).approvalPolicy,
+        ...(codexSafety(run.req).approvalsReviewer ? { approvalsReviewer: codexSafety(run.req).approvalsReviewer } : {}),
+        sandboxPolicy: codexSandboxPolicy(codexSafety(run.req).sandbox),
         // Per-turn override. A project config can ignore the thread config key,
         // and older servers ignore an effort they do not know.
         ...(run.ctx.effort ? { effort: run.ctx.effort } : {})
@@ -297,18 +407,31 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
       })
 
     for await (const chunk of live.sink) yield chunk
+    // A steer acknowledged during completion must be recorded before the
+    // watermark is frozen and before the next turn may begin.
+    await Promise.allSettled([...live.pendingSteers])
     if (live.failure) throw live.failure
     if (!live.turnEnded || run.req.signal.aborted || live.disposed) return
     live.primed = true
+    if (reuse) {
+      rememberSent(run.req.sessionKey, fingerprints([...run.req.messages, ...live.steered]))
+      await flushProviderBindings()
+    }
     if (reuse) armIdle(live)
     yield { type: 'done' }
   } finally {
+    // Images submitted during a live turn must remain readable by the CLI
+    // until that turn stops, including when cancellation races an RPC.
+    await Promise.allSettled([...live.pendingSteers])
+    const imageCleanups = live.turnImageCleanups.splice(0)
+    await Promise.allSettled(imageCleanups.map((cleanup) => cleanup()))
     const release = releaseImages
     releaseImages = async () => undefined
     await release()
     live.unbind?.()
     live.unbind = undefined
     live.approve = undefined
+    live.requestInput = undefined
     const clean =
       reuse && live.turnEnded && live.primed && !live.failure && !run.req.signal.aborted && !live.disposed
     live.sink = null
@@ -316,6 +439,41 @@ async function* runTurnOn(live: WarmCodex, run: AppServerRun, reuse: boolean): A
     // the thread warm: the next message would send only the new line onto a
     // transcript Codex does not actually have.
     if (!clean) dispose(live)
+    else trimIdleServers()
+  }
+}
+
+/** Steer the one active Codex turn for this app conversation. */
+export async function steerCodexTurn(sessionId: string, text: string, record: () => Promise<void>, message?: ProviderMessage | ((supportsVision: boolean) => ProviderMessage)): Promise<boolean> {
+  const matches = [...warm.values()].filter((item) => item.sessionKey && sessionKeyMatches(item.sessionKey, sessionId) && item.sink && item.activeTurnId && !item.turnEnded && !item.disposed)
+  if (matches.length !== 1) return false
+  const live = matches[0]!
+  const delivered: ProviderMessage = typeof message === 'function' ? message(live.supportsVision) : message ?? { role: 'user', content: text.trim() }
+  const prompt = textOf(delivered.content)
+  const imageParts = imagePartsOf(delivered.content)
+  if ((!prompt.trim() && imageParts.length === 0) || imageParts.length > MAX_TURN_IMAGES) return false
+  const turnId = live.activeTurnId!
+  const operation = (async () => {
+    const images = await materializeCodexImages(imageParts)
+    if (images.paths.length !== imageParts.length || live.disposed || live.turnEnded || live.activeTurnId !== turnId) {
+      await images.cleanup()
+      return false
+    }
+    live.turnImageCleanups.push(images.cleanup)
+    await withDeadline(live.peer.request('turn/steer', {
+      threadId: live.threadId,
+      expectedTurnId: turnId,
+      input: codexTurnItems(prompt, images.paths)
+    }), HANDSHAKE_TIMEOUT_MS, 'turn/steer')
+    live.steered.push(delivered)
+    await record()
+    return true
+  })()
+  live.pendingSteers.add(operation)
+  try {
+    return await operation
+  } finally {
+    live.pendingSteers.delete(operation)
   }
 }
 
@@ -329,6 +487,7 @@ function identity(run: AppServerRun): CodexPoolIdentity {
     cwd: run.ctx.cwd,
     model: run.ctx.model,
     effort: run.ctx.effort ?? '',
+    safety: JSON.stringify({ ...codexSafety(run.req), coordinatorOnly: run.req.coordinatorOnly === true }),
     sessionKey: run.req.sessionKey ?? '',
     args: run.mcp?.args ?? [],
     env: run.mcp?.env ?? {}
@@ -346,13 +505,16 @@ function alive(live: WarmCodex): boolean {
 }
 
 export async function* runCodexAppServer(run: AppServerRun): AsyncGenerator<ChatChunk> {
+  if (run.req.disableNativeTools) throw new Error('Codex cannot safely disable its native host tools for this target')
   const keep = reusable(run)
   const key = keep ? codexPoolKey(identity(run)) : ''
   const existing = keep ? warm.get(key) : undefined
   if (existing && alive(existing)) {
+    noteTiming(run.req.onTiming, 'warm-reused')
     if (existing.idle) {
       clearTimeout(existing.idle)
       existing.idle = undefined
+      existing.idleSince = undefined
     }
     yield* runTurnOn(existing, run, true)
     return

@@ -1,16 +1,18 @@
 /**
  * Filesystem layout for OpenBOT's local-first storage.
  *
- * Everything lives under `app.getPath('userData')` as plain JSON — no native
- * modules, no database. Paths resolve lazily so this module can be imported
+ * Data lives under `app.getPath('userData')`. Paths resolve lazily so this module can be imported
  * before `app.whenReady()`.
  *
  *   <userData>/
  *     settings.json
+ *     provider-bindings.json          ← CLI thread ids keyed by conversation
  *     vm-secrets.json                 ← OS-encrypted bearer credentials
  *     backend-secrets.json            ← OS-encrypted model API credentials
  *     boxes/<vmId>/                    ← managed box workspace and guest runtime
- *     sessions/<id>.json
+ *     sessions.sqlite                  ← session metadata and message rows
+ *     attachments/<sha256>            ← separately stored image payloads
+ *     sessions/<id>.json              ← retained legacy transcripts
  *     bots/<id>.json
  *     routines/<id>.json
  *     memory/<botId>.json
@@ -100,6 +102,11 @@ export function backupsDir(): string {
 export function settingsFile(): string {
   ensureDir(dataRoot())
   return join(dataRoot(), 'settings.json')
+}
+
+export function providerBindingsFile(): string {
+  ensureDir(dataRoot())
+  return join(dataRoot(), 'provider-bindings.json')
 }
 
 export function vmSecretsFile(): string {

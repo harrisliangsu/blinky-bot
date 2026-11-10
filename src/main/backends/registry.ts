@@ -8,7 +8,9 @@
 
 import { PROVIDER_CATALOG } from '../../shared/providerCatalog'
 import type { BackendInfo } from '../../shared/types'
-import { anthropicBackend } from './anthropic'
+import { anthropicBackend, anthropicCompatibleBackend } from './anthropic'
+import { getSettings } from '../settings'
+import { isCustomBackendId } from '../settingsSchema'
 import { configFor } from './backendDefaults'
 import { agentCliBackends } from './cli'
 import { raceTimeout } from './httpClient'
@@ -25,6 +27,7 @@ import { xaiBackend } from './xai'
 
 /** Hard ceiling per backend, covering detection plus its model listing. */
 const BACKEND_BUDGET_MS = 8000
+const CODEX_BUDGET_MS = 24_000
 
 /**
  * Agent CLIs first: they are the primary path, run locally, and bring their own
@@ -46,12 +49,21 @@ export const BACKENDS: Backend[] = [
 
 const BY_ID = new Map(BACKENDS.map((b) => [b.id, b]))
 
+function configuredBackends(configs: Record<string, BackendConfig>): Backend[] {
+  return Object.entries(configs).flatMap(([id, cfg]) => {
+    if (!isCustomBackendId(id) || cfg.added === false || !cfg.providerName || !cfg.providerProtocol || !cfg.baseUrl) return []
+    return [cfg.providerProtocol === 'anthropic'
+      ? anthropicCompatibleBackend(id, cfg.providerName)
+      : openAiCompatibleBackend({ id, label: cfg.providerName, protocol: 'openai', baseUrl: cfg.baseUrl, keyHint: '', keywords: '' })]
+  })
+}
+
 export function listBackends(): Backend[] {
-  return BACKENDS
+  return [...BACKENDS, ...configuredBackends(getSettings().backends)]
 }
 
 export function getBackend(id: string): Backend | undefined {
-  return BY_ID.get(id)
+  return BY_ID.get(id) ?? configuredBackends(getSettings().backends).find((backend) => backend.id === id)
 }
 
 function toolModeFor(backend: Backend, models: ModelInfo[]): 'native' | 'prompted' {
@@ -88,14 +100,23 @@ async function detectOne(backend: Backend, cfg: BackendConfig): Promise<BackendI
     const earlyModels =
       backend.id === 'codex' ? backend.listModels(cfg).catch(() => [] as ModelInfo[]) : null
     const result = await backend.detect(cfg)
-    const models =
+    let models =
       result.status === 'available'
         ? await (earlyModels ?? backend.listModels(cfg).catch(() => [] as ModelInfo[]))
         : []
+    let modelNote = ''
+    if (backend.id === 'codex' && result.status === 'available' && !models.some((model) => model.id !== 'default')) {
+      const previous = (await readStatusCache())[backend.id]?.models ?? []
+      modelNote = ' Model discovery returned no choices; check the connection and retry.'
+      if (previous.some((model) => model.id !== 'default')) {
+        models = previous
+        modelNote = ' Model discovery returned no choices; showing the previously detected list.'
+      }
+    }
     return {
       ...base,
       status: result.status,
-      ...(result.detail ? { statusDetail: result.detail } : {}),
+      ...(result.detail || modelNote ? { statusDetail: `${result.detail ?? ''}${modelNote}`.trim() } : {}),
       ...(result.cliAuth ? { cliAuth: result.cliAuth } : {}),
       models,
       toolMode: toolModeFor(backend, models)
@@ -111,8 +132,8 @@ export async function detectAll(
   configs?: Record<string, BackendConfig>
 ): Promise<BackendInfo[]> {
   const infos = await Promise.all(
-    BACKENDS.map((backend) =>
-      raceTimeout(detectOne(backend, configFor(backend.id, configs)), BACKEND_BUDGET_MS, {
+    [...BACKENDS, ...configuredBackends(configs ?? getSettings().backends)].map((backend) =>
+      raceTimeout(detectOne(backend, configFor(backend.id, configs)), backend.id === 'codex' ? CODEX_BUDGET_MS : BACKEND_BUDGET_MS, {
         ...shell(backend),
         status: 'error' as const,
         statusDetail: 'Detection timed out.'
@@ -140,7 +161,7 @@ function provisionalStatus(backend: Backend): BackendInfo {
  */
 export async function cachedBackendInfos(): Promise<BackendInfo[]> {
   const cache = await readStatusCache()
-  return BACKENDS.map((backend) => {
+  return listBackends().map((backend) => {
     const stored = cache[backend.id]
     if (!stored) return provisionalStatus(backend)
     return {
@@ -166,10 +187,10 @@ export async function redetectOne(
   id: string,
   configs?: Record<string, BackendConfig>
 ): Promise<BackendInfo | null> {
-  const backend = getBackend(id)
+  const backend = BY_ID.get(id) ?? configuredBackends(configs ?? getSettings().backends).find((entry) => entry.id === id)
   if (!backend) return null
   invalidateDetection()
-  const info = await raceTimeout(detectOne(backend, configFor(backend.id, configs)), BACKEND_BUDGET_MS, {
+  const info = await raceTimeout(detectOne(backend, configFor(backend.id, configs)), backend.id === 'codex' ? CODEX_BUDGET_MS : BACKEND_BUDGET_MS, {
     ...shell(backend),
     status: 'error' as const,
     statusDetail: 'Detection timed out.'

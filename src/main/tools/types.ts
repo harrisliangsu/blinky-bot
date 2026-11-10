@@ -18,6 +18,7 @@ import type {
   Bot,
   ComputerTarget,
   MemoryEntry,
+  Routine,
   Settings,
   TodoItem,
   ToolResult,
@@ -43,7 +44,8 @@ export type ApprovalDraft = Omit<ApprovalRequest, 'id' | 'sessionId'>
  */
 export interface ToolHost {
   /** Persist a memory entry for a bot. */
-  saveMemory?(entry: MemoryEntry): Promise<void> | void
+  saveMemory?(entry: MemoryEntry): Promise<{ entry: MemoryEntry | null; reason: string }> | { entry: MemoryEntry | null; reason: string }
+  recallMemory?(botId: string, query: string, kind?: 'profile' | 'journal' | 'all', limit?: number): Promise<MemoryEntry[]> | MemoryEntry[]
   /** Replace the todo list of a session. */
   setTodos?(sessionId: string, todos: TodoItem[]): Promise<void> | void
   /** Hand control of the session to another bot. */
@@ -56,8 +58,26 @@ export interface ToolHost {
     fromBotId: string,
     toBotId: string,
     prompt: string,
-    title?: string
+    title?: string,
+    continueTaskId?: string,
+    signal?: AbortSignal,
+    outputFiles?: unknown,
+    plan?: import('../../shared/taskPlan').TaskPlanInput
   ): Promise<AgentTask> | AgentTask
+  reviewTask?(sessionId: string, botId: string, taskId: string, outcome: 'complete_claimed' | 'blocked', summary: string, evidence: string[], signal?: AbortSignal, question?: unknown): Promise<AgentTask> | AgentTask
+  manageTask?(sessionId: string, botId: string, command: import('../../shared/activity').AgentTaskCommand, signal?: AbortSignal, confirmResume?: (task: AgentTask) => Promise<boolean>): Promise<Record<string, unknown>>
+  requestInput?(sessionId: string, botId: string, questions: unknown, signal: AbortSignal, requestId: string, identitySignal?: AbortSignal): Promise<{ answers: Record<string, string[]>; answeredBy: 'bot' | 'user'; answerBasis?: 'context' | 'implementation'; botAnsweredQuestions: string[]; answerEvidence?: Record<string, import('../../shared/activity').AgentTaskAnswerEvidence> } | null>
+  scheduleRoutine?(sessionId: string, botId: string, name: string, instruction: string, cron: string, options?: { tz?: string; earlyMinutes?: number; lateMinutes?: number }): Promise<Routine> | Routine
+  scheduleOnceRoutine?(sessionId: string, botId: string, name: string, instruction: string, at: number, lateMinutes?: number): Promise<Routine> | Routine
+  watchFolderRoutine?(sessionId: string, botId: string, name: string, instruction: string, path: string): Promise<Routine> | Routine
+  createGitHubDraft?(sessionId: string, botId: string, input: Pick<import('../../shared/drafts').GitHubCommentDraft, 'owner' | 'repo' | 'issueNumber' | 'body'>): Promise<import('../../shared/drafts').GitHubCommentDraft>
+  createGmailDraft?(sessionId: string, botId: string, input: Pick<import('../../shared/drafts').GmailDraft, 'to' | 'subject' | 'body'> & { accountId?: string }, signal?: AbortSignal): Promise<import('../../shared/drafts').GmailDraft>
+  createCalendarDraft?(sessionId: string, botId: string, input: Pick<import('../../shared/drafts').CalendarDraft, 'summary' | 'start' | 'end' | 'description' | 'attendees'>): Promise<import('../../shared/drafts').CalendarDraft>
+  createXDraft?(sessionId: string, botId: string, text: string, replyToPostId?: string): Promise<import('../../shared/drafts').XDraft>
+  createSlackDraft?(sessionId: string, botId: string, input: { text: string; threadTs?: string }): Promise<import('../../shared/drafts').SlackDraft>
+  watchGitHubIssue?(sessionId: string, botId: string, name: string, instruction: string, owner: string, repo: string, issueNumber: number): Promise<Routine>
+  watchGmail?(sessionId: string, botId: string, name: string, instruction: string, query: string, accountId?: string): Promise<Routine>
+  watchWebhook?(sessionId: string, botId: string, name: string, instruction: string): Promise<Routine>
 }
 
 /**
@@ -68,6 +88,8 @@ export interface ToolHost {
  * minimal context; each has a documented default.
  */
 export interface ToolContext {
+  /** Actual resolved execution backend, including independent Agent binding. */
+  backendId?: string
   /** Session the call belongs to; stamped onto approvals and events. */
   sessionId: string
   /** Bot that issued the call; used by `remember` and `handoff`. */
@@ -84,11 +106,14 @@ export interface ToolContext {
   /** Which machine this bot drives. Defaults to `{ kind: 'local' }` (this Mac). */
   computerTarget?: ComputerTarget
   /** Id of the `ToolCall` being served; stamped onto the `ToolResult`. */
+  clarificationScope?: AbortSignal
   callId?: string
   /** Assistant message the call hangs off; required for incremental streaming. */
   messageId?: string
   /** User settings. Missing fields fall back to conservative defaults. */
   settings?: Settings
+  /** Application dispatchers supply a synchronous live read after any lazy awaits. */
+  getSettings?: () => Settings
   /** Root for tool-owned state (bot memory fallback). Defaults to `~/.openbot`. */
   dataDir?: string
   /** Optional persistence hooks. */
@@ -107,6 +132,7 @@ export type ToolHandler = Tool['handler']
 /** Subset of {@link Settings} the tool layer actually reads. */
 export interface EffectiveSettings {
   approvalPolicy: Settings['approvalPolicy']
+  localExecutionPolicy?: Settings['localExecutionPolicy']
   allowlist: string[]
   denylist: string[]
   computerUseAllowedApps: string[]

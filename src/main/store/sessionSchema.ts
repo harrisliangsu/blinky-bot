@@ -98,6 +98,7 @@ function normaliseToolResult(value: unknown): ToolResult | undefined {
   // what the store bounds, in `compaction.ts`.
   if (source['detail'] !== undefined) result.detail = source['detail']
   if (typeof source['screenshot'] === 'string') result.screenshot = source['screenshot']
+  if (typeof source['screenshotRef'] === 'string' && /^[a-f0-9]{64}$/.test(source['screenshotRef'])) result.screenshotRef = source['screenshotRef']
   if (typeof source['durationMs'] === 'number') result.durationMs = source['durationMs']
   if (source['compacted'] === true) result.compacted = true
   return result
@@ -121,6 +122,7 @@ function normaliseAttachments(value: unknown): Attachment[] | undefined {
     if (typeof source['path'] === 'string') attachment.path = source['path']
     if (typeof source['mime'] === 'string') attachment.mime = source['mime']
     if (typeof source['data'] === 'string') attachment.data = source['data']
+    if (typeof source['dataRef'] === 'string' && /^[a-f0-9]{64}$/.test(source['dataRef'])) attachment.dataRef = source['dataRef']
     out.push(attachment)
   }
   return out.length > 0 ? out : undefined
@@ -161,9 +163,30 @@ function normaliseMessage(source: Record<string, unknown>, role: Message['role']
     content: typeof source['content'] === 'string' ? source['content'] : '',
     createdAt: typeof source['createdAt'] === 'number' ? source['createdAt'] : Date.now()
   }
+  if (source['internal'] === true) message.internal = true
+  if (source['uiOnly'] === true) message.uiOnly = true
+  if (typeof source['displayContent'] === 'string') message.displayContent = source['displayContent']
   // Kept as written, empty string included: the reasoning block is shown for a
   // message that *has* the field, and hiding it would rewrite what was said.
   if (typeof source['reasoning'] === 'string') message.reasoning = source['reasoning']
+  if (Array.isArray(source['agentTrace'])) {
+    const trace = source['agentTrace'].flatMap((raw: unknown) => {
+      if (typeof raw !== 'object' || raw === null) return []
+      const item = raw as Record<string, unknown>
+      if (typeof item.id !== 'string' || typeof item.kind !== 'string' || typeof item.detail !== 'string' || (item.phase !== 'started' && item.phase !== 'completed')) return []
+      return [{ id: item.id, kind: item.kind, phase: item.phase as 'started' | 'completed', detail: item.detail }]
+    })
+    if (trace.length) message.agentTrace = trace
+  }
+  if (Array.isArray(source['segments'])) {
+    const segments = source['segments'].flatMap((raw: unknown) => {
+      if (typeof raw !== 'object' || raw === null) return []
+      const item = raw as Record<string, unknown>
+      if (typeof item.id !== 'string' || typeof item.text !== 'string' || (item.phase !== 'commentary' && item.phase !== 'partial_answer' && item.phase !== 'final_answer')) return []
+      return [{ id: item.id, phase: item.phase as NonNullable<Message['segments']>[number]['phase'], text: item.text }]
+    })
+    if (segments.length > 0 && segments.map((item) => item.text).join('\n\n') === message.content) message.segments = segments
+  }
 
   const toolCalls = normaliseToolCalls(source['toolCalls'])
   if (toolCalls) message.toolCalls = toolCalls
@@ -178,8 +201,9 @@ function normaliseMessage(source: Record<string, unknown>, role: Message['role']
     const value = source[key]
     if (typeof value === 'string' && value) message[key] = value
   }
-  // `streaming` is deliberately absent: a stream interrupted by a quit or crash
-  // must not look live on reload.
+  // A saved streaming assistant is an interrupted executor checkpoint, not a
+  // live message after restart. Keep its partial content with an honest label.
+  if (source['streaming'] === true && message.role === 'assistant' && !message.error) message.error = '执行中断，以下记录可能不完整。'
   return message
 }
 
