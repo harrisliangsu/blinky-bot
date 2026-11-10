@@ -172,10 +172,10 @@ async function chooseTheme(window: BrowserWindow, theme: 'light' | 'dark'): Prom
 }
 
 /**
- * Backends start with an empty provider card and a CLI card. A key field
- * exists only after the capture path adds that provider and opens 管理.
- * PATH is empty here, so no CLI row is signed in; the CLI card itself is
- * the stable target.
+ * Backends start with an empty provider card and a CLI card. Choosing a
+ * provider from the catalog opens its editor, including the key field,
+ * before the connection is saved. PATH is empty here, so no CLI row is
+ * signed in; the CLI card itself is the stable target.
  */
 async function waitForBackendCards(window: BrowserWindow): Promise<void> {
   await waitFor(
@@ -199,11 +199,11 @@ async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): 
       )
       await shot(window, 'settings-providers-empty-light.png', 1440, await settingsHeight(window))
       await shotGroup(window, 'settings-local-cli-light.png', '[data-backend-group="cli"]')
+      // Choosing a catalog row opens its editor immediately. The row's
+      // Manage button appears only after that connection is saved.
       await click(window, '[data-add-provider]')
       await waitFor(window, `document.querySelector('[data-provider-choice="openai"]')`, 10_000)
       await click(window, '[data-provider-choice="openai"]')
-      await waitFor(window, `document.querySelector('[data-manage-backend="openai"]')`, 10_000)
-      await click(window, '[data-manage-backend="openai"]')
       await waitFor(window, `document.getElementById('ob-key-openai')`, 10_000)
       await shot(window, 'settings-providers-added-light.png', 1440, await settingsHeight(window))
     }
