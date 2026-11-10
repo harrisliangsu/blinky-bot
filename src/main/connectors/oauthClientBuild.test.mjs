@@ -44,3 +44,25 @@ test('electron-vite embeds only distributor fixture clients into a temporary mai
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('a main bundle built without publisher env does not invent clients', async () => {
+  const keys = ['MAIN_VITE_GOOGLE_CLIENT_ID', 'MAIN_VITE_GOOGLE_CLIENT_SECRET', 'MAIN_VITE_X_CLIENT_ID', 'MAIN_VITE_GITHUB_CLIENT_ID', 'MAIN_VITE_GITHUB_CLIENT_SECRET']
+  const previous = new Map(keys.map((key) => [key, process.env[key]]))
+  for (const key of keys) delete process.env[key]
+  const root = await mkdtemp(join(tmpdir(), 'blinky-client-missing-'))
+  try {
+    const configFile = join(root, 'electron.config.mjs'), outDir = join(root, 'out')
+    await writeFile(configFile, `export default {main:{envDir:${JSON.stringify(root)},build:{outDir:${JSON.stringify(outDir)},lib:{entry:${JSON.stringify(resolve('src/main/connectors/oauthClients.ts'))},formats:['es']},rollupOptions:{output:{entryFileNames:'oauthClients.mjs'}}}}}`)
+    await build({ configFile, envFile: false, logLevel: 'error' })
+    const clients = await import(pathToFileURL(join(outDir, 'oauthClients.mjs')))
+    assert.equal(clients.googleClient(), undefined)
+    assert.equal(clients.xClientId(), undefined)
+    assert.equal(clients.githubClient(), undefined)
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+    await rm(root, { recursive: true, force: true })
+  }
+})

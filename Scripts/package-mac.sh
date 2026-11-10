@@ -41,7 +41,10 @@ package_timing_init
 
 export CSC_IDENTITY_AUTO_DISCOVERY=false
 
-if [[ "$skip_build" -eq 0 ]]; then package_step build npm run build; fi
+if [[ "$skip_build" -eq 0 ]]; then
+    node Scripts/require-publisher-oauth.mjs
+    package_step build npm run build
+fi
 if ! node -e "require('electron')" >/dev/null 2>&1; then
     package_step electron-install node node_modules/electron/install.js
 fi
