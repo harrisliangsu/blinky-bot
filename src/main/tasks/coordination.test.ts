@@ -60,3 +60,15 @@ test('new blocker reports may get scoped advice while waiting; periodic question
  f.advance(60*60_000);await f.coordinator.observe({snapshot:{...f.snapshot,phase:'waiting_help'},report:'blocker',replies:[]});assert.equal(f.sent.length,1)
  await f.coordinator.observe({snapshot:{...f.snapshot,phase:'waiting_approval'},report:'approval',replies:[]});assert.equal(f.sent.length,1)
 })
+test('routine executor messages between check-ins do not each trigger a judgment; the unconsidered report stays for the due check',async()=>{
+ const f=fixture()
+ const calm={...f.snapshot,needsAttention:false}
+ const o={snapshot:calm,replies:[]}
+ f.choose({kind:'wait',text:'等待实际进展。',nextCheckMinutes:10})
+ await f.coordinator.observe({...o,report:'msg-1'});assert.equal(f.decisions.length,1)
+ f.advance(60_000)
+ await f.coordinator.observe({...o,report:'msg-2'});assert.equal(f.decisions.length,1,'routine message inside the gap is not re-judged')
+ assert.equal(f.disk.get('a')?.consideredReport,'msg-1')
+ f.advance(6*60_000)
+ await f.coordinator.observe({...o,report:'msg-2'});assert.equal(f.decisions.length,2,'the due check-in judges the still-unconsidered report')
+})
