@@ -1,6 +1,7 @@
 /**
- * macOS CI captures of the settings sidebar, the bot-first window, and the
- * chat that appears when no CLI is signed in.
+ * macOS CI captures of Settings, the Apps and Tools workspaces opened from
+ * the account menu, the bot-first window, and the chat that appears when
+ * no CLI is signed in.
  *
  * Set BLINKY_SHOTS=1. A normal launch never enters this path. The runner
  * also strips PATH so a machine image that happens to have a CLI does not
@@ -12,17 +13,22 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, type BrowserWindow } from 'electron'
 
-const SECTIONS = [
+const SETTINGS_TABS = [
   'general',
   'bots',
   'profile',
   'notifications',
   'permissions',
   'backends',
-  'apps',
-  'tools',
+  'vault',
   'updates',
   'about'
+] as const
+
+/** Apps and Tools are account-menu workspaces, not Settings sidebar tabs. */
+const ACCOUNT_WORKSPACES = [
+  { id: 'apps', labels: ['应用', 'Apps'] },
+  { id: 'tools', labels: ['工具', 'Tools'] }
 ] as const
 
 function shotsDir(): string {
@@ -157,8 +163,17 @@ async function settingsHeight(window: BrowserWindow): Promise<number> {
 }
 
 async function openSettings(window: BrowserWindow): Promise<void> {
-  await click(window, '.ob-sidebar [aria-label="Settings (Command comma)"]')
+  const modalOpen = await evalJs<boolean>(window, `Boolean(document.querySelector('.ob-modal'))`)
+  const tabsOpen = await evalJs<boolean>(window, `Boolean(document.getElementById('ob-set-tab-general'))`)
+  // Apps and Tools replace the Settings sidebar. Close that workspace before
+  // opening Preferences again.
+  if (modalOpen && !tabsOpen) await closeSettings(window)
+  if (!await evalJs<boolean>(window, `Boolean(document.querySelector('.ob-modal'))`)) {
+    await click(window, '.ob-sidebar [aria-label="Settings (Command comma)"]')
+  }
   await waitFor(window, `document.getElementById('ob-set-tab-general')`, 15_000)
+  await click(window, '#ob-set-tab-general')
+  await waitFor(window, `document.querySelector('[data-settings-section="general"]')`, 10_000)
 }
 
 async function closeSettings(window: BrowserWindow): Promise<void> {
@@ -185,8 +200,25 @@ async function waitForBackendCards(window: BrowserWindow): Promise<void> {
   )
 }
 
+async function openAccountWorkspace(window: BrowserWindow, id: 'apps' | 'tools', labels: readonly string[]): Promise<void> {
+  await click(window, '.ob-side-profile')
+  await waitFor(window, `document.querySelector('#ob-side-account-menu [role="menuitem"]')`, 10_000)
+  const clicked = await evalJs<boolean>(
+    window,
+    `(() => {
+      const labels = ${JSON.stringify(labels)}
+      const item = [...document.querySelectorAll('#ob-side-account-menu [role="menuitem"]')].find((node) => labels.includes((node.textContent || '').trim()))
+      if (!item) return false
+      item.click()
+      return true
+    })()`
+  )
+  if (!clicked) throw new Error(`could not open ${id} from the account menu`)
+  await waitFor(window, `document.querySelector('[data-settings-section="${id}"]')`, 10_000)
+}
+
 async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): Promise<void> {
-  for (const id of SECTIONS) {
+  for (const id of SETTINGS_TABS) {
     await click(window, `#ob-set-tab-${id}`)
     await waitFor(window, `document.querySelector('[data-settings-section="${id}"]')`, 10_000)
     if (id === 'backends') await waitForBackendCards(window)
@@ -207,6 +239,10 @@ async function captureSections(window: BrowserWindow, theme: 'light' | 'dark'): 
       await waitFor(window, `document.getElementById('ob-key-openai')`, 10_000)
       await shot(window, 'settings-providers-added-light.png', 1440, await settingsHeight(window))
     }
+  }
+  for (const workspace of ACCOUNT_WORKSPACES) {
+    await openAccountWorkspace(window, workspace.id, workspace.labels)
+    await shot(window, `settings-${theme}-${workspace.id}.png`, 1440, await settingsHeight(window))
   }
 }
 
