@@ -233,7 +233,7 @@ export interface OpenBotApi {
     /** Open Terminal with that CLI's own login. No credential is stored here. */
     login(id: string): Promise<{ started: boolean }>
   }
-  /** GitHub, Git, and Gmail. One connection, shared by every Bot. */
+  /** Installed Apps are GitHub, Gmail, and X. One connection, shared by every Bot. */
   apps: {
     status(): Promise<AppStatus[]>
     connectGitHub(clientId: string, clientSecret: string, botId?: string): Promise<{ ok: boolean; error?: string }>

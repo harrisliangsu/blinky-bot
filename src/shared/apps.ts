@@ -1,6 +1,13 @@
-/** App connections shared by every Bot. P1 is GitHub, Git, and Gmail. */
-
+/**
+ * Connector ids shared by every Bot.
+ * The installed Apps grid offers GitHub, Gmail, and X.
+ * Git identity is not an App. Calendar and Slack stay implemented and hidden.
+ */
 export type AppId = 'github' | 'git' | 'gmail' | 'calendar' | 'slack' | 'x'
+
+/** First-party connections a normal user can connect from Apps. */
+export const INSTALLED_APP_IDS = ['github', 'gmail', 'x'] as const
+export type InstalledAppId = (typeof INSTALLED_APP_IDS)[number]
 
 export type AppConnectionStatus = 'connected' | 'disconnected' | 'unavailable' | 'pending'
 

@@ -9,7 +9,7 @@ BlinkyBot uses the system browser for supported OAuth consent. It does not embed
 | X | Native public-client PKCE | Publisher-owned Native client and applicable API access |
 | Slack | Public desktop PKCE for a selected workspace/channel; existing Socket Mode remains compatible | Publisher-owned public client/distribution settings; workspace approval where required |
 
-See [publisher registration](registration/README.md) for exact callbacks, scopes and build configuration. The current candidate has no production Google/X/Slack/GitHub publisher client configuration. Ordinary users should not have to register developer applications; missing publisher configuration is shown honestly, with a separate advanced option for a user-supplied client.
+See [publisher registration](registration/README.md) for exact callbacks, scopes and build configuration. The current candidate has no production Google/X/Slack/GitHub publisher client configuration. The installed Apps screen offers GitHub, Gmail, and X only. Calendar and Slack connectors remain in the process but are not shown, so a normal user cannot connect or grant them from Apps or Settings. Ordinary users should not have to register developer applications; missing publisher configuration for a visible app is shown honestly, with a separate advanced option for a user-supplied client.
 
 ## GitHub publisher client
 

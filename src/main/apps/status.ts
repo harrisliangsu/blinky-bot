@@ -1,5 +1,6 @@
 /**
- * GitHub, Git, and Gmail connections shared by every Bot.
+ * Connection probes shared by every Bot.
+ * The Apps grid shows GitHub, Gmail, and X; Git, Calendar, and Slack stay probed but hidden.
  *
  * GitHub stores BlinkyBot's own OAuth refresh token. A `gh auth` login is not a connection.
  * Git reads and writes the global identity already on this Mac.

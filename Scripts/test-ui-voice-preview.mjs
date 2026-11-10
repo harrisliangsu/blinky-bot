@@ -144,14 +144,14 @@ try{
  await key('Escape');await wait(`!document.querySelector('[data-settings-section="tools"]')`)
  await native(`ipcMain.removeHandler('openbot:apps:status');ipcMain.handle('openbot:apps:status',()=>['github','git','gmail','calendar','slack','x'].map(id=>({id,status:'disconnected',detail:'oauth-client-required'})));ipcMain.removeHandler('openbot:apps:slackStatus');ipcMain.handle('openbot:apps:slackStatus',()=>({state:'disconnected',browserReady:false}));return true`)
  await click('.ob-side-profile');await click('.ob-side-popover [role=menuitem]:nth-child(3)');await wait(`!!document.querySelector('[data-settings-section="apps"]')`)
- await wait(`document.querySelectorAll('[data-app]').length>=5`);await delay(300)
+ await wait(`document.querySelectorAll('[data-app]').length===3 && ['github','gmail','x'].every(id=>document.querySelector('[data-app="'+id+'"]')) && ['git','calendar','slack'].every(id=>!document.querySelector('[data-app="'+id+'"]'))`);await delay(300)
  result.connectionEditors=[]
- for(const appId of ['git','gmail','calendar','slack','x']){
+ for(const appId of ['gmail','x']){
   const selector=await evaluate(`(()=>{const root=document.querySelector('[data-app="${appId}"]');if(!root)return null;const buttons=[...root.querySelectorAll('button')];const button=buttons.find(b=>!b.disabled && (b.classList.contains('ob-apps-configure') || ('${appId}'==='slack' && /连接|Connect/.test(b.textContent)) || /配置|设置|Set up|Configure/.test(b.textContent)));if(!button)return null;button.dataset.isolatedEdit='${appId}';return '[data-isolated-edit="${appId}"]'})()`)
   if(!selector){result.connectionEditors.push({appId,opened:false,reason:'No safe configuration button; authorization was not started'});continue}
   await click(selector);await wait(`document.querySelectorAll('[role=dialog]').length===2`);await key('Escape');await wait(`document.querySelectorAll('[role=dialog]').length===1`);result.connectionEditors.push({appId,opened:true})
  }
- assert.equal(result.connectionEditors.filter(x=>x.opened).length,5,'All five actual configuration dialogs must open against synthetic service status');check('connection-configuration-dialogs-close-without-authorizing')
+ assert.equal(result.connectionEditors.filter(x=>x.opened).length,2,'Gmail and X configuration dialogs open; Git, Calendar, and Slack are not in the Apps grid');check('connection-configuration-dialogs-close-without-authorizing')
  await key('Escape');await wait(`!document.querySelector('[data-settings-section="apps"]')`)
  await openSettings();await selectTab('notifications');await screenshot('settings-notifications.png');await closeSettings()
  const replyNotices=()=>native(`return globalThis.__notices.filter(n=>n.id.startsWith('blinky-reply:')).length`)

@@ -218,14 +218,12 @@ const lines = async file => (await fs.readFile(file, 'utf8').catch(() => '')).tr
 
 try {
   await launch(); await openApps()
+  assert.equal(await ui.evaluate(`['git','calendar','slack'].every(id=>!document.querySelector('[data-app="'+id+'"]')) && ['github','gmail','x'].every(id=>!!document.querySelector('[data-app="'+id+'"]'))`), true)
   await wait(`document.querySelector('[data-app=gmail]')?.textContent.includes('浏览器登录')`)
   await click(cardButton('gmail', '浏览器登录')); await wait(`document.querySelector('[data-app=gmail]')?.textContent.includes('已连接')`)
-  await click(cardButton('calendar', '浏览器登录')); await wait(`document.querySelector('[data-app=calendar]')?.textContent.includes('已连接')`)
   await click(cardButton('x', '浏览器登录')); await wait(`document.querySelector('[data-app=x]')?.textContent.includes('已连接')`)
-  await click(cardButton('slack', '连接')); await setInput('[aria-label="Slack 频道链接或 ID"]', 'C123')
-  await click(cardButton('slack', '在浏览器中授权')); await wait(`document.querySelector('[data-app=slack]')?.textContent.includes('已连接')`)
-  assert.ok(await ui.evaluate(`document.querySelector('[data-app=slack]').textContent.includes('不接收频道消息')`))
-  assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','calendar','x','slack'].includes(r.id)).every(r=>r.status==='connected'))`), true)
+  assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','x'].includes(r.id)).every(r=>r.status==='connected'))`), true)
+  assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['calendar','slack'].includes(r.id)).every(r=>r.status!=='connected'))`), true)
   for (const [index, email] of ['account2@example.test','account3@example.test','account4@example.test'].entries()) {
     await main.evaluate(`__connectorFixture.loginEmail=${JSON.stringify(email)}`)
     await click(cardButton('gmail', '添加其他账号'))
@@ -236,7 +234,7 @@ try {
   assert.equal(await ui.evaluate(`document.querySelector('[aria-label="Gmail 账户"]').options.length`), 4)
   await main.evaluate(`__connectorFixture.loginEmail='sender@example.test'`)
   result.checks.push('Four simultaneous Gmail accounts added through real UI/OAuth without replacing the legacy default')
-  await screenshot('connected-light'); result.checks.push('Google/Calendar/X/Slack real UI+IPC PKCE callbacks, mocked providers')
+  await screenshot('connected-light'); result.checks.push('Gmail/X real UI+IPC PKCE callbacks, mocked providers; Calendar and Slack stay hidden')
   await ui.evaluate(`window.openbot.settings.update({theme:'dark'})`)
   await main.evaluate(`process.getBuiltinModule('module').createRequire(process.execPath)('electron').BrowserWindow.getAllWindows()[0].setSize(760,620)`)
   await delay(150)
@@ -299,26 +297,14 @@ try {
     await main.evaluate(`__connectorFixture.failedSend=false`)
     await prompt('CONNECTOR_DRAFT_RULE_SAVE')
     const ruleCard = `[...document.querySelectorAll('[aria-label="Gmail 邮件草稿"]')].find(e=>e.textContent.includes('CONNECTOR_DRAFT_RULE_SAVE'))`
-    assert.equal(await ui.evaluate(`${ruleCard}.querySelector('input[type=checkbox]').checked`), false)
-    await click(`${ruleCard}.querySelector('input[type=checkbox]')`)
+    assert.equal(await ui.evaluate(`${ruleCard}.querySelector('input[type=checkbox]')`), null)
+    assert.equal(await ui.evaluate(`${ruleCard}.textContent.includes('已使用你保存的精确收件人发送规则') || ${ruleCard}.textContent.includes('确认发送并保存规则')`), false)
     await click(`${ruleCard}.querySelector('.ob-btn-primary')`)
     await wait(`${ruleCard}.textContent.includes('Gmail 已接收发送请求')`)
-    await wait(`window.openbot.sendRules.list().then(r=>r.ok&&r.rules?.length===1)`)
+    assert.deepEqual(await ui.evaluate(`window.openbot.sendRules.list().then(r=>r.rules)`), [])
     assert.equal((await lines(trace)).filter(row => row.send).length, 4)
-    await prompt('CONNECTOR_DRAFT_RULE_MATCH')
-    await wait(`[...document.querySelectorAll('[aria-label="Gmail 邮件草稿"]')].find(e=>e.textContent.includes('CONNECTOR_DRAFT_RULE_MATCH'))?.textContent.includes('Gmail 已接收发送请求')`)
-    assert.equal((await lines(trace)).filter(row => row.send).length, 5)
-    await prompt('CONNECTOR_DRAFT_RULE_MISS')
-    const miss = `[...document.querySelectorAll('[aria-label="Gmail 邮件草稿"]')].find(e=>e.textContent.includes('CONNECTOR_DRAFT_RULE_MISS'))`
-    assert.equal((await lines(trace)).filter(row => row.send).length, 5)
-    await click(`${miss}.querySelector('button')`)
-    assert.equal(await ui.evaluate(`window.openbot.sendRules.list().then(r=>window.openbot.sendRules.remove(r.rules[0].id)).then(r=>r.ok)`), true)
-    await prompt('CONNECTOR_DRAFT_RULE_REVOKED')
-    const revoked = `[...document.querySelectorAll('[aria-label="Gmail 邮件草稿"]')].find(e=>e.textContent.includes('CONNECTOR_DRAFT_RULE_REVOKED'))`
-    assert.equal((await lines(trace)).filter(row => row.send).length, 5)
-    await click(`${revoked}.querySelector('button')`)
-    expectedSends = 5
-    await screenshot('send-rules-light'); result.checks.push('Saved recipient rule opt-in, exact match only, nonmatching recipient and revocation keep drafts')
+    expectedSends = 4
+    await screenshot('send-rules-light'); result.checks.push('Retired send rules do not auto-send; confirming one draft sends only that draft')
   }
   const expectedDraftCount = await ui.evaluate(`document.querySelectorAll('[aria-label="Gmail 邮件草稿"]').length`)
   assert.deepEqual(await main.evaluate(`({unexpected:__connectorFixture.unexpected,dialogs:__connectorFixture.dialogs})`), { unexpected: [], dialogs: [] })
@@ -350,7 +336,7 @@ try {
   assert.equal((await lines(trace)).filter(row => row.send).length, expectedSends)
   result.checks.push('Reduced refreshed scopes surface unavailable status and deny the actual mail tool without a send')
   await openApps()
-  for (const service of ['gmail','calendar']) {
+  for (const service of ['gmail']) {
     let remaining = await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.find(r=>r.id===${JSON.stringify(service)})?.accounts?.length??0)`)
     while (remaining) {
       const accountIds = await ui.evaluate(`window.openbot.apps.status().then(rows=>(rows.find(r=>r.id===${JSON.stringify(service)})?.accounts??[]).map(account=>account.id))`)
@@ -365,13 +351,14 @@ try {
       await wait(`(document.querySelector(${JSON.stringify(picker)})?.options.length??0)===${remaining}`)
     }
   }
-  for (const service of ['x','slack']) { await click(cardButton(service, '断开')); await click(cardButton(service, '确认断开')); await wait(`document.querySelector('[data-app="${service}"]')?.textContent.includes('未连接')`) }
+  for (const service of ['x']) { await click(cardButton(service, '断开')); await click(cardButton(service, '确认断开')); await wait(`document.querySelector('[data-app="${service}"]')?.textContent.includes('未连接')`) }
   await screenshot('disconnected-light'); await closeApps()
   // Change the prompt marker without reusing a previous visible success.
-  await ui.evaluate(`window.__connectorDenied=window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','calendar','x','slack'].includes(r.id)).every(r=>r.status==='disconnected'))`)
+  await ui.evaluate(`window.__connectorDenied=window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','x'].includes(r.id)).every(r=>r.status==='disconnected'))`)
   assert.equal(await ui.evaluate(`window.__connectorDenied`), true)
   await stop(); await launch(); await openApps()
-  assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','calendar','x','slack'].includes(r.id)).every(r=>r.status==='disconnected'&&!(r.accounts?.length)))`), true)
+  assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','x'].includes(r.id)).every(r=>r.status==='disconnected'&&!(r.accounts?.length)))`), true)
+  assert.equal(await ui.evaluate(`['git','calendar','slack'].every(id=>!document.querySelector('[data-app="'+id+'"]'))`), true)
   assert.equal((await lines(trace)).filter(row => row.send).length, expectedSends)
   result.checks.push('Disconnect persists across a second fresh process; no authorization or send replay')
   result.fixtureTrace = await lines(trace); result.toolTrace = await lines(cliTrace)

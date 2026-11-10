@@ -48,6 +48,7 @@ try {
             {id:'gmail',status:'connected'}, {id:'calendar',status:'disconnected'},
             {id:'slack',status:'disconnected'}, {id:'x',status:'disconnected'}]);
           await delay(); assert(text('github').includes('已连接'), 'fresh status missing');
+          assert(!document.querySelector('[data-app="git"]') && !document.querySelector('[data-app="calendar"]') && !document.querySelector('[data-app="slack"]'), 'hidden apps are not in the grid');
           assert(!localStorage.getItem('blinky.apps.last-known.v1').includes('private-account'), 'account leaked into cache');
           window.unmount(); await delay(); window.mount(); await delay();
           assert(text('github').includes('已连接') && !text('github').includes('上次'), 'reopen did not reuse the recent status');
@@ -63,6 +64,7 @@ try {
             {id:'gmail',status:'unavailable',detail:'verification-failed'}, {id:'calendar',status:'disconnected'},
             {id:'slack',status:'disconnected'}, {id:'x',status:'disconnected'}]);
           await delay(); assert(text('github').includes('未连接') && !text('github').includes('上次'), 'fresh revocation not reflected');
+          assert(!document.querySelector('[data-app="git"]') && !document.querySelector('[data-app="calendar"]') && !document.querySelector('[data-app="slack"]'), 'hidden apps are not in the grid');
           assert(document.querySelector('[data-app="gmail"]').textContent.includes('无法验证连接'), 'verification failure hidden');
         }
         return 'ok';

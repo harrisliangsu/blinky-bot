@@ -1,11 +1,9 @@
-import { Modal } from './Modal'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AppStatus } from '../../../shared/apps'
+import { INSTALLED_APP_IDS, type AppStatus, type InstalledAppId } from '../../../shared/apps'
 import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { loadBots, store, useAppState } from '../state'
+import { loadBots, useAppState } from '../state'
 import './SettingsApps.css'
-import { SlackConnectCard, type SlackView } from './SlackConnectCard'
 import { XConnectCard } from './XConnectCard'
 import { GoogleConnectCard } from './GoogleConnectCard'
 import { GitHubConnectCard } from './GitHubConnectCard'
@@ -17,7 +15,9 @@ let recentStatuses: { rows: AppStatus[]; at: number } | undefined
 const RECENT_MS = 30_000
 const recent = (): boolean => !!recentStatuses && Date.now() - recentStatuses.at < RECENT_MS
 
-/** GitHub, Git, and Gmail. One connection, shared by every Bot. */
+const APP_LABELS: Record<InstalledAppId, string> = { github: 'GitHub', gmail: 'Gmail', x: 'X' }
+
+/** GitHub, Gmail, and X. One connection, shared by every Bot. */
 export function SettingsApps(): ReactNode {
   const copy = useSettingsCopy().apps
   const { settings, bots, session } = useAppState()
@@ -28,15 +28,10 @@ export function SettingsApps(): ReactNode {
   const [rows, setRows] = useState<AppStatus[]>(() => recent() ? recentStatuses!.rows : readLastAppStatuses(window.localStorage))
   const [fresh, setFresh] = useState<Set<AppStatus['id']>>(() => new Set(recent() ? recentStatuses!.rows.map((item) => item.id) : []))
   const requestVersion = useRef(0)
-  const [gitName, setGitName] = useState('')
-  const [gitEmail, setGitEmail] = useState('')
-  const [busy, setBusy] = useState(false)
   const [statusError, setStatusError] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [editingGit, setEditingGit] = useState(false)
   const [query, setQuery] = useState('')
   const [connectedOnly, setConnectedOnly] = useState(false)
-  const [slack, setSlack] = useState<SlackView | undefined>()
 
   const load = (force = false): void => {
     if (!force && recent()) { setLoading(false); return }
@@ -57,14 +52,6 @@ export function SettingsApps(): ReactNode {
     load()
     return () => { requestVersion.current++; void window.openbot.apps.cancelGoogle(); void window.openbot.apps.cancelX(); void window.openbot.apps.cancelGitHub() }
   }, [])
-  const loadSlack = (): void => { void window.openbot.apps.slackStatus().then((value) => {
-    setSlack(value)
-    const status: AppStatus = { id: 'slack', status: value.state === 'connected' ? 'connected' : value.state === 'connecting' ? 'pending' : value.state === 'error' ? 'unavailable' : 'disconnected' }
-    setRows((old) => [...old.filter((row) => row.id !== 'slack'), status])
-    setFresh((old) => new Set(old).add('slack'))
-    saveLastAppStatuses(window.localStorage, [status])
-  }).catch(() => setSlack({ state:'error' })) }
-  useEffect(() => { loadSlack(); const timer = window.setInterval(loadSlack, 3000); return () => window.clearInterval(timer) }, [])
 
   const row = (id: AppStatus['id']): AppStatus | undefined => rows.find((item) => item.id === id)
   const label = (item: AppStatus | undefined): string => {
@@ -74,14 +61,13 @@ export function SettingsApps(): ReactNode {
   }
 
   const github = row('github')
-  const git = row('git')
-  const visible = (id: AppStatus['id'], name: string): boolean =>
-    name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) && (!connectedOnly || row(id)?.status === 'connected')
-  const anyVisible = visible('github', 'GitHub') || visible('git', 'Git') || visible('gmail', 'Gmail') || visible('calendar', 'Google Calendar') || visible('slack', 'Slack') || visible('x', 'X')
+  const visible = (id: InstalledAppId): boolean =>
+    APP_LABELS[id].toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) && (!connectedOnly || row(id)?.status === 'connected')
+  const anyVisible = INSTALLED_APP_IDS.some((id) => visible(id))
 
   return (
     <div className="ob-apps" data-apps="">
-      <div className="ob-apps-intro"><p className="ob-hint">{zh ? '连接后允许下方所选 Bot 及其执行 Agent 使用此应用的读取和本地草稿工具。发送仍需原有确认。' : 'After connecting, allow the selected Bot and its execution Agent to use this app’s reading and local draft tools. Sending keeps its existing confirmation.'}</p><button type="button" className="ob-btn ob-btn-sm" onClick={() => load(true)} disabled={loading}>{copy.refresh}</button></div>
+      <div className="ob-apps-intro"><p className="ob-hint">{copy.intro}</p><button type="button" className="ob-btn ob-btn-sm" onClick={() => load(true)} disabled={loading}>{copy.refresh}</button></div>
       <label className="ob-field"><span className="ob-label">{zh ? '允许哪个 Bot 使用' : 'Allow this Bot to use connected apps'}</span><select className="ob-select" value={accessBotId} onChange={event => setAccessBotId(event.target.value)}><option value="">{zh ? '选择 Bot' : 'Choose a Bot'}</option>{availableBots.map(bot => <option key={bot.id} value={bot.id}>{bot.name}</option>)}</select></label>
       {rows.some(row => row.detail === 'bot-access-not-saved') ? <p role="alert" className="ob-notice ob-notice-error">{zh ? '应用已连接，但 Bot 工具权限未保存。请点击允许此 Bot 使用重试。' : 'The app connected, but Bot access was not saved. Retry with Allow this Bot.'}</p> : null}
       <input type="search" className="ob-input ob-apps-search" aria-label={zh ? '搜索应用' : 'Search apps'} placeholder={zh ? '搜索应用' : 'Search apps'} value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -90,59 +76,10 @@ export function SettingsApps(): ReactNode {
       <h3 className="ob-apps-heading">{connectedOnly ? (zh ? '已连接' : 'Connected') : (zh ? '应用' : 'Apps')}</h3>
       {!anyVisible ? <p className="ob-hint">{zh ? '没有匹配的应用。' : 'No matching apps.'}</p> : null}
       <div className="ob-apps-grid">
-      {visible('github', 'GitHub') ? <GitHubConnectCard zh={zh} status={github} statusLabel={label(github)} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
+      {visible('github') ? <GitHubConnectCard zh={zh} status={github} statusLabel={label(github)} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
 
-      {visible('git', 'Git') ? <section className="ob-app-card" data-app="git">
-        <div className="ob-app-icon" aria-hidden="true">Git</div>
-        <div className="ob-app-summary"><h3>{copy.gitTitle}</h3>
-        <p className="ob-hint">{copy.gitHint}</p>
-        <p className="ob-set-value">
-          {label(git)}
-          {git?.account ? ` · ${git.account}` : ''}
-        </p>
-        {git?.detail === 'git' ? <p className="ob-hint">{copy.gitMissing}</p> : null}
-        {git?.detail === 'verification-failed' ? <p className="ob-hint">{zh ? '无法读取 Git 配置，请检查本机环境。' : 'Could not read Git configuration. Check the local environment.'}</p> : null}
-        {git?.detail === 'invalid' ? <p className="ob-hint">{copy.gitInvalid}</p> : null}
-        {git?.detail === 'failed' ? <p className="ob-hint">{copy.gitFailed}</p> : null}
-        </div>
-        <button type="button" className="ob-btn ob-btn-sm" aria-expanded={editingGit} onClick={() => setEditingGit((current) => !current)} disabled={!git || git.status === 'unavailable'}>{editingGit ? (zh ? '取消' : 'Cancel') : (zh ? '设置' : 'Configure')}</button>
-        {editingGit ? <Modal title={zh ? 'Git 设置' : 'Git settings'} onClose={() => setEditingGit(false)} size="sm"><div className="ob-apps-git">
-          <input
-            className="ob-input"
-            aria-label={copy.gitName}
-            placeholder={copy.gitName}
-            value={gitName}
-            onChange={(e) => setGitName(e.target.value)}
-          />
-          <input
-            className="ob-input"
-            aria-label={copy.gitEmail}
-            placeholder={copy.gitEmail}
-            value={gitEmail}
-            onChange={(e) => setGitEmail(e.target.value)}
-          />
-          <button
-            type="button"
-            className="ob-btn ob-btn-sm"
-            data-connect="git"
-            disabled={busy || !git || git.status === 'unavailable' || !gitName.trim() || !gitEmail.trim()}
-            onClick={() => {
-              setBusy(true)
-              void window.openbot.apps
-                .connectGit(gitName, gitEmail)
-                .then((next) => { setRows((current) => current.map((item) => (item.id === 'git' ? next : item))); setFresh((old) => new Set(old).add('git')); saveLastAppStatuses(window.localStorage, [next]); if (next.status === 'connected') setEditingGit(false); load(true) })
-                .catch(() => store.toast(copy.gitFailed, 'error'))
-                .finally(() => setBusy(false))
-            }}
-          >
-            {copy.gitSave}
-          </button>
-        </div></Modal> : null}
-      </section> : null}
-
-      {(['gmail', 'calendar'] as const).map((service) => visible(service, service === 'gmail' ? 'Gmail' : 'Google Calendar') ? <GoogleConnectCard key={service} zh={zh} service={service} status={row(service)} statusLabel={label(row(service))} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null)}
-      {visible('slack', 'Slack') ? <SlackConnectCard zh={zh} bots={bots} status={slack} statusLabel={slack ? undefined : label(row('slack'))} accessBot={accessBot} refresh={() => { loadSlack(); void loadBots() }} /> : null}
-      {visible('x', 'X') ? <XConnectCard zh={zh} status={row('x')} statusLabel={label(row('x'))} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
+      {visible('gmail') ? <GoogleConnectCard zh={zh} service="gmail" status={row('gmail')} statusLabel={label(row('gmail'))} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
+      {visible('x') ? <XConnectCard zh={zh} status={row('x')} statusLabel={label(row('x'))} accessBot={accessBot} refresh={() => { load(true); void loadBots() }} /> : null}
       </div>
     </div>
   )
