@@ -51,6 +51,8 @@ export interface Bot {
   tools: string[]
   /** Assigned skill ids (`origin:name`), resolved at prompt time. */
   skills?: string[]
+  /** AGENTS.md files assigned to this Bot. Empty means none are injected. */
+  agentsMdIds?: string[]
   /** Grants screen capture + input injection. */
   computerUse: boolean
   /** Which machine this bot drives. Defaults to the host. */

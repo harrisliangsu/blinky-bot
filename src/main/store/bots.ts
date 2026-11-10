@@ -170,6 +170,7 @@ function normaliseBot(raw: unknown, opts: TargetOptions = { probed: false }): Bo
     ...(value['fast'] === true ? { fast: true } : {}),
     tools: stringList(value['tools']),
     skills: stringList(value['skills']),
+    ...(stringList(value['agentsMdIds']).length ? { agentsMdIds: stringList(value['agentsMdIds']) } : {}),
     computerUse: value['computerUse'] === true,
     computerTarget: normaliseTarget(value['computerTarget'], id, opts),
     createdAt: typeof value['createdAt'] === 'number' ? value['createdAt'] : now,
@@ -435,6 +436,7 @@ export function createBot(partial: Partial<Bot> = {}): Bot {
     ...bindingFields(pinnedBinding(partial, settings)),
     tools: partial.tools ? stringList(partial.tools) : [...DEFAULT_BOT_TOOLS],
     skills: stringList(partial.skills),
+    ...(stringList(partial.agentsMdIds).length ? { agentsMdIds: stringList(partial.agentsMdIds) } : {}),
     computerUse: partial.computerUse === true,
     // A target given here has just been probed by the caller — that is the
     // contract for setting one — so its capabilities are taken as verified.

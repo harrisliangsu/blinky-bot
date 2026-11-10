@@ -2,9 +2,9 @@ import { Modal } from './Modal'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppStatus } from '../../../shared/apps'
 import type { Bot } from '../../../shared/types'
-import { BotAppAccess } from './BotAppAccess'
+import { AppBotAccessList } from './AppBotAccessList'
 
-export function GoogleConnectCard({ zh, service, status, statusLabel, refresh, accessBot }: { zh: boolean; service: 'gmail' | 'calendar'; status?: AppStatus; statusLabel: string; refresh: () => void; accessBot?: Bot }): ReactNode {
+export function GoogleConnectCard({ zh, service, status, statusLabel, refresh, accessBot, bots }: { zh: boolean; service: 'gmail' | 'calendar'; status?: AppStatus; statusLabel: string; refresh: () => void; accessBot?: Bot; bots?: Bot[] }): ReactNode {
   const [editing, setEditing] = useState(false), [clientId, setClientId] = useState(''), [secret, setSecret] = useState('')
   const [busy, setBusy] = useState(false), [removing, setRemoving] = useState(false), [error, setError] = useState('')
   const [disconnecting, setDisconnecting] = useState(false)
@@ -35,8 +35,8 @@ export function GoogleConnectCard({ zh, service, status, statusLabel, refresh, a
       {status?.detail === 'oauth-client-required' ? <p className="ob-hint" role="status">{zh ? '此版本的 Google 浏览器登录尚未由发行方启用。启用后只需登录并同意授权，无需申请开发者应用或填写 API key。' : 'Google browser sign-in has not been enabled by this distributor. Once enabled, just sign in and consent; no developer app or API key is needed.'}</p> : null}
     </div>
     <div className="ob-apps-google-actions">
-      {busy ? <button type="button" className="ob-btn ob-btn-sm" disabled={disconnecting} onClick={() => void window.openbot.apps.cancelGoogle()}>{disconnecting ? (zh ? '正在断开…' : 'Disconnecting…') : (zh ? '取消授权' : 'Cancel authorization')}</button> : <>
-        <button type="button" className="ob-btn ob-btn-sm" disabled={!status || !ready} onClick={() => { setError(''); if (ready) authorize() }}>{ready ? (status?.status === 'connected' ? (zh ? '重新授权默认账户' : 'Reconnect default') : (zh ? '浏览器登录' : 'Sign in with browser')) : (zh ? '浏览器登录暂不可用' : 'Browser sign-in unavailable')}</button>
+      {busy ? <button type="button" className="ob-btn ob-btn-sm" disabled={disconnecting} onClick={() => void window.openbot.apps.cancelGoogle()}>{disconnecting ? (zh ? '正在断开…' : 'Disconnecting…') : (zh ? '取消' : 'Cancel')}</button> : <>
+        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!status || !ready} onClick={() => { setError(''); if (ready) authorize() }}>{status?.status === 'connected' ? (zh ? '重新授权默认账户' : 'Reconnect default') : (zh ? '连接' : 'Connect')}</button>
         {status?.status === 'connected' || status?.status === 'unavailable' ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => { setRemoveAccountId(undefined); setRemoving(!removing) }}>{zh ? '断开默认账户' : 'Disconnect default'}</button> : null}
       </>}
     </div>
@@ -76,6 +76,6 @@ export function GoogleConnectCard({ zh, service, status, statusLabel, refresh, a
     </div></Modal> : null}
     {busy ? <p className="ob-hint ob-apps-connection-note" role="status">{disconnecting ? (zh ? '正在移除本机授权…' : 'Removing local credentials…') : (zh ? '请在浏览器完成授权或取消。' : 'Complete authorization in your browser or cancel.')}</p> : null}
     {error ? <p className="ob-notice ob-notice-error ob-apps-connection-note" role="alert">{error}</p> : null}
-    {accessBot ? <BotAppAccess service={service} bot={accessBot} connected={status?.status === 'connected'} zh={zh} /> : null}
+    <AppBotAccessList service={service} bots={bots} accessBot={accessBot} connected={status?.status === 'connected'} zh={zh} />
   </section>
 }

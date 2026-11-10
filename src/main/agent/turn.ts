@@ -54,6 +54,7 @@ import { hydrateRecentImages } from '../store/sessions'
 import { runCalls } from './calls'
 import { schemasFor } from './toolGateway'
 import { skillsSection } from './skillsGateway'
+import { agentsMdSection } from '../agentsMd/section'
 import { streamAssistantTurn } from './stream'
 import { isEmptyTurn } from './turnCarry'
 import { backendSeesImages } from '../backends/cli/cliImages'
@@ -121,12 +122,13 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
      */
     timing('context-start')
     timing('model-info-start')
-    const [model, skills, memory, schemas, roster] = await Promise.all([
+    const [model, skills, memory, schemas, roster, agentsMd] = await Promise.all([
       getModelInfo(bot.backendId, bot.modelId).then((value) => { timing('model-info-ready'); return value }),
       skillsSection(bot, session),
       memoryStore.list(bot.id),
       schemasFor(bot.tools ?? [], bot.computerTarget),
-      bots.many(session.botIds ?? [])
+      bots.many(session.botIds ?? []),
+      agentsMdSection(bot)
     ])
     const supportsVision = backendSeesImages(bot.backendId, model)
     const semanticMemory = await loadSemanticMemory(session.id).catch(() => null)
@@ -143,7 +145,7 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       // API fallback for the model's real capacity when its catalog omits it.
       contextWindow: applicationContextWindow(bot.backendId, model?.contextWindow),
       supportsVision,
-      extras: [...(input.extras ?? []), skills, taskProgressContext(session.id, bot.id)].filter((value): value is string => Boolean(value))
+      extras: [...(input.extras ?? []), skills, agentsMd, taskProgressContext(session.id, bot.id)].filter((value): value is string => Boolean(value))
     })
     const judgment=taskJudgmentScope(session.id)
     if(judgment?.prompt)context.messages=[{role:'system',content:context.systemPrompt},{role:'user',content:judgment.prompt},...toProviderMessages(currentTaskJudgmentMessages(session.id,session.messages).filter(m=>m.id!==message.id),{supportsVision:false,selfBotId:bot.id})]

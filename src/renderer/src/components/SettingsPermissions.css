@@ -1,4 +1,9 @@
 .ob-permissions-layout { gap: var(--ob-space-4); }
+.ob-system-permission-list, .ob-system-permission-add { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ob-system-permission-list li { display: flex; align-items: center; gap: var(--ob-space-3); padding: var(--ob-space-2) 0; border-bottom: 1px solid var(--ob-border-subtle); }
+.ob-system-permission-list li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ob-system-permission-list .ob-btn { flex: 0 0 auto; }
+.ob-system-permission-add { flex-direction: row; flex-wrap: wrap; gap: var(--ob-space-2); margin-top: var(--ob-space-2); }
 .ob-set-main[data-settings-section='permissions'] > .ob-settings-section.ob-permissions-layout { padding: 0; background: transparent; border: 0; }
 .ob-permissions-card { display: flex; flex-direction: column; gap: var(--ob-space-3); }
 .ob-permissions-card.ob-permission-heading { flex-direction: row; align-items: center; justify-content: space-between; }

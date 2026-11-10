@@ -6,6 +6,7 @@ import { isSemanticPermissionRule, type SemanticPermissionRule } from '../../../
 import { localExecutionPolicy } from '../../../shared/localExecution'
 import { resolveSettingsLang } from '../lib/settingsCopy'
 import { FormDialog } from './FormDialog'
+import { SystemPermissionsPanel } from './SystemPermissions'
 import './SettingsPermissions.css'
 
 async function save(edit: PermissionEdit): Promise<void> {
@@ -88,6 +89,7 @@ export function SettingsPermissions({ settings }: { settings: Settings }): React
     </section>
   }
   return <div className="ob-settings-section ob-permissions-layout">
+    <SystemPermissionsPanel zh={zh} />
     <section className="ob-set-card ob-permissions-card ob-permission-heading">
       <div><h3>{zh?'Bot 自动审核':'Bot automatic review'}</h3><p className="ob-hint">{zh?'按自然语言规则审核 Bot 操作；不确定时询问你。关闭后由你确认，规则保留。明确选择完全访问的独立 Agent 使用单独执行权限。':'Natural-language rules review Bot actions. Uncertain cases ask you. When off, you confirm actions and rules remain. Independent Agents explicitly granted full access use separate execution permissions.'}</p></div>
       <button type="button" role="switch" aria-label={zh?'自动审核':'Automatic review'} aria-checked={settings.automaticReview!==false}

@@ -47,8 +47,8 @@ test('missing client cannot initiate OAuth; manual configuration is an explicit 
   for (const [name,id] of [['GoogleConnectCard','gmail'],['XConnectCard','x'],['GitHubConnectCard','github']]) {
     const calls=[];globalThis.window={openbot:{apps:new Proxy({}, {get:()=> (...args)=>{calls.push(args);return Promise.resolve({ok:true})}})}}
     const m=mount(isolated[name],props(id));m.render()
-    assert.equal(m.button('浏览器登录暂不可用').props.disabled,true)
-    m.button('浏览器登录暂不可用').props.onClick();m.render();assert.equal(calls.length,0)
+    assert.equal(m.button('连接').props.disabled,true)
+    m.button('连接').props.onClick();m.render();assert.equal(calls.length,0)
     assert.equal(nodes(m.tree,'input').length,0);m.click('高级：自带客户端…')
     assert.ok(nodes(m.tree,'input').length>0);assert.equal(calls.length,0)
   }
@@ -56,7 +56,7 @@ test('missing client cannot initiate OAuth; manual configuration is an explicit 
 test('ready Google, X, and GitHub start browser sign-in with empty renderer client fields and show rejected authorization', async () => {
   for (const [name,id,expected] of [['GoogleConnectCard','gmail',['gmail','','',undefined]],['XConnectCard','x',['']],['GitHubConnectCard','github',['','']]]) {
     const calls=[];globalThis.window={openbot:{apps:{connectGoogle:(...a)=>{calls.push(a);return Promise.resolve({ok:false})},connectX:(...a)=>{calls.push(a);return Promise.resolve({ok:false})},connectGitHub:(...a)=>{calls.push(a);return Promise.resolve({ok:false})}}}}
-    const m=mount(isolated[name],props(id,'oauth-ready'));m.render();m.click('浏览器登录')
+    const m=mount(isolated[name],props(id,'oauth-ready'));m.render();m.click('连接')
     assert.deepEqual(calls,[expected]);assert.equal(nodes(m.tree,'input').length,0)
     await new Promise(resolve=>setImmediate(resolve));m.render();assert.match(text(m.tree),/授权未完成/)
   }

@@ -7,7 +7,7 @@ import { loadBots } from '../state'
 export function BotAppAccess({ service, bot, connected, zh }: { service: ConnectedApp; bot?: Bot; connected: boolean; zh: boolean }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const enabled = !!bot && CONNECTED_APP_TOOLS[service].every(id => bot.tools.includes(id))
-  const remote = window.openbot.environment?.kind === 'browser'
+  const remote = window.openbot?.environment?.kind === 'browser'
   const change = async () => {
     if (!bot || busy) return
     setBusy(true); setError('')

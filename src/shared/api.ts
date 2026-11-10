@@ -263,6 +263,16 @@ export interface OpenBotApi {
     uninstall(id: string): Promise<SkillUninstallResult>
     syncExisting(): Promise<import('./skills').SkillBulkSyncResult>
   }
+  agentsMd: {
+    list(): Promise<import('./agentsMd').AgentsMdRecord[]>
+    read(id: string): Promise<{ ok: boolean; content?: string; error?: string }>
+    create(title?: string): Promise<{ ok: boolean; file?: import('./agentsMd').AgentsMdRecord; error?: string }>
+    write(id: string, content: string): Promise<{ ok: boolean; error?: string }>
+  }
+  systemPermissions: {
+    status(ids: string[]): Promise<Array<{ id: string; status: import('./systemPermissions').SystemPermissionStatus }>>
+    open(id: string): Promise<void>
+  }
   settings: {
     saveDecisionReview(enabled: boolean): Promise<import('./settings').PermissionSaveResult>
     saveMcpServer(edit: import('./settings').McpServerEdit): Promise<import('./settings').McpServerSaveResult>
