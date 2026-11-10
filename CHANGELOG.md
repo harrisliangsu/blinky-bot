@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.14
+
+- **A packaged app checks the Sparkle feed shortly after launch and again every 12 hours.** When a newer signed zip is available, it posts a notification and shows a dialog to download and install. Later and Skip This Version are on that dialog. Check now, the settings row, and Check for Updates… in the app menu use the same prompt.
+- **The zip is verified with the existing Ed25519 key before it replaces the app.** A signature that does not match leaves the installed copy in place.
+
 ## 0.3.13
 
 - **The Apps list shows an icon, a name, and Connected or Not connected.** A connected app also shows the account name. An app that is not connected has only Connect, and that opens its page. Reconnect, Disconnect, which Bots may use the app, and Advanced: bring your own client stay on that page. The advanced form stays closed until you open it. Calendar and Slack stay off the list.
