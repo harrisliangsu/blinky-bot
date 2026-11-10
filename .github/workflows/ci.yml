@@ -46,28 +46,3 @@ jobs:
           bash -n Scripts/open-smoke.sh
           bash -n Scripts/mac-app.sh
           bash -n Scripts/capture-shots.sh
-
-  screenshots:
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npm ci
-      - name: Build
-        env:
-          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_ID }}
-          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
-          MAIN_VITE_X_CLIENT_ID: ${{ secrets.MAIN_VITE_X_CLIENT_ID }}
-          MAIN_VITE_GITHUB_CLIENT_ID: ${{ secrets.MAIN_VITE_GITHUB_CLIENT_ID }}
-          MAIN_VITE_GITHUB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GITHUB_CLIENT_SECRET }}
-        run: npm run build
-      - name: Capture settings and chat
-        run: bash Scripts/capture-shots.sh
-      # Keep generated captures/logs out of public artifacts until reviewed.
