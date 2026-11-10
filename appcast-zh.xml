@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-zh.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                                                <item>
-            <title>0.3.13</title>
-            <pubDate>Tue, 10 Nov 2026 15:24:51 -0000</pubDate>
-            <sparkle:version>0.3.13</sparkle:version>
-            <sparkle:shortVersionString>0.3.13</sparkle:shortVersionString>
+                                                                    <item>
+            <title>0.3.14</title>
+            <pubDate>Tue, 10 Nov 2026 16:07:26 -0000</pubDate>
+            <sparkle:version>0.3.14</sparkle:version>
+            <sparkle:shortVersionString>0.3.14</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.13</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.14</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.13</h2><ul><li><strong>应用列表只显示图标、名称，以及已连接或未连接。</strong> 已连接时会带上账号名。未连接的应用只有「连接」，点开后进入详情页。重新授权、断开、哪些 Bot 可以使用，以及「高级：自带客户端」留在详情页。高级表单在打开之前保持收起。日历和 Slack 仍不出现在这个列表里。</li><li><strong>工具页只管理技能、MCP 服务器和 AGENTS.md。</strong> 读取文件、运行命令这类内置工具默认启用，不列出来，也不参与同步。打开时是工具视图。Agent 视图管理其中一个 Agent。一键同步可以选择基准（以一个 Agent 为来源）或合并（取所有 Agent 的并集）。它只会补上缺少的技能和 AGENTS.md，不会取消已有分配，也不会关闭已启用的 MCP 服务器。同名技能归在一组，并标出来源。描述默认收起。</li><li><strong>权限先列出这个应用已经用到的 macOS 授权。</strong> 屏幕录制、辅助功能、自动化、麦克风和通知。状态来自当场检查：已授权、未授权、未确定或未知。「打开系统设置」会跳到对应的系统设置页面。还可以添加其他隐私项。移除一行只是把它从这里隐藏，不会取消系统里的授权。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.13">在 GitHub 查看更新说明</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.13/BlinkyBot-0.3.13.zip"
-                       length="146321021"
+</style><h2>BlinkyBot 0.3.14</h2><ul><li><strong>打包的应用会在启动后不久检查 Sparkle 更新源，之后每 12 小时再检查一次。</strong> 有较新的已签名 zip 时，会发出通知，并显示下载并安装的对话框。对话框上有「稍后」和「跳过此版本」。设置里的「立即检查」、这一行，以及应用菜单里的 Check for Updates… 使用同一个提示。</li><li><strong>zip 会先用现有的 Ed25519 密钥核对，再替换应用。</strong> 签名不一致时，已安装的副本保持原样。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.14">在 GitHub 查看更新说明</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.14/BlinkyBot-0.3.14.zip"
+                       length="146338530"
                        type="application/octet-stream"
-                       sparkle:edSignature="ML6/ls8Kc9It4hfuLW7yPZOjrgp3AuZfrmhCLLfI1tNvhJ+arIlIrOaYrPBP2yPtO3c3XB864jegwwbVKx+bAg==" />
+                       sparkle:edSignature="s5KTMJ4mBl5nm4Ww+p4wNF3D+LMzMiTd/LqFU/cnj+cgASgBGbq9Fl9b8dngGnGCQS/p2d0Etwjw1qNw+XdVBA==" />
         </item>
     </channel>
 </rss>
