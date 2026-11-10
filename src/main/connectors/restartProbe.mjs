@@ -24,7 +24,7 @@ if (process.platform === 'darwin') app.dock.hide()
 electronSession.defaultSession.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*','ws://*/*','wss://*/*']},(_request,callback)=>callback({cancel:true}))
 globalThis.fetch=async()=>{throw new Error('Unexpected unmocked network request in connector integration test.')}
 assert.match(process.env.HOME ?? '', /blinky-restart-tools-.*\/home$/)
-for (const key of ['GH_TOKEN','GITHUB_TOKEN','PRIVATE_SERVICE_TOKEN','HTTP_PROXY','HTTPS_PROXY','SSH_AUTH_SOCK','BLINKY_GOOGLE_CLIENT_ID','BLINKY_X_CLIENT_ID','BLINKY_SLACK_CLIENT_ID']) assert.equal(process.env[key], undefined)
+for (const key of ['GH_TOKEN','GITHUB_TOKEN','PRIVATE_SERVICE_TOKEN','HTTP_PROXY','HTTPS_PROXY','SSH_AUTH_SOCK','BLINKY_GOOGLE_CLIENT_ID','BLINKY_X_CLIENT_ID','BLINKY_SLACK_CLIENT_ID','BLINKY_GITHUB_CLIENT_ID','BLINKY_GITHUB_CLIENT_SECRET']) assert.equal(process.env[key], undefined)
 const fixture = JSON.parse(await readFile(join(process.env.OPENBOT_DATA_DIR, 'test-context.json'), 'utf8'))
 const phase = process.argv[2], denied = phase === 'denied'
 const storage = { isEncryptionAvailable: () => true, encryptString: v => Buffer.from([...v].reverse().join('')), decryptString: v => [...v.toString()].reverse().join('') }

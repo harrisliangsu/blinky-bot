@@ -8,7 +8,9 @@ import { connectGoogle, disconnectGoogle, googleAccessToken, hasGoogleClient, in
 import { readGoogleCredentials, saveGoogleCredentials, setGoogleStorageForTests } from './googleSecrets.ts'
 import { connectX, disconnectX, hasXClient, invalidateXAccess, setXTransportForTests, xAccessToken } from './xOAuth.ts'
 import { readXCredentials, saveXCredentials, setXStorageForTests } from './xSecrets.ts'
-import { githubEnabled, requireGitHubConnection, setGitHubEnabled } from './githubConnection.ts'
+import { legacyGitHubCliOptIn, requireGitHubConnection } from './githubConnection.ts'
+import { connectGitHub, invalidateGitHubAccess, setGitHubTransportForTests } from './githubOAuth.ts'
+import { setGitHubStorageForTests } from './githubSecrets.ts'
 
 const storage = { isEncryptionAvailable: () => true, encryptString: (text: string) => Buffer.from([...text].reverse().join('')), decryptString: (bytes: Buffer) => [...bytes.toString()].reverse().join('') } as unknown as SafeStorage
 const clientId = '123456789-test.apps.googleusercontent.com'
@@ -21,19 +23,21 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 test('connection provisioning, compatibility, cancellation and disconnect persistence', { timeout: 15000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'blinky-connect-lifecycle-'))
   const oldRoot = process.env.OPENBOT_DATA_DIR
-  const envKeys = ['BLINKY_GOOGLE_CLIENT_ID', 'BLINKY_GOOGLE_CLIENT_SECRET', 'BLINKY_X_CLIENT_ID'] as const
+  const envKeys = ['BLINKY_GOOGLE_CLIENT_ID', 'BLINKY_GOOGLE_CLIENT_SECRET', 'BLINKY_X_CLIENT_ID', 'BLINKY_GITHUB_CLIENT_ID', 'BLINKY_GITHUB_CLIENT_SECRET'] as const
   const oldEnv = envKeys.map((key) => process.env[key])
   process.env.OPENBOT_DATA_DIR = root
   for (const key of envKeys) delete process.env[key]
-  setGoogleStorageForTests(storage); setXStorageForTests(storage)
+  setGoogleStorageForTests(storage); setXStorageForTests(storage); setGitHubStorageForTests(storage)
   try {
     await t.test('no configured client fails before opening a browser; metadata does not pretend connected', async () => {
       let opened = 0
       setGoogleOAuthTransportForTests(undefined, async () => { opened++ })
       setXTransportForTests(undefined, async () => { opened++ })
+      setGitHubTransportForTests(undefined, async () => { opened++ })
       assert.equal(await hasGoogleClient('gmail'), false); assert.equal(await hasXClient(), false)
       await assert.rejects(connectGoogle('gmail'), /distribution needs/)
       await assert.rejects(connectX(), /distribution needs/)
+      await assert.rejects(connectGitHub(), /distribution needs/)
       assert.equal(opened, 0)
     })
     await t.test('distributor client starts actual PKCE callback flow without renderer client fields', async () => {
@@ -72,8 +76,8 @@ test('connection provisioning, compatibility, cancellation and disconnect persis
       for (const key of envKeys) delete process.env[key]
     })
     await t.test('saved native clients are read from disk and reused; service grants remain separate', async () => {
-      setGoogleStorageForTests(undefined); setXStorageForTests(undefined)
-      setGoogleStorageForTests(storage); setXStorageForTests(storage)
+      setGoogleStorageForTests(undefined); setXStorageForTests(undefined); setGitHubStorageForTests(undefined)
+      setGoogleStorageForTests(storage); setXStorageForTests(storage); setGitHubStorageForTests(storage)
       assert.equal(await hasGoogleClient('gmail'), true)
       assert.equal(await hasGoogleClient('calendar'), true)
       assert.equal(await readGoogleCredentials('calendar'), null)
@@ -127,19 +131,17 @@ test('connection provisioning, compatibility, cancellation and disconnect persis
       await Promise.all([disconnectGoogle('gmail'), disconnectGoogle('gmail')]); await Promise.all([disconnectX(), disconnectX()])
       assert.equal(await readGoogleCredentials('gmail'), null); assert.equal(await readXCredentials(), null)
     })
-    await t.test('GitHub opt-out is local, persistent, denies connector use, and preserves damaged files', async () => {
-      assert.equal(await githubEnabled(), true)
-      await setGitHubEnabled(false)
-      await assert.rejects(requireGitHubConnection(), /disconnected/)
-      assert.deepEqual(JSON.parse(await readFile(join(root, 'github-connection.json'), 'utf8')), { version: 1, enabled: false })
-      await setGitHubEnabled(true); await requireGitHubConnection()
+    await t.test('GitHub CLI opt-in is not a connection and a damaged legacy file is left untouched', async () => {
+      await writeFile(join(root, 'github-connection.json'), JSON.stringify({ version: 1, enabled: true }))
+      assert.equal(await legacyGitHubCliOptIn(), true)
+      await assert.rejects(requireGitHubConnection(), /not connected/)
       await writeFile(join(root, 'github-connection.json'), '{damaged')
-      await assert.rejects(setGitHubEnabled(false), /damaged/)
+      assert.equal(await legacyGitHubCliOptIn(), false)
       assert.equal(await readFile(join(root, 'github-connection.json'), 'utf8'), '{damaged')
     })
   } finally {
-    invalidateGoogleAccessToken('gmail'); invalidateGoogleAccessToken('calendar'); invalidateXAccess()
-    setGoogleOAuthTransportForTests(); setXTransportForTests(); setGoogleStorageForTests(undefined); setXStorageForTests(undefined)
+    invalidateGoogleAccessToken('gmail'); invalidateGoogleAccessToken('calendar'); invalidateXAccess(); invalidateGitHubAccess()
+    setGoogleOAuthTransportForTests(); setXTransportForTests(); setGitHubTransportForTests(); setGoogleStorageForTests(undefined); setXStorageForTests(undefined); setGitHubStorageForTests(undefined)
     if (oldRoot === undefined) delete process.env.OPENBOT_DATA_DIR; else process.env.OPENBOT_DATA_DIR = oldRoot
     envKeys.forEach((key, index) => { if (oldEnv[index] === undefined) delete process.env[key]; else process.env[key] = oldEnv[index] })
     await rm(root, { recursive: true, force: true })

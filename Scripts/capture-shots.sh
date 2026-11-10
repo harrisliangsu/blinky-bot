@@ -67,7 +67,8 @@ expect=(
   chat-no-backend-light.png
   chat-no-backend-dark.png
 )
-for section in general bots profile notifications permissions backends apps tools updates about; do
+# Settings sidebar tabs, plus Apps and Tools opened from the account menu.
+for section in general bots profile notifications permissions backends vault apps tools updates about; do
   expect+=("settings-light-${section}.png" "settings-dark-${section}.png")
 done
 for file in "${expect[@]}"; do
