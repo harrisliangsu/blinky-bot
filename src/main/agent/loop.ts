@@ -1,5 +1,5 @@
 import { listTaskClarifications } from '../tasks/clarifications'
-import { completionContext, completionInputKey, taskLineage } from '../tasks/completionContext'
+import { completionContext, completionInputKey, deliverableEvidenceLine, deliverableEvidencePaths, taskLineage } from '../tasks/completionContext'
 import { resolvedReviewQuestion, cancelReviewQuestions } from '../tasks/reviewQuestions'
 import { withClarificationReview } from '../tasks/clarificationReview'
 import { showDesktopNotification } from '../desktopNotifications'
@@ -225,13 +225,30 @@ export async function receiveAgentResult(sessionId: string, taskId: string, titl
       if (task?.review && (!await resolvedReviewQuestion(task).catch(()=>undefined) || task.review.recordedAt>initialReviewAt)) {
         const noticeId = task.reviewHistory?.length ? `agent-review-${taskId}-${task.review.recordedAt}` : `agent-review-${taskId}`
         const appended = !activeSession.messages.some((message) => message.id === noticeId)
+        const evidence = deliverableEvidenceLine(task)
         if (appended) {
-          // The Bot writes the user summary. Detailed evidence and file hashes
-          // remain in the task review, available when the user asks for them.
-          await addNotice(activeSession, await bots.get(task.requesterBotId ?? task.botId), task.review.summary, undefined, noticeId)
+          // The Bot writes the user summary; verified deliverable paths always
+          // reach the user even when the summary prose omits them.
+          await addNotice(activeSession, await bots.get(task.requesterBotId ?? task.botId), evidence ? `${task.review.summary}\n\n${evidence}` : task.review.summary, undefined, noticeId)
         }
         const saved = await flushAll()
         if (saved.failed.length || saved.stillWriting) throw new Error('The lead assessment could not be confirmed as saved.')
+        if (evidence) {
+          // Backstop for the common path: the lead wrote its own completion
+          // prose. If that visible reply does not mention every verified
+          // deliverable, append one compact evidence line so the user can
+          // always find the outputs.
+          const freshMessages = (await sessions.get(sessionId))?.messages ?? activeSession.messages
+          const lastVisible = [...freshMessages].reverse().find((message) => message.role === 'assistant' && !message.internal && !message.uiOnly)
+          const paths = deliverableEvidencePaths(task)
+          const missing = lastVisible ? paths.filter((path) => !String(lastVisible.content).includes(path.split('/').pop() ?? path)) : paths
+          const evidenceId = `agent-evidence-${taskId}`
+          if (missing.length && !freshMessages.some((message) => message.id === evidenceId || message.id.endsWith(evidenceId))) {
+            await addNotice(activeSession, await bots.get(task.requesterBotId ?? task.botId), evidence!, undefined, evidenceId)
+            const resaved = await flushAll()
+            if (resaved.failed.length || resaved.stillWriting) throw new Error('The deliverable evidence could not be confirmed as saved.')
+          }
+        }
         if (appended && !routineOwnsNotifications(sessionId)) showDesktopNotification(task.review.outcome === 'blocked' ? 'failed' : 'task-returned', {sessionId,botId:task.requesterBotId ?? task.botId},false,noticeId)
         await onRecorded()
         return true

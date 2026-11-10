@@ -1,5 +1,6 @@
 /** Task-level evidence across execution attempts; never starts or approves work. */
 import { createHash } from 'node:crypto'
+import { basename, relative, sep } from 'node:path'
 import type { AgentTask, Message } from '../../shared/types'
 import { taskReviewObjective } from '../agent/taskContinuation'
 import { scrubVaultTranscript } from '../store/vaultPrivacy'
@@ -31,4 +32,27 @@ export function repeatedContinuation(previous: AgentTask, tasks: AgentTask[], pr
   if (!previous.continuedFromTaskId || previous.decisionContext !== context || remainingInstruction(previous) !== prompt.trim()) return false
   const prior = taskLineage(previous,tasks).at(-2)
   return Boolean(prior && previous.result && previous.status===prior.status && previous.result===prior.result)
+}
+
+/** App-verified deliverable paths for user-visible completion reports. */
+export function deliverableEvidencePaths(task: AgentTask): string[] {
+  const paths = [...(task.review?.verifiedFiles ?? []), ...(task.acceptance?.files ?? [])]
+    .map((file) => (typeof file?.path === 'string' ? file.path : ''))
+    .filter((path) => path && !path.includes('\n'))
+  return [...new Set(paths)].slice(0, 12)
+}
+
+/** One compact line naming verified deliverables; undefined when nothing was verified. */
+export function deliverableEvidenceLine(task: AgentTask): string | undefined {
+  const paths = deliverableEvidencePaths(task)
+  if (!paths.length) return undefined
+  const source = task.workspace?.sourceCwd ?? ''
+  const shown = paths.map((path) => {
+    if (!path.startsWith('/')) return path
+    try {
+      const rel = source ? relative(source, path) : ''
+      return rel && rel !== '..' && !rel.startsWith('..' + sep) ? rel : basename(path)
+    } catch { return basename(path) }
+  })
+  return '交付物（已在工作区核对）：' + shown.join('、')
 }
