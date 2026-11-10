@@ -53,9 +53,9 @@ try {
  await click('.ob-side-profile');await wait(`!!document.querySelector('#ob-side-account-menu')`);await key('Escape');await wait(`!document.querySelector('#ob-side-account-menu')`);const popover=await evalJs(`(()=>{const e=document.querySelector('.ob-side-profile');return {mode:document.documentElement.dataset.obInputMode,outline:getComputedStyle(e).outlineStyle}})()`);if(popover.mode!=='pointer'||popover.outline!=='none')throw Error('Pointer popover left a focus border: '+JSON.stringify(popover));await key('Tab');if(await evalJs(`document.documentElement.dataset.obInputMode`)!=='keyboard')throw Error('Keyboard focus mode was not restored');
  await evalJs(`document.querySelector('.ob-side-profile').focus()`);
  await click('.ob-side-profile'); await wait(`!!document.querySelector('#ob-side-account-menu')`);
- await click('#ob-side-account-menu button:nth-child(2)'); await wait(`!!document.querySelector('[data-apps]')`);
+ await click('#ob-side-account-menu button:nth-child(3)'); await wait(`!!document.querySelector('[data-apps]')`);
  await wait(`!document.querySelector('.ob-apps-intro button').disabled`);
- if(!await evalJs(`!!document.querySelector('[data-app="github"]') && !!document.querySelector('[data-app="git"]')`))throw Error('Missing available apps');
+ if(!await evalJs(`!!document.querySelector('[data-app="github"]') && !!document.querySelector('[data-app="gmail"]') && !!document.querySelector('[data-app="x"]') && !document.querySelector('[data-app="git"]') && !document.querySelector('[data-app="calendar"]') && !document.querySelector('[data-app="slack"]')`))throw Error('Apps grid must show GitHub, Gmail, and X only');
  if(process.env.BLINKY_APPS_SCREENSHOT){const shot=await cmd('Page.captureScreenshot',{format:'png'});await fs.writeFile(process.env.BLINKY_APPS_SCREENSHOT,Buffer.from(shot.data,'base64'));}
  await key('Escape'); await wait(`!document.querySelector('[data-apps]')`);
  const state=await evalJs(`(()=>{const e=document.querySelector('.ob-side-profile');return {active:document.activeElement===e, visible:e.matches(':focus-visible'),outline:getComputedStyle(e).outlineStyle,mark:e.hasAttribute('data-ob-pointer-focus-restored')}})()`);
@@ -64,24 +64,23 @@ try {
  await key('Tab'); if(await evalJs(`!!document.querySelector('[data-ob-pointer-focus-restored]')`))throw Error('Pointer suppression persisted after keyboard navigation');
  await evalJs(`document.querySelector('[aria-label=\"Create a bot\"]').focus()`); await key('Tab'); await evalJs(`document.querySelector('[aria-label=\"Create a bot\"]').focus();document.querySelector('[aria-label=\"Create a bot\"]').click()`); await wait(`!!document.querySelector('#ob-create-bot-name')`); await key('Escape'); await wait(`!document.querySelector('#ob-create-bot-name')`); const keyboard=await evalJs(`(()=>{const e=document.querySelector('[aria-label=\"Create a bot\"]');return {active:document.activeElement===e,mark:e.hasAttribute('data-ob-pointer-focus-restored'),outline:getComputedStyle(e).outlineStyle}})()`); if(!keyboard.active || keyboard.mark || keyboard.outline==='none') throw Error('Keyboard focus not visible: '+JSON.stringify(keyboard));
  await click('.ob-side-profile'); await wait(`!!document.querySelector('#ob-side-account-menu')`);
- await click('#ob-side-account-menu button:nth-child(2)'); await wait(`!!document.querySelector('[data-apps]')`);
+ await click('#ob-side-account-menu button:nth-child(3)'); await wait(`!!document.querySelector('[data-apps]')`);
  await evalJs(`(()=>{let e=document.querySelector('.ob-apps-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'GitHub');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
- await wait(`!!document.querySelector('[data-app="github"]') && !document.querySelector('[data-app="git"]')`);
+ await wait(`!!document.querySelector('[data-app="github"]') && !document.querySelector('[data-app="gmail"]') && !document.querySelector('[data-app="x"]') && !document.querySelector('[data-app="git"]')`);
+ await evalJs(`(()=>{let e=document.querySelector('.ob-apps-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Calendar');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+ await wait(`!document.querySelector('[data-app]')`);
  await evalJs(`(()=>{let e=document.querySelector('.ob-apps-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
- await wait(`!!document.querySelector('[data-app="git"] button[aria-expanded]:not(:disabled)')`);
- await evalJs(`document.querySelector('[data-app="git"] button[aria-expanded]').click()`);
- await wait(`!!document.querySelector('[data-connect="git"]')`);
- await wait(`!!document.querySelector('[data-app="gmail"] > button') && !!document.querySelector('[data-app="calendar"]')`);
- await evalJs(`document.querySelector('[data-app="gmail"] > button').click()`);
+ await wait(`!!document.querySelector('[data-app="gmail"]') && !!document.querySelector('[data-app="x"]') && !document.querySelector('[data-app="calendar"]') && !document.querySelector('[data-app="slack"]') && !document.querySelector('[data-app="git"]')`);
+ await evalJs(`[...document.querySelectorAll('[data-app="gmail"] button')].find(b=>b.textContent.trim()==='高级：自带客户端…').click()`);
  await wait(`!!document.querySelector('[aria-label="Google OAuth client ID"]')`);
  await evalJs(`(()=>{for(const [selector,value] of [['[aria-label="Google OAuth client ID"]','invalid-client'],['[aria-label="客户端密钥（可选）"]','fixture-secret']]){const e=document.querySelector(selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}))}})()`);
- await evalJs(`[...document.querySelectorAll('[data-app="gmail"] button')].find(b=>b.textContent.trim()==='继续授权').click()`);
+ await evalJs(`[...document.querySelectorAll('[data-app="gmail"] button')].find(b=>b.textContent.trim()==='在浏览器中授权').click()`);
  await wait(`!!document.querySelector('[data-app="gmail"] [role="alert"]')`);
  if(await evalJs(`document.querySelector('[aria-label="客户端密钥（可选）"]').value`))throw Error('Google client secret was not cleared after submission');
- await evalJs(`[...document.querySelectorAll('[data-app="x"] button')].find(b=>b.textContent.trim()==='连接').click()`);
+ await evalJs(`[...document.querySelectorAll('[data-app="x"] button')].find(b=>b.textContent.trim()==='高级：自带客户端…').click()`);
  await wait(`!!document.querySelector('[aria-label="X OAuth client ID"]')`);
  await evalJs(`(()=>{const e=document.querySelector('[aria-label="X OAuth client ID"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'bad');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
- await evalJs(`[...document.querySelectorAll('[data-app="x"] button')].find(b=>b.textContent.trim()==='继续授权').click()`);
+ await evalJs(`[...document.querySelectorAll('[data-app="x"] button')].find(b=>b.textContent.trim()==='在浏览器中授权').click()`);
  await wait(`!!document.querySelector('[data-app="x"] [role="alert"]')`);
- console.log(JSON.stringify({pointerPopoverNoBorder:true,pointerCloseNoBorder:true,keyboardFocusRestored:true,appsSearch:true,gitConfigurationAccessible:true,googleForms:true,invalidGoogleRejected:true,xForm:true,invalidXRejected:true,initialState:state}));
+ console.log(JSON.stringify({pointerPopoverNoBorder:true,pointerCloseNoBorder:true,keyboardFocusRestored:true,appsSearch:true,hiddenAppsAbsent:true,googleForms:true,invalidGoogleRejected:true,xForm:true,invalidXRejected:true,initialState:state}));
 } finally { if(ws)ws.close();app.kill('SIGTERM');await delay(500);if(app.exitCode===null)app.kill('SIGKILL'); await fs.rm(root,{recursive:true,force:true}); }

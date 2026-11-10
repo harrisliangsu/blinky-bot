@@ -18,6 +18,7 @@ try {
     'src/main/connectors/restartAndTools.test.mjs',
     'src/main/connectors/desktopTestSafety.test.mjs',
     'src/renderer/src/components/SettingsAppsConnections.test.mjs',
+    'src/renderer/src/components/SettingsAppsGrid.test.mjs',
     'src/main/connectors/googleOAuth.test.ts', 'src/main/connectors/googleRead.test.ts',
     'src/main/connectors/gmailMime.test.ts', 'src/main/connectors/xOAuth.test.ts',
     'src/main/connectors/slackInboxStore.test.ts', 'src/main/apps/statusClassification.test.ts',

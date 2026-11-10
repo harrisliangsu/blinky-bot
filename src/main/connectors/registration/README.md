@@ -8,9 +8,9 @@
 
 1. **发行方准备**：按下文分别登记自有客户端、精确回调和权限，完成适用审核/分发。随主进程构建注入公开的 `MAIN_VITE_GOOGLE_CLIENT_ID`、`MAIN_VITE_X_CLIENT_ID`、`MAIN_VITE_SLACK_CLIENT_ID`；仅 Google Desktop 注册确实要求时携带其可公开提取的 Desktop secret。不要把 Web/Slack confidential-client secret、账号 token 或刷新令牌放进桌面包、renderer、版本库或日志。`BLINKY_*` 运行时覆盖仅供本地发行调试，不能代替普通安装用户的发行配置。
 2. **构建回读**：使用独立源码和输出目录，核对最终 ASAR 中实际 `googleClient/xClientId/slackClientId` 所引用的构建对象是否含有效公开客户端，并记录包哈希。只做源码环境变量检查不证明发布包已预置。无配置的构建必须显示发行方尚未启用，不能把普通登录按钮变成申请开发者应用的表单；自带客户端保留为明确的高级选项。
-3. **用户连接**：Google/X 点击浏览器登录，Slack 选择工作区/频道和使用连接的 Bot，再在系统浏览器同意。GitHub 由官方 `gh auth login --web --hostname github.com` 管理其登录，本应用不复制 token。Git 姓名/邮箱配置不是 GitHub 授权。拒绝、错误回调和取消不得覆盖已有有效连接。
+3. **用户连接**：当前应用页只提供 GitHub、Gmail 和 X。GitHub 由官方 `gh auth login --web --hostname github.com` 管理其登录，本应用不复制 token。Gmail 和 X 在浏览器中授权。Git 姓名/邮箱不是应用。Calendar 与 Slack 连接器仍在进程内，但不出现在应用页，普通用户不能从应用或设置里连接或授权它们。拒绝、错误回调和取消不得覆盖已有有效连接。
 4. **工具授权接点**：连接身份与 Bot 的 `tools` 授权是两条现有合同。连接界面选择适用 Bot，默认当前 Bot；验证连接成功后，通过宿主持久保存合同合并该服务的读取/本地草稿工具。新授权落盘前不生效，保留显式拒绝、撤销、其他工具与并发编辑。不能在连接器中跳过 `schemasFor/exposedSchema` 或偷偷给所有 Bot 扩权。专属执行 Agent 由 `bindExecutionAgent` 继承同一 Bot 已授予的工具，不应再次索要 provider 凭据。
-5. **实际调用**：Gmail 为 `list_google_accounts/search_gmail/read_gmail/gmail_draft`；Calendar 为账户发现、`list_calendar_events/calendar_event_draft`；X 为 `read_x_post/x_post_draft`；Slack 为 `slack_message_draft`；GitHub 为 `github_comment_draft` 与另行授予的例程工具。没有实现的邮箱附件、Slack 历史搜索、任意 GitHub API 等不能由“已连接”推导为已有能力。写入走本地草稿及逐次确认，模型无直接发送出口。
+5. **实际调用**：Gmail 为 `list_google_accounts/search_gmail/read_gmail/gmail_draft`；Calendar 为账户发现、`list_calendar_events/calendar_event_draft`；X 为 `read_x_post/x_post_draft`；Slack 为 `slack_message_draft`；GitHub 为 `github_comment_draft` 与另行授予的例程工具。应用页的 Gmail 授权不包含 `watch_gmail_query`。没有实现的邮箱附件、Slack 历史搜索、任意 GitHub API 等不能由“已连接”推导为已有能力。写入走本地草稿及逐次确认。自动发送规则已停用，保存的规则不会发信，模型无直接发送出口。
 6. **宿主范围**：API/应用内模型通过应用工具循环；Codex、Claude、OpenCode、Kimi、Grok 的已支持适配器通过本机、会话限权 MCP 网关。未列入运行时 MCP 支持的 CLI 不等于已经具备同样工具；VM 目标当前拒绝访问宿主账号，不能暗中退回本机。网关启动失败须报告失败。连接器假服务验证不替代各真实 CLI/模型和发布包验收。
 7. **受控验收**：先用虚拟身份/假服务完成同意、刷新、逐账号选择、错误回调、断连、重启、Bot 与执行 Agent 的工具发现/调用、越权拒绝和零提前外发。再由有权限的测试人员在专用账号验证真实同意、API 权限及系统加密；真实发送另行授权。保留包、源码和测试哈希，区分“代码存在、包内存在、假服务调用通过、真实授权通过”。使用隔离数据、合成服务和独立输出的真实 Preview 窗口验证；系统拒绝的操作不重试。
 

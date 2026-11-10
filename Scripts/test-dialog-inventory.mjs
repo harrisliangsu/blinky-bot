@@ -113,7 +113,7 @@ try {
  });
  // Workspace menus must restore their persistent account button after the
  // clicked menu item itself has been removed by opening the workspace.
- for(const [name,index,opened] of [['settings from account',1,`!!document.querySelector('.ob-set')`],['apps workspace',2,`!!document.querySelector('[data-apps]')`],['tools workspace',3,`!!document.querySelector('[data-tools]')`]]) {
+ for(const [name,index,opened] of [['profile from account',1,`document.querySelector('.ob-set-main')?.dataset.settingsSection==='profile'`],['settings from account',2,`!!document.querySelector('.ob-set')`],['apps workspace',3,`!!document.querySelector('[data-apps]')`],['tools workspace',4,`!!document.querySelector('[data-tools]')`]]) {
   await surface(name,`#ob-side-account-menu button:nth-child(${index})`,opened,{prepare:async()=>click('.ob-side-profile'),returnTo:'.ob-side-profile'});
  }
  // Palette-driven entry points preserve the trigger from before the palette.

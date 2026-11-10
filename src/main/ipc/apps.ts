@@ -1,4 +1,4 @@
-/** IPC for GitHub, Git, and Gmail. Probes stay in `apps/status.ts`. */
+/** IPC for app connections. The Apps grid shows GitHub, Gmail, and X. Probes stay in `apps/status.ts`. */
 
 import type { AppStatus } from '../../shared/apps'
 import { appStatus, appStatuses, connectGit, connectGitHub, disconnectGitHub, invalidateGoogleStatus, invalidateXStatus, requestGmail } from '../apps/status'

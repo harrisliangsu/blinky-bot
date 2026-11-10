@@ -4,5 +4,3 @@
 .ob-send-rules li > span { min-width: 0; overflow-wrap: anywhere; }
 .ob-send-rules strong, .ob-send-rules small { display: block; }
 .ob-send-rules small { color: var(--ob-text-secondary); margin-top: var(--ob-space-1); }
-.ob-send-rule-consent { display: flex; align-items: flex-start; gap: var(--ob-space-2); margin: var(--ob-space-3) 0; font-size: var(--ob-font-size-sm); line-height: 1.5; overflow-wrap: anywhere; }
-.ob-send-rule-consent input { flex: none; margin-top: 3px; }

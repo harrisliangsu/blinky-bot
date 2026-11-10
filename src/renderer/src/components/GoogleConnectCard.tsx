@@ -30,7 +30,7 @@ export function GoogleConnectCard({ zh, service, status, statusLabel, refresh, a
     <div className="ob-app-icon" aria-hidden="true">{service === 'gmail' ? 'M' : '日历'}</div>
     <div className="ob-app-summary"><h3>{service === 'gmail' ? 'Gmail' : 'Google Calendar'}</h3>
       <p className="ob-set-value">{statusLabel}{status?.account ? ` · ${status.account}` : ''}</p>
-      <p className="ob-hint">{zh ? '在浏览器中授权；发送邮件和日程邀请仍先审核草稿。' : 'Authorize in your browser; mail and calendar invitations still require draft review.'}</p>
+      <p className="ob-hint">{service === 'gmail' ? (zh ? '在浏览器中授权；发送邮件仍先审核草稿。' : 'Authorize in your browser; sending mail still requires draft review.') : (zh ? '在浏览器中授权；日程邀请仍先审核草稿。' : 'Authorize in your browser; calendar invitations still require draft review.')}</p>
       {status?.detail?.startsWith('verification-failed') ? <p className="ob-hint">{zh ? '无法验证连接，请检查网络、授权和 Google API。' : 'Could not verify the connection. Check network, authorization and Google API access.'}</p> : null}
       {status?.detail === 'oauth-client-required' ? <p className="ob-hint" role="status">{zh ? '此版本的 Google 浏览器登录尚未由发行方启用。启用后只需登录并同意授权，无需申请开发者应用或填写 API key。' : 'Google browser sign-in has not been enabled by this distributor. Once enabled, just sign in and consent; no developer app or API key is needed.'}</p> : null}
     </div>

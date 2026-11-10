@@ -132,7 +132,7 @@ export interface Settings {
   quickDecision?: { backendId: string; modelId: string } | null
   backends: Record<string, BackendConfig>
   mcpServers: McpServerConfig[]
-  /** GitHub, Git, and Gmail. One connection, shared by every Bot. */
+  /** Installed Apps are GitHub, Gmail, and X. One connection, shared by every Bot. */
   apps: AppLinks
   /**
    * Whether a finished turn is followed by a second model call that extracts

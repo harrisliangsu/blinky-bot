@@ -60,7 +60,7 @@ function requestContext(sessionId:string,botId:string):{source:NonNullable<Retur
 }
 const fingerprint=(scope:string,sessionId:string,botId:string,account:string,input:DraftInput)=>createHash('sha256').update(JSON.stringify([scope,sessionId,botId,input.accountId??'default',account.toLowerCase(),input.to.toLowerCase(),input.subject,input.body])).digest('hex')
 
-/** A new draft can send only under an exact user-saved rule. Existing drafts never auto-replay. */
+/** A new message is always a local review draft. Saved rules do not send it. */
 export async function createGmailDraft(sessionId: string, botId: string, input: DraftInput, signal?:AbortSignal): Promise<GmailDraft> {
   const created=await serial(async () => {
     const {source,receiverBotId,scope}=requestContext(sessionId,botId)
@@ -91,7 +91,7 @@ export async function setGmailFeedback(id: string, from: GmailDraft['feedbackSta
   return serial(async () => { const records = await load(), current = records.find((d) => d.id === id); if (!current || current.feedbackStatus !== from) return null; const next = { ...current, feedbackStatus: to }; await save(records.map((d) => d.id === id ? next : d)); broadcast({ type: 'gmail-draft-updated', draft: next }); return next })
 }
 
-/** Only the trusted window can invoke manual send/cancel. A send rule uses its own durable claim. */
+/** Only the trusted window can send or cancel. Automatic send rules stay retired. */
 export async function actOnGmailDraft(id: string, sessionId: string, action: 'send' | 'cancel',beforeClaim?:(draft:GmailDraft)=>boolean,beforePost?:()=>boolean): Promise<GmailDraft> {
   const started = await serial(async () => {
     const records = await load(), current = records.find((d) => d.id === id && d.sessionId === sessionId)

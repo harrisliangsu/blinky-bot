@@ -457,7 +457,7 @@ export function SettingsPanel(): ReactNode {
   const groups: Array<{ label: string; sections: SettingsSection[] }> = [
     { label: lang === 'zh-CN' ? '偏好设置' : 'Preferences', sections: ['general', 'bots', 'profile', 'notifications', 'permissions'] },
     { label: lang === 'zh-CN' ? '连接' : 'Connections', sections: ['backends', 'vault'] },
-    { label: lang === 'zh-CN' ? '应用' : 'Application', sections: ['updates', 'about'] }
+    { label: lang === 'zh-CN' ? '本应用' : 'Application', sections: ['updates', 'about'] }
   ]
 
   // Apps and tools are workspaces opened from the account menu, not settings

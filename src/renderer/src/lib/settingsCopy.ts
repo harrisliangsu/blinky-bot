@@ -277,14 +277,6 @@ export interface SettingsCopy {
     githubHint: string
     githubMissing: string
     githubLoginFailed: string
-    gitTitle: string
-    gitHint: string
-    gitName: string
-    gitEmail: string
-    gitSave: string
-    gitMissing: string
-    gitInvalid: string
-    gitFailed: string
     gmailTitle: string
     gmailHint: string
   }
@@ -606,7 +598,7 @@ const en: SettingsCopy = {
     removed: 'That MCP server was removed, so the editor closed without saving.'
   },
   tools: {
-    intro: 'MCP servers and skills for every Bot. Apps stays GitHub, Git, and Gmail.',
+    intro: 'MCP servers and skills for every Bot. Apps stays GitHub, Gmail, and X.',
     sync: 'Sync',
     skillsTitle: 'Skills',
     skillsIntro: 'Install a folder into the shared directory, then assign it on each Bot.',
@@ -618,7 +610,7 @@ const en: SettingsCopy = {
   },
   apps: {
     title: 'Apps',
-    intro: 'GitHub and Git settings on this Mac are shared by Bots.',
+    intro: 'Connect GitHub, Gmail, and X. Every Bot shares these connections. After connecting, the selected Bot and its execution Agent can use reading and local draft tools. Sending keeps its existing confirmation.',
     refresh: 'Check again',
     connect: 'Connect',
     connected: 'Connected',
@@ -630,16 +622,8 @@ const en: SettingsCopy = {
     githubHint: 'Signs in with the GitHub CLI. BlinkyBot does not keep the token.',
     githubMissing: 'Install GitHub CLI (gh), then connect.',
     githubLoginFailed: 'Could not open Terminal for GitHub sign-in.',
-    gitTitle: 'Git',
-    gitHint: 'Saves the global Git name and email on this Mac. Every Bot uses that identity.',
-    gitName: 'Name',
-    gitEmail: 'Email',
-    gitSave: 'Save Git identity',
-    gitMissing: 'Git is not installed.',
-    gitInvalid: 'Enter a name and an email address.',
-    gitFailed: 'Git could not save that identity.',
     gmailTitle: 'Gmail',
-    gmailHint: 'Google sign-in is not in this build.'
+    gmailHint: 'Authorize Gmail in the browser; sending mail still requires draft review.'
   },
   chat: {
     ready: 'Ready when you are',
@@ -960,7 +944,7 @@ const zh: SettingsCopy = {
     removed: '这个 MCP 服务器已被删除，编辑器已关闭且没有保存。'
   },
   tools: {
-    intro: '每个 Bot 都能用的 MCP 服务器和技能。应用只放 GitHub、Git 和 Gmail。',
+    intro: '每个 Bot 都能用的 MCP 服务器和技能。应用只放 GitHub、Gmail 和 X。',
     sync: '同步',
     skillsTitle: '技能',
     skillsIntro: '安装到共享目录后，再到每个 Bot 上选用。',
@@ -972,7 +956,7 @@ const zh: SettingsCopy = {
   },
   apps: {
     title: '应用',
-    intro: '这台 Mac 上的 GitHub 和 Git 设置由各 Bot 共用。',
+    intro: '连接 GitHub、Gmail 和 X，供各个 Bot 共用。连接后允许所选 Bot 及其执行 Agent 使用读取和本地草稿工具，发送仍需原有确认。',
     refresh: '重新检查',
     connect: '连接',
     connected: '已连接',
@@ -984,16 +968,8 @@ const zh: SettingsCopy = {
     githubHint: '用 GitHub CLI 登录。BlinkyBot 不保存令牌。',
     githubMissing: '请先安装 GitHub CLI（gh），再连接。',
     githubLoginFailed: '无法打开终端来登录 GitHub。',
-    gitTitle: 'Git',
-    gitHint: '把 Git 的全局姓名和邮箱写在这台 Mac 上。每个 Bot 都用这个身份。',
-    gitName: '姓名',
-    gitEmail: '邮箱',
-    gitSave: '保存 Git 身份',
-    gitMissing: '还没有安装 Git。',
-    gitInvalid: '请填写姓名和邮箱。',
-    gitFailed: 'Git 没能保存这个身份。',
     gmailTitle: 'Gmail',
-    gmailHint: '这一版还没有 Google 登录。'
+    gmailHint: '在浏览器中授权 Gmail；发送邮件仍先审核草稿。'
   },
   chat: {
     ready: '可以开始了',

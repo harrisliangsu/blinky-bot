@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { GmailDraft } from '../../../shared/drafts'
 import { useBotChinese } from './BotUiLanguage'
 import './GitHubDraftCards.css'
-import './OutboundSendRules.css'
 
 /** Presence in this visible viewport is an acknowledgment, never proof of reading. */
 function GmailDraftSurface({draft,sessionId,children,label}:{draft:GmailDraft;sessionId:string;children:ReactNode;label:string}):ReactNode{
@@ -60,7 +59,6 @@ export function GmailDraftCards({ sessionId }: { sessionId: string }): ReactNode
       {draft.status === 'draft' ? <>
         <div className="ob-github-draft-actions"><button type="button" className="ob-btn ob-btn-sm" disabled={!!busy} onClick={() => void act(draft, 'cancel')}>{zh ? '取消草稿' : 'Cancel draft'}</button><button type="button" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!!busy} onClick={() => void act(draft, 'send')}>{zh ? '确认发送' : 'Send email'}</button></div>
       </> : null}
-      {draft.sendAuthorization?<p>{zh?'已使用你保存的精确收件人发送规则。':'Used your saved rule for this exact sender and recipient.'}</p>:null}
       {draft.sendNotStarted?<p role="status">{zh?'发送已在发出前停止，邮件未发送。再次发送仍需确认。':'Stopped before sending. No message was sent; a new confirmation is required.'}</p>:null}
       {draft.status === 'sending' ? <p>{zh ? '正在发送…' : 'Sending…'}</p> : null}
       {draft.status === 'uncertain' ? <p role="alert">{zh ? '发送结果未确认，请先检查 Gmail 已发送邮件；应用不会自动重发。' : 'Send result is uncertain. Check Gmail Sent before retrying; the app will not resend automatically.'}</p> : null}
