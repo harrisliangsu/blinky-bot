@@ -4,12 +4,25 @@ BlinkyBot uses the system browser for supported OAuth consent. It does not embed
 
 | Service | Connection | Distribution prerequisite |
 | --- | --- | --- |
-| GitHub | Official `gh auth login --web --hostname github.com`, or reuse the user's existing official CLI login | Official `gh`; the user completes browser/device consent |
+| GitHub | BlinkyBot GitHub App user OAuth with PKCE and a fixed loopback callback | Publisher-owned GitHub App client ID and the token-endpoint secret GitHub requires; the user completes browser consent |
 | Gmail / Calendar | Desktop OAuth with PKCE and a temporary loopback callback; separate service consent | Publisher-owned Google Desktop client, enabled APIs, consent screen and applicable verification |
 | X | Native public-client PKCE | Publisher-owned Native client and applicable API access |
 | Slack | Public desktop PKCE for a selected workspace/channel; existing Socket Mode remains compatible | Publisher-owned public client/distribution settings; workspace approval where required |
 
-See [publisher registration](registration/README.md) for exact callbacks, scopes and build configuration. The current candidate has no production Google/X/Slack publisher client configuration. Ordinary users should not have to register developer applications; missing publisher configuration is shown honestly, with a separate advanced option for a user-supplied client.
+See [publisher registration](registration/README.md) for exact callbacks, scopes and build configuration. The current candidate has no production Google/X/Slack/GitHub publisher client configuration. Ordinary users should not have to register developer applications; missing publisher configuration is shown honestly, with a separate advanced option for a user-supplied client.
+
+## GitHub publisher client
+
+Register a **GitHub App** owned by BlinkyBot. Do not use `gh auth login`, and do not register a classic OAuth App: GitHub’s classic `repo` scope would grant repository contents, which this app does not use. The desktop flow is the OAuth authorization-code grant with PKCE, the same shape as X and Gmail, with the differences GitHub requires.
+
+- Callback URL to register, exactly: `http://127.0.0.1:47841/oauth/github/callback`
+- GitHub’s loopback rule also accepts a registered callback of `http://127.0.0.1/oauth/github/callback` (the port does not have to match). Register the exact URL above so a callback check with wildcard matching disabled still succeeds. The app listens only on `127.0.0.1:47841` and does not fall back to another port.
+- Authorize URL scope: `offline_access` only. That is the only scope a GitHub App accepts, and it is what returns a refresh token. Do not send `repo`, `read:org`, `gist`, or device-flow scopes.
+- Repository permission: **Issues: Read and write**. This covers issue comments and pull request conversation comments on `POST /repos/{owner}/{repo}/issues/{issue_number}/comments`, plus the existing issue read used by an already granted watch. Metadata read is added by GitHub. Do not enable Contents, Pull requests, Administration, or device flow.
+- Do not add a model-callable send tool. `github_comment_draft` still only creates a local draft. Posting still requires the trusted draft card. Connecting grants that draft tool for the selected Bot only. `watch_github_issue` is not granted on connect.
+- Build-time public client ID: `MAIN_VITE_GITHUB_CLIENT_ID` (the GitHub App client ID, not the numeric App ID).
+- Build-time client secret: `MAIN_VITE_GITHUB_CLIENT_SECRET`. GitHub’s token endpoint requires it even for a desktop public client. It is extractable from the app, same as a Google Desktop client secret, and must not be committed. PKCE binds the authorization code. `BLINKY_GITHUB_CLIENT_ID` and `BLINKY_GITHUB_CLIENT_SECRET` override those values for tests only.
+- A build with either value missing shows “not enabled by this distributor” and does not start browser sign-in. An old `gh auth` login, or `github-connection.json` version 1, does not count as connected.
 
 ## Bot and execution Agent access
 
@@ -17,11 +30,11 @@ The connection screen selects an applicable Bot, defaulting to the current one. 
 
 Authorization saving merges with concurrent Bot edits. New grants remain hidden until durable. Revocation invalidates existing gateway grants and subsequent calls; an already transmitted provider request may still complete. External writes continue through the existing draft and user-confirmation path. Connection consent or a review result is never approval to send.
 
-Google and X keep the previous valid connection on cancelled/failed reconnects. Disconnect waits for pending refresh/auth writes before deleting local credentials, so a late response cannot restore them. Slack token rotation is persisted before use. GitHub disconnection disables this app's connection while preserving the user's global `gh` login.
+Google and X keep the previous valid connection on cancelled/failed reconnects. Disconnect waits for pending refresh/auth writes before deleting local credentials, so a late response cannot restore them. Slack token rotation is persisted before use. GitHub uses the same reconnect and disconnect rules. Disconnect deletes only BlinkyBot's stored GitHub refresh token. It does not sign the user out of the GitHub CLI or github.com. A previous `gh auth login`, including the old local opt-in file, is not a BlinkyBot connection and must be replaced by this OAuth grant.
 
 ## Configuration and security
 
-Publisher public IDs are injected into the main process at build time. Desktop binaries can be inspected: never bundle confidential server secrets, account tokens or refresh tokens. Provider credentials use the existing system-encrypted storage. Runtime overrides are for explicit local distribution tests, not a replacement for publisher configuration.
+Publisher public IDs are injected into the main process at build time (`MAIN_VITE_GOOGLE_CLIENT_ID`, `MAIN_VITE_GOOGLE_CLIENT_SECRET` only when the Google Desktop client requires it, `MAIN_VITE_X_CLIENT_ID`, `MAIN_VITE_SLACK_CLIENT_ID`, `MAIN_VITE_GITHUB_CLIENT_ID`, and `MAIN_VITE_GITHUB_CLIENT_SECRET` because GitHub’s token endpoint requires it). Desktop binaries can be inspected: never bundle confidential server secrets, account tokens or refresh tokens. The GitHub value is the extractable public-client secret, not a server credential. Provider credentials use the existing system-encrypted storage. Runtime `BLINKY_*` overrides are for explicit local distribution tests, not a replacement for publisher configuration.
 
 A VM-targeted Bot cannot silently fall back to host account tools. Unsupported CLI adapters do not acquire a gateway merely because another adapter passed a test. Folder, app, operating-system and send permissions retain their existing enforcement.
 

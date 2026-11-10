@@ -21,7 +21,8 @@ test('electron-vite embeds only distributor fixture clients into a temporary mai
   const root = await mkdtemp(join(tmpdir(), 'blinky-client-build-'))
   const fixture = {
     MAIN_VITE_GOOGLE_CLIENT_ID: '123456789-fixture.apps.googleusercontent.com',
-    MAIN_VITE_GOOGLE_CLIENT_SECRET: 'fixture-native-secret', MAIN_VITE_X_CLIENT_ID: 'fixture-native-x-client', MAIN_VITE_SLACK_CLIENT_ID: '123456.789012'
+    MAIN_VITE_GOOGLE_CLIENT_SECRET: 'fixture-native-secret', MAIN_VITE_X_CLIENT_ID: 'fixture-native-x-client', MAIN_VITE_SLACK_CLIENT_ID: '123456.789012',
+    MAIN_VITE_GITHUB_CLIENT_ID: 'Iv1.fixtureClient123', MAIN_VITE_GITHUB_CLIENT_SECRET: 'fixture-github-secret'
   }
   for (const [key, value] of Object.entries(fixture)) process.env[key] = value
   try {
@@ -37,6 +38,7 @@ test('electron-vite embeds only distributor fixture clients into a temporary mai
     assert.deepEqual(clients.googleClient(), { clientId: fixture.MAIN_VITE_GOOGLE_CLIENT_ID, clientSecret: fixture.MAIN_VITE_GOOGLE_CLIENT_SECRET })
     assert.equal(clients.xClientId(), fixture.MAIN_VITE_X_CLIENT_ID)
     assert.equal(clients.slackClientId(), fixture.MAIN_VITE_SLACK_CLIENT_ID)
+    assert.deepEqual(clients.githubClient(), { clientId: fixture.MAIN_VITE_GITHUB_CLIENT_ID, clientSecret: fixture.MAIN_VITE_GITHUB_CLIENT_SECRET })
   } finally {
     for (const key of Object.keys(fixture)) delete process.env[key]
     await rm(root, { recursive: true, force: true })

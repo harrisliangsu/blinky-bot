@@ -1,7 +1,7 @@
 /**
  * GitHub, Git, and Gmail connections shared by every Bot.
  *
- * GitHub uses the official `gh auth` flow and does not keep the token.
+ * GitHub stores BlinkyBot's own OAuth refresh token. A `gh auth` login is not a connection.
  * Git reads and writes the global identity already on this Mac.
  * Google statuses require an actual token refresh and service API check.
  */
@@ -9,7 +9,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { AppStatus } from '../../shared/apps'
-import { startExternalLogin } from '../app/externalLogin'
 import { which } from '../backends/which'
 import { hydratedEnv } from '../backends/loginShellEnv'
 import { getSettings, updateSettings } from '../settings'
@@ -18,8 +17,9 @@ import { hasGoogleClient, verifyGoogleConnection } from '../connectors/googleOAu
 import { slackConnectionState } from '../connectors/slackSocket'
 import { readXCredentials } from '../connectors/xSecrets'
 import { hasXClient, verifyXConnection } from '../connectors/xOAuth'
-import { gitProbeFailed, githubProbeState, type CommandProbe } from './statusClassification'
-import { githubEnabled, setGitHubEnabled } from '../connectors/githubConnection'
+import { readGitHubCredentials, legacyGitHubCliOptIn } from '../connectors/githubSecrets'
+import { hasGitHubClient, verifyGitHubConnection } from '../connectors/githubOAuth'
+import { gitProbeFailed, type CommandProbe } from './statusClassification'
 
 const run = promisify(execFile)
 
@@ -35,29 +35,21 @@ async function capture(binary: string, args: string[]): Promise<CommandProbe> {
   }
 }
 
+let githubCache: { value: AppStatus; at: number } | undefined, githubGeneration = 0
+export function invalidateGitHubStatus(): void { githubCache = undefined; githubGeneration++ }
 async function githubStatus(): Promise<AppStatus> {
-  try { if (!await githubEnabled()) return { id: 'github', status: 'disconnected', detail: 'disabled' } }
-  catch { return { id: 'github', status: 'unavailable', detail: 'verification-failed' } }
-  const binary = await which('gh')
-  if (!binary) {
-    return {
-      id: 'github',
-      status: 'unavailable',
-      detail: 'gh'
-    }
-  }
-  const probe = await capture(binary, ['auth', 'status', '--hostname', 'github.com'])
-  const status = githubProbeState(probe)
-  if (status === 'connected') {
-    // auth status alone is insufficient: verify the identity the connector
-    // will actually use (including environment-token overrides).
-    const identity = await capture(binary, ['api', '--hostname', 'github.com', 'user', '--jq', '.login'])
-    const account = identity.stdout.trim()
-    return identity.ok && /^[A-Za-z0-9-]{1,39}$/.test(account)
-      ? { id: 'github', status, account }
-      : { id: 'github', status: 'unavailable', detail: 'verification-failed' }
-  }
-  return status === 'unavailable' ? { id: 'github', status, detail: 'verification-failed' } : { id: 'github', status }
+  if (githubCache && Date.now() - githubCache.at < 30_000) return githubCache.value
+  const generation = githubGeneration
+  let value: AppStatus, hasSavedClient = false
+  try {
+    const saved = await readGitHubCredentials()
+    hasSavedClient = !!saved
+    value = saved ? { id: 'github', status: 'connected', account: (await verifyGitHubConnection()).login }
+      : { id: 'github', status: 'disconnected', detail: await hasGitHubClient() ? (await legacyGitHubCliOptIn() ? 'legacy-gh-auth' : 'oauth-ready') : 'oauth-client-required' }
+  } catch { value = { id: 'github', status: 'unavailable', detail: hasSavedClient ? 'verification-failed-with-client' : 'verification-failed' } }
+  if (generation !== githubGeneration) return githubStatus()
+  githubCache = { value, at: Date.now() }
+  return value
 }
 
 async function gitStatus(): Promise<AppStatus> {
@@ -128,21 +120,6 @@ export async function appStatus(id: AppStatus['id']): Promise<AppStatus> {
   if (id === 'x') return xStatus()
   const slack = slackConnectionState()
   return { id: 'slack', status: slack.state === 'connected' ? 'connected' : slack.state === 'connecting' ? 'pending' : slack.state === 'error' ? 'unavailable' : 'disconnected' }
-}
-
-export async function connectGitHub(): Promise<{ started: boolean }> {
-  const binary = await which('gh')
-  if (!binary) return { started: false }
-  // Reuse a login the user already owns; no token is copied into BlinkyBot.
-  const identity = await capture(binary, ['api', '--hostname', 'github.com', 'user', '--jq', '.login'])
-  if (identity.ok && /^[A-Za-z0-9-]{1,39}$/.test(identity.stdout.trim())) { await setGitHubEnabled(true); return { started: true } }
-  await setGitHubEnabled(true)
-  return startExternalLogin('github', binary, ['auth', 'login', '--web', '--hostname', 'github.com'])
-}
-
-export async function disconnectGitHub(): Promise<{ ok: boolean }> {
-  await setGitHubEnabled(false)
-  return { ok: true }
 }
 
 function clean(value: string, max: number): string {

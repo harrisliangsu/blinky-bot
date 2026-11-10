@@ -23,9 +23,21 @@ export function slackClientId(): string | undefined {
   if (!/^\d{2,30}\.\d{2,30}$/.test(value)) throw new Error('A valid Slack public client ID is required.')
   return value
 }
+export interface GitHubClient { clientId: string; clientSecret: string }
+/** Both values are required. GitHub's token endpoint rejects a public client that omits the secret. */
+export function githubClient(): GitHubClient | undefined {
+  const clientId = (process.env.BLINKY_GITHUB_CLIENT_ID ?? bundled.MAIN_VITE_GITHUB_CLIENT_ID ?? '').trim()
+  const clientSecret = (process.env.BLINKY_GITHUB_CLIENT_SECRET ?? bundled.MAIN_VITE_GITHUB_CLIENT_SECRET ?? '').trim()
+  if (!clientId || !clientSecret) return undefined
+  validateGitHubClient(clientId, clientSecret)
+  return { clientId, clientSecret }
+}
 export function validateGoogleClient(clientId: string, secret = ''): void {
   if (!/^[A-Za-z0-9_-]{8,200}\.apps\.googleusercontent\.com$/.test(clientId) || secret.length > 1024 || /[\r\n\0]/.test(secret)) throw new Error('A valid Google desktop OAuth client ID is required.')
 }
 export function validateXClient(clientId: string): void {
   if (!/^[A-Za-z0-9_-]{8,500}$/.test(clientId)) throw new Error('A valid X public client ID is required.')
+}
+export function validateGitHubClient(clientId: string, secret: string): void {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{7,99}$/.test(clientId) || !secret || secret.length > 1024 || /[\r\n\0]/.test(secret)) throw new Error('A valid GitHub OAuth client ID and client secret are required.')
 }

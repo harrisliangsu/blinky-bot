@@ -1,7 +1,7 @@
 /** IPC for GitHub, Git, and Gmail. Probes stay in `apps/status.ts`. */
 
 import type { AppStatus } from '../../shared/apps'
-import { appStatus, appStatuses, connectGit, connectGitHub, disconnectGitHub, invalidateGoogleStatus, invalidateXStatus, requestGmail } from '../apps/status'
+import { appStatus, appStatuses, connectGit, invalidateGitHubStatus, invalidateGoogleStatus, invalidateXStatus, requestGmail } from '../apps/status'
 import { captureAppToolIntent, finishAppToolIntent, invalidateAppToolIntent, type AppToolIntent } from '../apps/toolAccess'
 import { isConnectedApp } from '../../shared/connectedAppTools'
 import { cancelGoogleConnect, connectGoogle, disconnectGoogle } from '../connectors/googleOAuth'
@@ -11,6 +11,7 @@ import { clearSlackCredentials } from '../connectors/slackSecrets'
 import { restartSlackSocket, slackConnectionState, stopSlackSocket } from '../connectors/slackSocket'
 import { syncRoutineLauncher } from '../app/routineLauncher'
 import { cancelXConnect, connectX, disconnectX } from '../connectors/xOAuth'
+import { cancelGitHubConnect, connectGitHub, disconnectGitHub } from '../connectors/githubOAuth'
 import { CHANNELS } from './channels'
 import { emptyArray, handle, handleEvent } from './handler'
 
@@ -21,22 +22,25 @@ function text(value: unknown, max: number): string {
 let slackJob: Promise<unknown> | null = null
 let slackEpoch = 0
 let xJob: Promise<unknown> | null = null, xEpoch = 0
-let githubToolIntent: AppToolIntent | undefined
+let githubJob: Promise<unknown> | null = null, githubEpoch = 0
 
 export function registerAppIpc(): void {
-  handle<AppStatus[]>(CHANNELS.appsStatus, async () => {
-    const statuses = await appStatuses(), intent = githubToolIntent
-    if (intent && statuses.some(row => row.id === 'github' && row.status === 'connected')) {
-      githubToolIntent = undefined
-      try { await finishAppToolIntent(intent) } catch { const row = statuses.find(row => row.id === 'github'); if (row) row.detail = 'bot-access-not-saved' }
-    }
-    return statuses
-  }, emptyArray)
-  handleEvent<{ started: boolean; error?: string }>(CHANNELS.appsConnectGitHub, async (_event, [botId]) => {
-    try { const intent = captureAppToolIntent('github', botId), result = await connectGitHub(); if (result.started) githubToolIntent = intent; return result }
-    catch { return { started: false, error: 'GitHub did not connect. Bot access was not changed.' } }
-  }, () => ({ started: false }))
-  handleEvent<{ ok: boolean }>(CHANNELS.appsDisconnectGitHub, () => { githubToolIntent = undefined; invalidateAppToolIntent('github'); return disconnectGitHub() }, () => ({ ok: false }))
+  handle<AppStatus[]>(CHANNELS.appsStatus, () => appStatuses(), emptyArray)
+  handleEvent<{ ok: boolean; error?: string }>(CHANNELS.appsConnectGitHub, async (_event, [clientId, clientSecret, botId]) => {
+    if (githubJob || typeof clientId !== 'string' || clientId.length > 200 || typeof clientSecret !== 'string' || clientSecret.length > 1024) return { ok: false }
+    let intent: AppToolIntent | undefined
+    try { intent = captureAppToolIntent('github', botId) } catch { return { ok: false, error: 'Choose an available Bot.' } }
+    const epoch = githubEpoch, job = connectGitHub(clientId, clientSecret); githubJob = job
+    let connected = false
+    try { await job; connected = true; if (epoch !== githubEpoch) return { ok: false }; invalidateGitHubStatus(); await finishAppToolIntent(intent); return { ok: true } }
+    catch { return { ok: false, ...(connected ? { error: '应用已连接，但 Bot 工具授权未保存。请重新允许此 Bot 使用应用。 / Connected, but Bot tool access was not saved. Allow this Bot again.' } : {}) } }
+    finally { if (githubJob === job) githubJob = null }
+  }, () => ({ ok: false }))
+  handleEvent<void>(CHANNELS.appsCancelGitHub, () => { githubEpoch++; invalidateAppToolIntent('github'); cancelGitHubConnect() }, () => undefined)
+  handleEvent<{ ok: boolean }>(CHANNELS.appsDisconnectGitHub, async () => {
+    githubEpoch++; invalidateAppToolIntent('github'); invalidateGitHubStatus()
+    try { await disconnectGitHub(); invalidateGitHubStatus(); return { ok: true } } catch { return { ok: false } }
+  }, () => ({ ok: false }))
   handleEvent('openbot:apps:setBotAccess', async (event, [service, botId, enabled]) => {
     if (!isConnectedApp(service) || typeof enabled !== 'boolean') return { ok: false, error: 'Invalid app access choice.' }
     if (!event.sender.isFocused() || !await event.senderFrame?.executeJavaScript('navigator.userActivation.isActive')) return { ok: false, error: '请在 Mac 设置中确认此 Bot 的应用使用权限。 / Confirm app access in the Mac settings window.' }
