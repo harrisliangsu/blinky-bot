@@ -4,12 +4,14 @@ import type { AgentTask } from '../../shared/types'
 import { dependencyState, parseSavedTaskPlan, parseTaskPlan, rankQueuedTasks, validateDependencyGraph } from './planning.ts'
 const task = (id: string, at = 1000): AgentTask => ({ id, botId: 'worker', requesterBotId: 'lead', sourceSessionId: 'source', sessionId: 'private-' + id, title: id, prompt: id, status: 'queued', createdAt: at, updatedAt: at })
 const plan = (input: unknown = {}, tasks: AgentTask[] = []) => parseTaskPlan(input, '/tmp/source', 'source', 'lead', tasks)
-test('the Bot chooses priority and workspace independently; shared work needs a reason and scoped dependencies', () => {
+test('the Bot chooses priority and workspace independently; shared is the default and separate work needs a reason and scoped dependencies', () => {
   const first = task('one'); first.status = 'completed'
-  assert.equal(plan().workspace, 'auto')
-  const chosen = plan({ priority: 'urgent', priority_reason: 'User changed the deadline', workspace: 'shared', workspace_reason: 'Consumes the first task’s output', depends_on: ['one'] }, [first])
+  assert.equal(plan().workspace, 'shared')
+  const chosen = plan({ priority: 'urgent', priority_reason: 'User changed the deadline', workspace: 'isolated', workspace_reason: 'User asked for an isolated experiment', depends_on: ['one'] }, [first])
   assert.equal(chosen.priority, 'urgent'); assert.deepEqual(chosen.dependencies, ['one'])
-  assert.throws(() => plan({ workspace: 'shared' }), /reason/)
+  assert.equal(plan({ workspace: 'shared' }).workspace, 'shared')
+  assert.throws(() => plan({ workspace: 'isolated' }), /reason/)
+  assert.throws(() => plan({ workspace: 'auto' }), /reason/)
   assert.throws(() => plan({ depends_on: ['foreign'] }, [{ ...first, id: 'foreign', requesterBotId: 'other' }]), /belong/)
   assert.throws(() => plan({ priority: 'fake' }), /priority/)
   assert.throws(() => parseSavedTaskPlan({ ...chosen, sourceCwd: '../outside' }), /invalid/)

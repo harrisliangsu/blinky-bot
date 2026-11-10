@@ -7,7 +7,9 @@ import { fixture, until } from './controlFixture.mjs'
 test('new work gets separate sessions/directories; same-task continuation reuses context and retained workspace', async () => {
   const f = await fixture()
   try {
-    const one = await f.start('first independent task'), two = await f.start('unrelated parallel task')
+    const isolated = { workspace: 'isolated', workspace_reason: 'Two writers must not share the source directory in this test.' }
+    const begin = async (text, title, plan) => { const task = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, text, title, undefined, undefined, undefined, plan); await until(() => f.state.calls.some(value => value.id === task.sessionId)); return task }
+    const one = await begin('first independent task', undefined, isolated), two = await begin('unrelated parallel task', undefined, isolated)
     const first = f.api.getTask(one.id), second = f.api.getTask(two.id)
     assert.notEqual(first.sessionId, second.sessionId); assert.notEqual(first.workspace.path, second.workspace.path)
     assert.equal(first.sessionChoice.mode, 'new'); assert.equal(second.sessionChoice.mode, 'new')
@@ -31,7 +33,10 @@ test('shared writers are serialized while independent work can run; dependencies
     const one = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'shared first', 'first', undefined, undefined, undefined, plan)
     await until(() => f.state.calls.some(call => call.id === one.sessionId))
     const two = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'shared second', 'second', undefined, undefined, undefined, plan)
-    const other = await f.start('independent work')
+    const independent = { workspace: 'isolated', workspace_reason: 'Truly independent scope so it runs in parallel with the serialized shared writers.' }
+    const otherTask = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'independent work', 'independent', undefined, undefined, undefined, independent)
+    await until(() => f.state.calls.some(value => value.id === otherTask.sessionId))
+    const other = otherTask
     assert.equal(f.api.getTask(two.id).status, 'queued'); assert.equal(f.api.getTask(other.id).status, 'running')
     const dependency = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'consume output', 'dependent', undefined, undefined, undefined, { depends_on: [other.id] })
     assert.equal(f.api.getTask(dependency.id).status, 'queued')
@@ -45,7 +50,8 @@ test('shared writers are serialized while independent work can run; dependencies
 test('lead can change queued priority and dependencies; running work and foreign Bots are protected', async () => {
   const f = await fixture()
   try {
-    const blockers = []; for (let index = 0; index < 4; index++) blockers.push(await f.start('running-' + index))
+    const blockerPlan = { workspace: 'isolated', workspace_reason: 'Each blocker fills an execution slot with its own scope.' }
+    const blockers = []; for (let index = 0; index < 4; index++) blockers.push(await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'running-' + index, undefined, undefined, undefined, undefined, blockerPlan).then(async (task) => { await until(() => f.state.calls.some(value => value.id === task.sessionId)); return task }))
     const queued = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'ordinary work'), urgent = await f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, 'deadline work')
     assert.equal(f.api.getTask(urgent.id).status, 'queued')
     const updated = await f.command({ action: 'prioritize', taskId: urgent.id, priority: 'urgent', reason: 'The user moved this deadline ahead.' })

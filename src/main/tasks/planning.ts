@@ -12,7 +12,7 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
   if (Object.keys(value).some(key => !['priority', 'priority_reason', 'depends_on', 'workspace', 'workspace_reason', 'session_reason', 'context'].includes(key))) throw new TypeError('Unknown task plan fields.')
   const priority = request.priority ?? previous?.plan?.priority ?? 'normal'
   if (!priorities.includes(priority)) throw new TypeError('Invalid task priority.')
-  const workspace = request.workspace ?? previous?.plan?.workspace ?? 'auto'
+  const workspace = request.workspace ?? previous?.plan?.workspace ?? 'shared'
   if (!['auto', 'isolated', 'shared'].includes(workspace)) throw new TypeError('Invalid task workspace choice.')
   const reason = (text: unknown): string => {
     if (text === undefined) return ''
@@ -20,7 +20,7 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
     return text.trim()
   }
   const workspaceReason = reason(request.workspace_reason) || previous?.plan?.workspaceReason || ''
-  if (workspace === 'shared' && !workspaceReason) throw new TypeError('A shared workspace needs the Bot’s task-specific reason.')
+  if ((workspace === 'auto' || workspace === 'isolated') && !workspaceReason) throw new TypeError('A separate workspace needs the Bot’s task-specific reason (the user asked for isolation, independent git work, or active writers conflict on the same files). Shared work in the lead conversation’s source directory is the default and needs no reason.')
   const dependencies = request.depends_on ?? previous?.plan?.dependencies ?? []
   if (!Array.isArray(dependencies) || dependencies.length > 20 || new Set(dependencies).size !== dependencies.length || dependencies.some(id => typeof id !== 'string' || !id || id.length > 200)) throw new TypeError('Invalid task dependencies.')
   for (const id of dependencies) {
@@ -37,7 +37,7 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
 export function parseSavedTaskPlan(input: unknown): TaskPlan | undefined {
   if (input === undefined) return undefined
   const value = input as TaskPlan
-  if (!value || typeof value !== 'object' || !isAbsolute(value.sourceCwd ?? '') || !priorities.includes(value.priority) || !['auto', 'isolated', 'shared'].includes(value.workspace) || !Array.isArray(value.dependencies) || value.dependencies.length > 20 || new Set(value.dependencies).size !== value.dependencies.length || value.dependencies.some(id => typeof id !== 'string' || !id || id.length > 200) || ['priorityReason', 'workspaceReason', 'sessionReason'].some(key => typeof (value as unknown as Record<string, unknown>)[key] !== 'string') || value.workspace === 'shared' && !value.workspaceReason?.trim()) throw new TypeError('The saved task plan is invalid; inspect it before resuming.')
+  if (!value || typeof value !== 'object' || !isAbsolute(value.sourceCwd ?? '') || !priorities.includes(value.priority) || !['auto', 'isolated', 'shared'].includes(value.workspace) || !Array.isArray(value.dependencies) || value.dependencies.length > 20 || new Set(value.dependencies).size !== value.dependencies.length || value.dependencies.some(id => typeof id !== 'string' || !id || id.length > 200) || ['priorityReason', 'workspaceReason', 'sessionReason'].some(key => typeof (value as unknown as Record<string, unknown>)[key] !== 'string')) throw new TypeError('The saved task plan is invalid; inspect it before resuming.')
   return { priority: value.priority, priorityReason: value.priorityReason.slice(0, 2000), dependencies: [...value.dependencies], workspace: value.workspace, workspaceReason: value.workspaceReason.slice(0, 2000), sourceCwd: value.sourceCwd, sessionReason: value.sessionReason.slice(0, 2000), ...(value.context === undefined ? {} : { context: parseTaskContext(value.context, true) }) }
 }
 
