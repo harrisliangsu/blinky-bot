@@ -27,7 +27,10 @@ version="$(package_version)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/blinky-preview-build.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 mkdir -p release/preview "$work/staging"
-if [[ "$skip_build" -eq 0 ]]; then package_step build npm run build; fi
+if [[ "$skip_build" -eq 0 ]]; then
+    node Scripts/require-publisher-oauth.mjs
+    package_step build npm run build
+fi
 if ! node -e "require('electron')" >/dev/null 2>&1; then
     package_step electron-install node node_modules/electron/install.js
 fi

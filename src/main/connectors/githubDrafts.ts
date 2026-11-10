@@ -1,10 +1,7 @@
-import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { GitHubCommentDraft } from '../../shared/drafts'
-import { hydratedEnv } from '../backends/loginShellEnv'
-import { which } from '../backends/which'
 import { broadcast } from '../agent/events'
 import { getBot } from '../store/bots'
 import { writeJsonNow } from '../store/jsonStore'
@@ -12,7 +9,7 @@ import { dataRoot } from '../store/paths'
 import { getSession } from '../store/sessions'
 import { listTasks } from '../store/tasks'
 import { validGitHubIssueTarget } from './githubTarget'
-import { requireGitHubConnection } from './githubConnection'
+import { postGitHubIssueComment, requireGitHubConnection } from './githubOAuth'
 
 type DraftInput = Pick<GitHubCommentDraft, 'owner' | 'repo' | 'issueNumber' | 'body'>
 let cached: GitHubCommentDraft[] | undefined
@@ -90,37 +87,14 @@ export async function setGitHubFeedback(id: string, from: GitHubCommentDraft['fe
   })
 }
 
-async function postComment(binary: string, draft: GitHubCommentDraft): Promise<string> {
-  const env = await hydratedEnv()
+async function postComment(draft: GitHubCommentDraft): Promise<string> {
   await requireGitHubConnection()
-  return new Promise((resolve, reject) => {
-    const child = spawn(binary, ['api', '--hostname', 'github.com', '--method', 'POST', `repos/${draft.owner}/${draft.repo}/issues/${draft.issueNumber}/comments`, '--input', '-'], { env, stdio: ['pipe', 'pipe', 'ignore'] })
-    let output = '', settled = false
-    const done = (value?: string): void => { if (settled) return; settled = true; clearTimeout(timer); value ? resolve(value) : reject(new Error('Send result is uncertain.')) }
-    const timer = setTimeout(() => { child.kill(); done() }, 30000)
-    child.on('error', () => done())
-    child.stdout.on('data', (chunk: Buffer) => { output += chunk.toString(); if (output.length > 1000000) { child.kill(); done() } })
-    child.on('close', (code) => {
-      if (code !== 0) return done()
-      try {
-        const response = JSON.parse(output) as { id?: unknown; html_url?: unknown }
-        const url = new URL(String(response.html_url))
-        const prefix = `/${draft.owner}/${draft.repo}/`.toLowerCase()
-        const expectedPaths = [`${prefix}issues/${draft.issueNumber}`, `${prefix}pull/${draft.issueNumber}`]
-        if (!Number.isSafeInteger(response.id) || url.protocol !== 'https:' || url.hostname !== 'github.com' || !expectedPaths.includes(url.pathname.toLowerCase()) || url.hash !== `#issuecomment-${response.id}`) return done()
-        done(url.toString())
-      } catch { done() }
-    })
-    child.stdin.on('error', () => done())
-    child.stdin.end(JSON.stringify({ body: draft.body }))
-  })
+  return postGitHubIssueComment(draft.owner, draft.repo, draft.issueNumber, draft.body)
 }
 
 /** Only a trusted renderer user action calls this; no send tool is exposed to models. */
 export async function actOnGitHubDraft(id: string, sessionId: string, action: 'send' | 'cancel'): Promise<GitHubCommentDraft> {
   if (action === 'send') await requireGitHubConnection()
-  const binary = action === 'send' ? await which('gh') : null
-  if (action === 'send' && !binary) throw new Error('GitHub CLI is not available.')
   const started = await serial(async () => {
     const records = await load(), current = records.find((d) => d.id === id && d.sessionId === sessionId)
     if (!current || current.status !== 'draft') throw new Error('This draft is no longer available for this action.')
@@ -129,9 +103,9 @@ export async function actOnGitHubDraft(id: string, sessionId: string, action: 's
     broadcast({ type: 'github-draft-updated', draft: next })
     return next
   })
-  if (action !== 'send' || !binary) return started
+  if (action !== 'send') return started
   let result: GitHubCommentDraft
-  try { const remoteUrl = await postComment(binary, started); result = { ...started, status: 'sent', feedbackStatus: 'pending', updatedAt: Date.now(), remoteUrl } }
+  try { const remoteUrl = await postComment(started); result = { ...started, status: 'sent', feedbackStatus: 'pending', updatedAt: Date.now(), remoteUrl } }
   catch { result = { ...started, status: 'uncertain', feedbackStatus: 'pending', updatedAt: Date.now() } }
   return serial(async () => {
       let next = result

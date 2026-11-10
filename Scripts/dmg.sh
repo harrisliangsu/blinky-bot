@@ -46,6 +46,7 @@ done
 
 if [[ "$REUSE" -eq 0 ]]; then
     export CSC_IDENTITY_AUTO_DISCOVERY=false
+    node Scripts/require-publisher-oauth.mjs
     package_step build npm run build
     if ! node -e "require('electron')" >/dev/null 2>&1; then
         package_step electron-install node node_modules/electron/install.js

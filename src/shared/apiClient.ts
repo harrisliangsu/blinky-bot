@@ -254,7 +254,8 @@ const api: OpenBotApi = {
 
   apps: {
     status: () => invoke<AppStatus[]>('openbot:apps:status'),
-    connectGitHub: (botId) => invoke<{ started: boolean; error?: string }>('openbot:apps:connectGitHub', botId),
+    connectGitHub: (clientId, clientSecret, botId) => invoke<{ ok: boolean; error?: string }>('openbot:apps:connectGitHub', clientId, clientSecret, botId),
+    cancelGitHub: () => invoke<void>('openbot:apps:cancelGitHub'),
     setBotAccess: (service, botId, enabled) => invoke('openbot:apps:setBotAccess', service, botId, enabled),
     disconnectGitHub: () => invoke<{ ok: boolean }>('openbot:apps:disconnectGitHub'),
     connectGit: (name, email) => invoke<AppStatus>('openbot:apps:connectGit', name, email),

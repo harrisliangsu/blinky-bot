@@ -17,6 +17,7 @@ app="$stage/staging/BlinkyBot Preview.app"
 runtime="$app/Contents/Frameworks/BlinkyBot Preview Runtime.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
 
+node Scripts/require-publisher-oauth.mjs
 npm run build
 swift build -c release --package-path Native
 bin_dir="$(swift build -c release --package-path Native --show-bin-path)"
