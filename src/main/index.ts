@@ -45,6 +45,7 @@ import { stopChildProcesses } from './app/shutdown'
 import { PROVIDER_CATALOG } from '../shared/providerCatalog'
 import { nativeDataAllowed } from './native/dataPolicy'
 import { resumeCollaborationServer } from './collaboration/server'
+import { startAutomaticUpdateChecks } from './updates/service'
 
 const nativeRuntime = process.env.BLINKY_NATIVE_RUNTIME === '1'
 const routineRunner = process.argv.includes('--routine-runner') && !nativeRuntime
@@ -147,6 +148,8 @@ if (!claimSingleInstance()) {
           markSmokeReady()
         }
         startRoutineScheduler()
+        // Smoke launches the real app and must not hit the feed or open a dialog.
+        if (!routineRunner && !preview && process.env.BLINKY_SMOKE !== '1') startAutomaticUpdateChecks()
       }
       if (!nativeRuntime && !routineRunner && !botsLoadWasIncomplete()) {
         const managedTargets = listBots().flatMap((bot) =>

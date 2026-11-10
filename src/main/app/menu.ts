@@ -7,6 +7,7 @@
 
 import { Menu, app, type MenuItemConstructorOptions } from 'electron'
 import { sendMenuCommand } from '../ipc'
+import { runUpdateCheck } from '../updates/service'
 
 const isMac = process.platform === 'darwin'
 
@@ -25,6 +26,7 @@ function appMenu(): MenuItemConstructorOptions[] {
         { role: 'about' },
         { type: 'separator' },
         settingsItem,
+        { label: 'Check for Updates…', click: () => void runUpdateCheck('manual') },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },

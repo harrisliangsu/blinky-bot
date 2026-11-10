@@ -290,7 +290,13 @@ test('sparkle feed parsing and version order', () => {
       <enclosure url="https://example.com/BlinkyBot-0.3.0.zip" sparkle:edSignature="abc" />
     </item>`
   const item = readSparkleItem(xml)
-  assert.deepEqual(item, { version: '0.3.0', url: 'https://example.com/BlinkyBot-0.3.0.zip' })
+  assert.deepEqual(item, {
+    version: '0.3.0',
+    url: 'https://example.com/BlinkyBot-0.3.0.zip',
+    edSignature: 'abc',
+    length: null,
+    notes: ''
+  })
   assert.equal(isNewer('0.3.0', '0.2.2'), true)
   assert.equal(isNewer('0.2.2', '0.2.2'), false)
   assert.equal(compareVersions('0.2.10', '0.2.9'), 1)

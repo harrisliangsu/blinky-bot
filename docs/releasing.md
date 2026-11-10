@@ -103,16 +103,14 @@ python3 Scripts/appcast_test.py
 
 ## Updates
 
-`SUPublicEDKey` in the packaged Info.plist is `Scripts/sparkle-public-key.txt`. `SUFeedURL` is `https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml`. The same public key is also copied to `Contents/Resources/sparkle-public-key.txt`.
+`SUPublicEDKey` in the packaged Info.plist is `Scripts/sparkle-public-key.txt`. `SUFeedURL` is `https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml`. The same public key is also copied to `Contents/Resources/sparkle-public-key.txt`. `SUEnableAutomaticChecks` is true and `SUScheduledCheckInterval` is 12 hours.
 
-This Electron build does not embed Sparkle.framework, so the app does not check for updates by itself yet. The signed feed is still published, which is what a later updater build will read. Until then, install the disk image.
+The installed `BlinkyBot.app` reads that feed shortly after launch and again every 12 hours. A newer signed zip posts a notification and asks to download and install. Settings → Updates → Check now, and Check for Updates… in the app menu, use the same prompt. The zip is checked with the Ed25519 key before it replaces `BlinkyBot.app`. This build does not embed Sparkle.framework; it verifies the archive Sparkle’s `sign_update` produces. A dev launch, BlinkyBot Preview, and the smoke launch do not check on their own, and Download and Install will not replace those copies.
 
 The release signs the zip with Sparkle `sign_update` 2.9.6 and `SPARKLE_PRIVATE_KEY`, uploads the three appcast files onto the GitHub Release, and opens a pull request so `main` gets the same files.
 
 ## Not in this version
 
-**Notarization and Developer ID.** `electron-builder` is configured with `"identity": null`, so the app is unsigned. A certificate and notarization would remove the first-launch bypass.
-
-**In-app updater.** The feed and the public key are wired. The framework that would install the zip is not in this build.
+**Notarization and Developer ID.** `electron-builder` is configured with `"identity": null`, so the app is unsigned. A certificate and notarization would remove the first-launch bypass. The updater strips the download quarantine bit after the signature matches; Gatekeeper can still ask on the next launch while the app is unsigned.
 
 **Intel on GitHub.** The hosted runner is Apple Silicon. `Scripts/package-mac.sh` packages the architecture of the machine it runs on. `npm run dist` still asks electron-builder for arm64 and x64 disk images, without the release Read Me or the stable `BlinkyBot-<version>` file names.
