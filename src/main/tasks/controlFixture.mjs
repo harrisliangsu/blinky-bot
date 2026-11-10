@@ -64,7 +64,7 @@ export async function fixture({ clarificationSource } = {}) {
     await state.gates.get(id).promise
     reply(id, `returned:${text}`,state.replyExtras?.[id]??{})
   }
-  async function start(text = 'original objective') { const task = await api.delegateBackgroundTask(home.id, bot.id, bot.id, text); await until(() => state.calls.some(value => value.id === task.sessionId)); return task }
+  async function start(text = 'original objective', plan = { workspace: 'isolated', workspace_reason: 'Fixture scopes are independent and run concurrently.' }) { const task = await api.delegateBackgroundTask(home.id, bot.id, bot.id, text, undefined, undefined, undefined, undefined, plan); await until(() => state.calls.some(value => value.id === task.sessionId)); return task }
   return { root, api, state, bot, home, start, reply, command: (command, sessionId = home.id, botId = bot.id, confirmResume) => api.manageBackgroundTask(sessionId, botId, command, new AbortController().signal, confirmResume), async close() {
     api.stopTaskProgressMonitor();
     for (const task of api.listTasks()) if (['queued', 'running'].includes(task.status)) await api.cancelBackgroundTask(task.id)

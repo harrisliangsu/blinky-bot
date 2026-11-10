@@ -47,10 +47,12 @@ export const delegateTaskTool = defineTool(schema, async (args, ctx) => {
   const title = optStr(args, 'title')?.trim().slice(0, 200)
   const continueTaskId = optStr(args, 'continue_task_id')?.trim()
   if (process.env['BLINKY_PLAN_GATE'] !== 'off' && !continueTaskId) {
-    // Host-side semantic gate: a hollow plan cannot be scheduled or reviewed
-    // honestly, so reject before anything is created and let the Bot repair
-    // the arguments in the same turn.
+    // Host-side semantic gate: a hollow explicit plan cannot be scheduled or
+    // reviewed honestly, so reject before anything is created and let the Bot
+    // repair the arguments in the same turn. Plan-less legacy callers stay
+    // valid; the repair notice below tells them how to save context.
     const plan = args.plan && typeof args.plan === 'object' ? args.plan as Record<string, unknown> : undefined
+    if (plan) {
     const context = plan && typeof plan['context'] === 'object' && plan['context'] !== null ? plan['context'] as Record<string, unknown> : undefined
     const summary = typeof context?.['summary'] === 'string' ? context['summary'].trim() : ''
     const scope = Array.isArray(context?.['scope']) ? context['scope'] : []
@@ -60,6 +62,7 @@ export const delegateTaskTool = defineTool(schema, async (args, ctx) => {
     if (!scope.some(item => typeof item === 'string' && item.trim())) missing.push('context.scope listing the concrete modules or paths being changed')
     if (!boundaries.some(item => typeof item === 'string' && item.trim())) missing.push('context.boundaries stating what is excluded')
     if (missing.length) throw new ToolError(`Nothing was started. The plan is too vague to execute and review safely; missing ${missing.join('; ')}. Re-send delegate_task with a complete plan.context.` )
+    }
   }
   const task: AgentTask = await ctx.host.delegateTask(ctx.sessionId, ctx.botId, target.id, prompt, title, continueTaskId, ctx.signal, args.output_files, args.plan as import('../../../shared/taskPlan').TaskPlanInput | undefined)
   const contextSaved = Boolean(task.plan?.context)

@@ -25,7 +25,8 @@ test('multi-blocker request asks one question at a time, persists exact partial 
 test('two Agents queue user questions one at a time while independent execution remains available',async()=>{
  const f=await fixture()
  try{
-  const a=await f.start('需要用户选择的范围'),b=await f.start('另一个独立范围'),ca=new AbortController(),cb=new AbortController()
+  const iso={workspace:'isolated',workspace_reason:'Independent scopes must run concurrently for this test.'}
+  const a=await f.start('需要用户选择的范围',iso),b=await f.start('另一个独立范围',iso),ca=new AbortController(),cb=new AbortController()
   const pa=f.api.requestTaskClarification(a.sessionId,f.bot.id,[question('a')],ca.signal)
   const ra=await waiting(f)
   const pb=f.api.requestTaskClarification(b.sessionId,f.bot.id,[question('b')],cb.signal)
@@ -76,7 +77,8 @@ test('a pending user decision does not delay another Agent ordinary reversible B
  const f=await fixture()
  try{
   const s=f.api.getSession(f.home.id);f.api.saveSession({...s,messages:[...s.messages,{id:'goal',role:'user',content:'完成报告，普通可逆细节自行决定。',createdAt:1}]})
-  const a=await f.start('需要用户偏好'),b=await f.start('独立的报告格式')
+  const iso={workspace:'isolated',workspace_reason:'Independent scopes must run concurrently for this test.'}
+  const a=await f.start('需要用户偏好',iso),b=await f.start('独立的报告格式',iso)
   const first=f.api.requestTaskClarification(a.sessionId,f.bot.id,[question('preference')],new AbortController().signal)
   const r=await waiting(f)
   f.state.answer={text:JSON.stringify({answers:{format:{kind:'decision',answer:'Markdown',reason:'本地可逆格式',routineReversible:true,requiresUserAuthorization:false}}}),calls:[]}

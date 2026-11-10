@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import { fixture, until } from './controlFixture.mjs'
 
 const context = (summary, scope, extra = {}) => ({ summary, categories: ['开发'], scope, boundaries: ['不发布'], ...extra })
-const delegate = (f, prompt, ctx, plan = {}, previous) => f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, prompt, '相似标题', previous, undefined, undefined, { ...plan, ...(ctx ? { context: ctx } : {}) })
+const delegate = (f, prompt, ctx, plan = { workspace: 'auto', workspace_reason: 'Independent test scopes run concurrently.' }, previous) => f.api.delegateBackgroundTask(f.home.id, f.bot.id, f.bot.id, prompt, '相似标题', previous, undefined, undefined, { ...plan, ...(ctx ? { context: ctx } : {}) })
 const match = (f, text = '新增需求', extra = {}, sessionId) => f.command({ action: 'match', text, ...extra }, sessionId)
 const candidate = (result, id) => result.candidates.find(value => value.id === id)
 

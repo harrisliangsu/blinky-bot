@@ -12,7 +12,14 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
   if (Object.keys(value).some(key => !['priority', 'priority_reason', 'depends_on', 'workspace', 'workspace_reason', 'session_reason', 'context'].includes(key))) throw new TypeError('Unknown task plan fields.')
   const priority = request.priority ?? previous?.plan?.priority ?? 'normal'
   if (!priorities.includes(priority)) throw new TypeError('Invalid task priority.')
-  const workspace = request.workspace ?? previous?.plan?.workspace ?? 'shared'
+  const dependencies = request.depends_on ?? previous?.plan?.dependencies ?? []
+  if (!Array.isArray(dependencies) || dependencies.length > 20 || new Set(dependencies).size !== dependencies.length || dependencies.some(id => typeof id !== 'string' || !id || id.length > 200)) throw new TypeError('Invalid task dependencies.')
+  // Work stays in the user's source directory by default so deliverables land
+  // where the user expects. A single-prerequisite task instead defaults to
+  // auto so it reuses the prerequisite's retained workspace; concurrent
+  // same-directory writers serialize on the workspace key, and the Bot opts
+  // into isolation with a reason when parallel independent work matters.
+  const workspace = request.workspace ?? previous?.plan?.workspace ?? (dependencies.length === 1 ? 'auto' : 'shared')
   if (!['auto', 'isolated', 'shared'].includes(workspace)) throw new TypeError('Invalid task workspace choice.')
   const reason = (text: unknown): string => {
     if (text === undefined) return ''
@@ -20,9 +27,7 @@ export function parseTaskPlan(input: unknown, sourceCwd: string, sourceSessionId
     return text.trim()
   }
   const workspaceReason = reason(request.workspace_reason) || previous?.plan?.workspaceReason || ''
-  if ((workspace === 'auto' || workspace === 'isolated') && !workspaceReason) throw new TypeError('A separate workspace needs the Bot’s task-specific reason (the user asked for isolation, independent git work, or active writers conflict on the same files). Shared work in the lead conversation’s source directory is the default and needs no reason.')
-  const dependencies = request.depends_on ?? previous?.plan?.dependencies ?? []
-  if (!Array.isArray(dependencies) || dependencies.length > 20 || new Set(dependencies).size !== dependencies.length || dependencies.some(id => typeof id !== 'string' || !id || id.length > 200)) throw new TypeError('Invalid task dependencies.')
+  if ((request.workspace === 'auto' || request.workspace === 'isolated') && !workspaceReason) throw new TypeError('A separate workspace needs the Bot’s task-specific reason (the user asked for isolation, independent git work, or active writers conflict on the same files). Shared work in the lead conversation’s source directory is the default and needs no reason.')
   for (const id of dependencies) {
     const dependency = tasks.find(task => task.id === id)
     if (!dependency || dependency.sourceSessionId !== sourceSessionId || (dependency.requesterBotId ?? dependency.botId) !== ownerBotId) throw new TypeError('A dependency must belong to this Bot and source conversation.')

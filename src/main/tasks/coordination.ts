@@ -1,7 +1,7 @@
 /** Durable, source-scoped conversations with executors. No execution or user consent is inferred. */
 import type { ProgressSnapshot } from './progressMonitor'
 export interface CoordinationAction { kind: 'ask' | 'advise' | 'wait'; text: string; nextCheckMinutes?: number }
-export interface CoordinationState { version: 1; owner: string; sequence: number; nextCheckAt: number; consideredReport?: string; awaitingReply?: string; operation?: string; delivery?: string; replyId?: string; lastAdviceText?: string; lastJudgmentAt?: number }
+export interface CoordinationState { version: 1; owner: string; sequence: number; nextCheckAt: number; consideredReport?: string; awaitingReply?: string; operation?: string; delivery?: string; replyId?: string; lastAdviceText?: string }
 export interface CoordinationObservation { snapshot: ProgressSnapshot; report?: string; replies: string[]; deliveries?: Record<string,string> }
 export interface CoordinationPorts {
   now(): number
@@ -12,9 +12,6 @@ export interface CoordinationPorts {
   error(id: string, e: unknown): void
 }
 export class TaskCoordinator {
-  /** Routine executor messages never each trigger a costly judgment; the
-   *  previously chosen check-in cadence and attention-worthy events do. */
-  static readonly MIN_JUDGMENT_GAP_MS = 5 * 60_000
   private tails = new Map<string, Promise<void>>()
   constructor(private ports: CoordinationPorts) {}
   async observe(o: CoordinationObservation): Promise<void> {
@@ -33,8 +30,7 @@ export class TaskCoordinator {
     // Never replay a command whose transport acknowledgement was lost at exit.
     if (state.operation && deliveries?.[state.operation]) state.delivery = deliveries[state.operation]
     else if (state.operation && state.delivery === 'prepared') state.delivery = 'uncertain'
-    const gotReply = Boolean(state.awaitingReply && replies.includes(`reply:${state.awaitingReply}`))
-    if (gotReply) { state.replyId = `reply:${state.awaitingReply}`; delete state.awaitingReply }
+    if (state.awaitingReply && replies.includes(`reply:${state.awaitingReply}`)) { state.replyId = `reply:${state.awaitingReply}`; delete state.awaitingReply }
     if (!eligible) { if (JSON.stringify(state)!==JSON.stringify(old)) await this.ports.write(s.id,state); return }
     const newReport = report && report !== state.consideredReport ? report : undefined
     const due = mayAsk && now >= state.nextCheckAt
@@ -42,16 +38,9 @@ export class TaskCoordinator {
       if (JSON.stringify(state) !== JSON.stringify(old)) await this.ports.write(s.id,state)
       return
     }
-    if (!due && newReport && mayAsk && !s.needsAttention && !gotReply && state.lastJudgmentAt !== undefined && now - state.lastJudgmentAt < TaskCoordinator.MIN_JUDGMENT_GAP_MS) {
-      // Routine progress between check-ins: honor the cadence the Bot chose.
-      // The report stays unconsidered so the next due check accounts for it.
-      if (JSON.stringify(state) !== JSON.stringify(old)) await this.ports.write(s.id,state)
-      return
-    }
     const action = await this.ports.decide(s,{due,awaitingReply:state.awaitingReply,newReport})
     // Inference unavailable is retryable. Never invent a stock inquiry/advice.
     if (!action) { if (!old) await this.ports.write(s.id,state); return }
-    state.lastJudgmentAt = now
     state.consideredReport = report
     const minutes = Number.isFinite(action.nextCheckMinutes) ? Math.min(30,Math.max(5,action.nextCheckMinutes!)) : 15
     state.nextCheckAt = now + minutes*60_000

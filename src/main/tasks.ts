@@ -286,7 +286,7 @@ export async function startBackgroundTask(botId: string, prompt: string, title =
   // Snapshot the execution config without rewriting an existing Bot's setup.
   const source = ensureBotHome(botId)
   if (!source || source.mode !== 'agent') throw new TypeError('后台执行需要可用的执行模式主聊天。')
-  const plan = parseTaskPlan(undefined, source.cwd, source.id, botId, listTasks())
+  const plan = parseTaskPlan({ workspace: 'auto', workspace_reason: 'Independent background work runs isolated until its result is delivered.' }, source.cwd, source.id, botId, listTasks())
   const session = saveSession({ ...createSession([botId], source.cwd), archived: true, cwd: source.cwd, mode: source.mode, title: 'Background execution', ...(source.projectId ? { projectId: source.projectId } : {}) })
   await durable()
   const executionAgent = bot.executionAgent ?? { backendId: bot.backendId, modelId: bot.modelId, ...(bot.thinking ? { thinking: bot.thinking } : {}) }
