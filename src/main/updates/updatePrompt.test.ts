@@ -248,8 +248,11 @@ test('the published appcast is a signed BlinkyBot zip and the notes follow the l
   assert.equal(isEd25519Signature(english.edSignature), true)
   assert.equal(english.edSignature, chinese.edSignature)
   assert.ok((english.length ?? 0) > 1_000_000)
-  assert.match(english.notes, /Apps list/)
-  assert.match(chinese.notes, /应用列表/)
+  // Link labels come from the feed writer for every version, so a new changelog does not break this.
+  assert.match(english.notes, /Release notes on GitHub/)
+  assert.doesNotMatch(english.notes, /在 GitHub 查看更新说明/)
+  assert.match(chinese.notes, /在 GitHub 查看更新说明/)
+  assert.doesNotMatch(chinese.notes, /Release notes on GitHub/)
   assert.equal(english.notes.includes('<'), false)
   assert.notEqual(english.notes, chinese.notes)
   assert.equal(canInstallArchive({ status: 'update', url: english.url, edSignature: english.edSignature, length: english.length }), true)
