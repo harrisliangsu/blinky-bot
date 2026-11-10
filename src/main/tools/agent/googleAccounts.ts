@@ -1,5 +1,6 @@
 import type { ToolSchema } from '../../../shared/types'
 import { googleAccountStatuses } from '../../apps/status'
+import { sharedConnectedAppTools } from '../../apps/sharedAccess'
 import { getBot } from '../../store/bots'
 import { ToolError } from '../errors'
 import { defineTool } from '../results'
@@ -13,7 +14,7 @@ export const schema: ToolSchema = {
 export const googleAccountsTool = defineTool(schema, async (args, ctx) => {
   const bot = getBot(ctx.botId)
   if (!bot || bot.archived) throw new ToolError('This Bot is unavailable.')
-  const grants = new Set<string>(bot.tools), explicit = grants.has('list_google_accounts')
+  const grants = new Set<string>([...bot.tools, ...(bot.computerTarget?.kind === 'vm' ? [] : await sharedConnectedAppTools())]), explicit = grants.has('list_google_accounts')
   const allowed = (['gmail','calendar'] as const).filter(service => explicit || (service === 'gmail'
     ? ['search_gmail','read_gmail','watch_gmail_query','gmail_draft'].some(name => grants.has(name))
     : ['list_calendar_events','calendar_event_draft'].some(name => grants.has(name))))

@@ -40,17 +40,19 @@ test('unconfigured Google, X, and GitHub render distributor-owned status without
     assert.match(html,/disabled=""/);assert.match(html,zh?/发行方/:/distributor/)
     if (id === 'github') assert.match(html, /gh auth/)
     assert.ok(!html.includes('<input'));assert.ok(!html.includes('Set up connection'));assert.ok(!html.includes('配置连接'))
-    assert.match(html,zh?/高级：自带客户端/:/Advanced: bring your own client/)
+    assert.equal(html.includes('高级：自带客户端'), false)
+    assert.equal(html.includes('bring your own client'), false)
+    assert.equal(html.includes('哪些 Bot 可以使用'), false)
   }
 })
-test('missing client cannot initiate OAuth; manual configuration is an explicit advanced action', () => {
+test('missing client cannot initiate OAuth and does not offer a custom client', () => {
   for (const [name,id] of [['GoogleConnectCard','gmail'],['XConnectCard','x'],['GitHubConnectCard','github']]) {
     const calls=[];globalThis.window={openbot:{apps:new Proxy({}, {get:()=> (...args)=>{calls.push(args);return Promise.resolve({ok:true})}})}}
     const m=mount(isolated[name],props(id));m.render()
     assert.equal(m.button('连接').props.disabled,true)
     m.button('连接').props.onClick();m.render();assert.equal(calls.length,0)
-    assert.equal(nodes(m.tree,'input').length,0);m.click('高级：自带客户端…')
-    assert.ok(nodes(m.tree,'input').length>0);assert.equal(calls.length,0)
+    assert.equal(nodes(m.tree,'input').length,0)
+    assert.equal(text(m.tree).includes('高级：自带客户端'), false)
   }
 })
 test('ready Google, X, and GitHub start browser sign-in with empty renderer client fields and show rejected authorization', async () => {

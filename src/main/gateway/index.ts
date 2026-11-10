@@ -18,6 +18,7 @@
 import type { Bot } from '../../shared/types'
 import { getBot } from '../store/bots'
 import { bindExecutionAgent } from '../agent/executionAgent'
+import { toolsVisibleToBot } from '../apps/sharedAccess'
 import { taskJudgmentScope } from '../agent/taskJudgmentScope'
 import { abortInFlight } from './protocol'
 import { closeServer, ensureServer, mcpEndpoint } from './server'
@@ -69,7 +70,7 @@ export async function attachSession(input: GatewayAttachment): Promise<AttachedG
   // come up is a live credential nothing will ever revoke.
   await ensureServer()
 
-  const next = grantInput(bot, input)
+  const next = await grantInput(bot, input)
   const existing = grantsForSession(input.sessionId).find(
     (grant) => grant.botId === input.botId && grantCovers(grant, next)
   )
@@ -108,15 +109,16 @@ export function noteMessage(sessionId: string, messageId: string | undefined): v
   setGrantMessage(sessionId, messageId)
 }
 
-function grantInput(bot: Bot, input: GatewayAttachment): Parameters<typeof mintGrant>[0] {
+async function grantInput(bot: Bot, input: GatewayAttachment): Promise<Parameters<typeof mintGrant>[0]> {
   // Keep the required gateway handshake fail-closed, but give this temporary
   // internal consideration no App capability. Never change the stored Bot.
+  // Connected GitHub, Gmail, and X tools are added for every non-VM Bot.
   const judgment=taskJudgmentScope(input.sessionId)
   return {
     botId: bot.id,
     sessionId: input.sessionId,
     cwd: input.cwd,
-    tools: judgment ? [] : bot.tools ?? [],
+    tools: judgment ? [] : await toolsVisibleToBot(bot),
     computerUse: !judgment && bot.computerUse === true,
     computerTarget: bot.computerTarget
   }

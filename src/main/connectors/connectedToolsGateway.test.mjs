@@ -77,7 +77,8 @@ test('browser grant reaches Bot and independent Agent through real MCP tools wit
   fixture.bots.set(bot.id,bot);for(const id of ['lead','worker','restricted'])fixture.sessions.set(id,{id,mode:'agent',botIds:[bot.id]})
   const attached=[]
   try{
-    await app.connectGoogle('gmail','123456789-fixture.apps.googleusercontent.com','')
+    process.env.BLINKY_GOOGLE_CLIENT_ID='123456789-fixture.apps.googleusercontent.com'
+    await app.connectGoogle('gmail')
     grantName='B';await app.connectGoogle('gmail','','',{addAccount:true});assert.equal(tokenExchanges,2)
     const idB=app.googleAccountId('fixture-b@example.test')
     // Default connection experience: no pre-grant. Real durable Bot store and
@@ -99,8 +100,8 @@ test('browser grant reaches Bot and independent Agent through real MCP tools wit
       const gateway=await app.attachSession({sessionId:id,botId:b.id,cwd:root,backendId:'codex'});assert.ok(gateway);attached.push(id)
       const response=await fetch(gateway.url,{method:'POST',headers:{authorization:`Bearer ${gateway.bearerToken}`,'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'search_gmail',arguments:{query:'fixture',account_id:idB}}})})
       assert.equal(response.status,200);const value=await response.json()
-      assert.equal(value.result.isError===true,id==='unrelated-lead')
-      if(id!=='unrelated-lead')assert.match(JSON.stringify(value),/fixture_message/)
+      assert.notEqual(value.result.isError,true)
+      assert.match(JSON.stringify(value),/fixture_message/)
     }
     await app.setBotAppToolsDurable(selected.id,app.CONNECTED_APP_TOOLS.gmail,false)
     assert.ok(!app.getBot(selected.id).tools.includes('read_gmail'));assert.ok(!app.getBot(unrelated.id).tools.includes('read_gmail'))

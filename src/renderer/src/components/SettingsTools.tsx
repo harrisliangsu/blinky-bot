@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { Bot, Settings } from '../../../shared/types'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { CLI_CATALOG } from '../../../shared/cliCatalog'
+import { localCliAgentsMdMigration } from '../../../shared/localCliTools'
+import { preferenceFor, SKILL_ORIGIN_LABELS } from '../../../shared/skills'
+import type { Settings } from '../../../shared/types'
 import { entitySyncPlan, groupSkills, mcpServersAfterSync } from '../lib/toolSync'
 import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
-import { installSkill, loadSkills, skillsReady, store, syncExistingSkills, updateBot, useAppState } from '../state'
+import { loadSkills, skillsReady, store, updateBot, updateSettings, useAppState } from '../state'
 import { IconPlus } from './Icons'
 import { SettingsAgentsMd, type AgentsMdHandle } from './SettingsAgentsMd'
 import { SettingsMcp, type McpHandle } from './SettingsMcp'
@@ -13,206 +16,195 @@ import './SettingsTools.css'
 type ToolView = 'tools' | 'agent'
 type SyncMode = 'base' | 'merge'
 
-/** Skills, MCP servers, and AGENTS.md for every Agent. Built-in tools stay hidden. */
-export function SettingsTools({ settings, initialView = 'tools', initialSync = false }: { settings: Settings; initialView?: ToolView; initialSync?: boolean }): ReactNode {
+/** Skills, MCP servers, and AGENTS.md. The second view is a local CLI, never a Bot. */
+export function SettingsTools({ settings, initialView = 'tools', initialSync = false, initialCli = '' }: { settings: Settings; initialView?: ToolView; initialSync?: boolean; initialCli?: string }): ReactNode {
   const copy = useSettingsCopy().tools
   const zh = resolveSettingsLang(settings.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
   const { bots, skills } = useAppState()
   const [view, setView] = useState<ToolView>(initialView)
-  const [agentId, setAgentId] = useState('')
+  const [cliId, setCliId] = useState(initialCli)
   const [syncOpen, setSyncOpen] = useState(initialSync)
   const [mode, setMode] = useState<SyncMode>('base')
   const [baselineId, setBaselineId] = useState('')
   const [busy, setBusy] = useState(false)
-  const [pending, setPending] = useState<'install' | 'sync' | 'update' | 'mcp' | 'file' | null>(null)
   const skillsRef = useRef<SkillsHandle>(null)
   const mcpRef = useRef<McpHandle>(null)
   const filesRef = useRef<AgentsMdHandle>(null)
-  const skillsSection = useRef<HTMLDetailsElement>(null)
-  const mcpSection = useRef<HTMLDetailsElement>(null)
-  const filesSection = useRef<HTMLDetailsElement>(null)
-  const show = (section: { current: HTMLDetailsElement | null }, run: () => void, next: 'install' | 'sync' | 'update' | 'mcp' | 'file'): void => {
-    if (section.current) { section.current.open = true; run(); return }
-    setView('tools'); setPending(next)
-  }
-  const pendingOnce = useRef<string | null>(null)
-  useEffect(() => {
-    if (!pending) { pendingOnce.current = null; return }
-    if (pendingOnce.current === pending) return
-    pendingOnce.current = pending
-    const section = pending === 'mcp' ? mcpSection : pending === 'file' ? filesSection : skillsSection
-    if (section.current) section.current.open = true
-    if (pending === 'install') { if (skillsRef.current) skillsRef.current.install(); else void installSkill() }
-    else if (pending === 'sync') { if (skillsRef.current) skillsRef.current.sync(); else void syncExistingSkills() }
-    else if (pending === 'update') { if (skillsRef.current) skillsRef.current.updateFromFolder(); else void installSkill(true) }
-    else if (pending === 'mcp') mcpRef.current?.add()
-    else filesRef.current?.create()
-    setPending(null)
-  }, [pending])
-  const agents = bots.filter((bot) => !bot.archived)
-  const agent = agents.find((bot) => bot.id === agentId)
+  const migrated = useMemo(() => localCliAgentsMdMigration(settings.localCliAgentsMd, bots), [settings.localCliAgentsMd, bots])
+  const assignments = migrated.next
 
   useEffect(() => { if (skillsReady()) void loadSkills() }, [])
+  useEffect(() => {
+    const same = JSON.stringify(assignments) === JSON.stringify(settings.localCliAgentsMd ?? {})
+    if (same && migrated.clearBotIds.length === 0) return
+    let cancel = false
+    void (async () => {
+      if (!same) await updateSettings({ localCliAgentsMd: assignments })
+      if (cancel) return
+      for (const id of migrated.clearBotIds) await updateBot(id, { agentsMdIds: [] })
+    })()
+    return () => { cancel = true }
+  }, [assignments, migrated.clearBotIds, settings.localCliAgentsMd])
 
   const applySync = async (): Promise<void> => {
-    const plan = entitySyncPlan(agents.map((bot) => ({ botId: bot.id, name: bot.name, skillIds: bot.skills ?? [], agentsMdIds: bot.agentsMdIds ?? [] })), mode, baselineId)
+    const owners = CLI_CATALOG.map((cli) => ({ id: cli.id, name: cli.label, agentsMdIds: assignments[cli.id] ?? [] }))
+    const plan = entitySyncPlan(owners, mode, baselineId)
     mcpServersAfterSync(settings.mcpServers ?? [])
+    const next = { ...assignments }
+    for (const step of plan) next[step.id] = [...new Set([...(next[step.id] ?? []), ...step.addAgentsMd])]
     setBusy(true)
     try {
-      let changed = 0
-      for (const step of plan) {
-        const target = agents.find((bot) => bot.id === step.botId)
-        if (!target) continue
-        const saved = await updateBot(target.id, {
-          skills: [...new Set([...(target.skills ?? []), ...step.addSkills])],
-          agentsMdIds: [...new Set([...(target.agentsMdIds ?? []), ...step.addAgentsMd])]
-        })
-        if (saved) changed++
-      }
-      store.toast(changed
-        ? (zh ? `已为 ${changed} 个 Agent 补上缺少的技能和 AGENTS.md。已启用的 MCP 服务器保持不变。` : `Added missing skills and AGENTS.md on ${changed} Agents. Enabled MCP servers were left as they are.`)
-        : (zh ? '没有需要增加的分配。已启用的 MCP 服务器保持不变。' : 'Nothing was missing. Enabled MCP servers were left as they are.'))
+      await updateSettings({ localCliAgentsMd: next })
+      tell(zh, plan.length)
       setSyncOpen(false)
     } finally { setBusy(false) }
   }
+  const assign = (id: string, fileIds: string[]): void => {
+    void updateSettings({ localCliAgentsMd: { ...assignments, [id]: fileIds } })
+  }
 
   return (
-    <div className="ob-set-stack" data-tools="" data-tool-view={view}>
+    <div className="ob-tools-page" data-tools="" data-tool-view={view}>
       <p className="ob-hint ob-tools-intro">{copy.intro}</p>
-      <div className="ob-tools-toolbar">
-        <div className="ob-tools-tabs" role="tablist" aria-label={zh ? '工具视图' : 'Tools view'}>
-          <button type="button" role="tab" aria-selected={view === 'tools'} className="ob-btn ob-btn-sm" onClick={() => setView('tools')}>{zh ? '工具视图' : 'Tools'}</button>
-          <button type="button" role="tab" aria-selected={view === 'agent'} className="ob-btn ob-btn-sm" onClick={() => setView('agent')}>{zh ? 'Agent 视图' : 'Agent'}</button>
-        </div>
-        {view === 'tools' ? <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => setSyncOpen(true)}>{zh ? '一键同步' : 'Sync all'}</button> : null}
-        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => show(skillsSection, () => { if (skillsRef.current) skillsRef.current.install(); else void installSkill() }, 'install')}><IconPlus size={12} />{copy.skillsInstall}</button>
-        <button type="button" className="ob-btn ob-btn-sm" onClick={() => show(skillsSection, () => { if (skillsRef.current) skillsRef.current.sync(); else void syncExistingSkills() }, 'sync')}>{zh ? '同步并验证' : 'Sync and verify'}</button>
-        <button type="button" className="ob-btn ob-btn-sm" onClick={() => show(skillsSection, () => { if (skillsRef.current) skillsRef.current.updateFromFolder(); else void installSkill(true) }, 'update')}>{zh ? '从文件夹更新' : 'Update from folder'}</button>
-        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => show(mcpSection, () => mcpRef.current?.add(), 'mcp')}><IconPlus size={12} />{zh ? '添加服务器' : 'Add server'}</button>
-        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => show(filesSection, () => filesRef.current?.create(), 'file')}><IconPlus size={12} />{zh ? '添加 AGENTS.md' : 'Add AGENTS.md'}</button>
+      <div className="ob-tools-switch" role="tablist" aria-label={zh ? '工具范围' : 'Tools scope'}>
+        <button type="button" role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>{zh ? '工具' : 'Tools'}</button>
+        <button type="button" role="tab" aria-selected={view === 'agent'} onClick={() => setView('agent')}>{zh ? '本地 CLI' : 'Local CLI'}</button>
       </div>
-      {view === 'tools' ? <ToolsSections zh={zh} agents={agents} skillsRef={skillsRef} mcpRef={mcpRef} filesRef={filesRef} skillsSection={skillsSection} mcpSection={mcpSection} filesSection={filesSection} settings={settings} /> : (
-        <div data-agent-view="">
-          <label className="ob-field"><span className="ob-label">{zh ? '选择 Agent' : 'Choose an Agent'}</span>
-            <select className="ob-select" aria-label={zh ? '选择 Agent' : 'Choose an Agent'} value={agentId} onChange={(event) => setAgentId(event.target.value)}>
-              <option value="">{zh ? '选择 Agent' : 'Choose an Agent'}</option>
-              {agents.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
-            </select>
-          </label>
-          {agent ? <AgentSections zh={zh} agent={agent} skills={skills} settings={settings} mcpRef={mcpRef} filesRef={filesRef} skillsSection={skillsSection} mcpSection={mcpSection} filesSection={filesSection} /> : <p className="ob-hint">{zh ? '选择一个 Agent，管理它的技能、MCP 和 AGENTS.md。' : 'Choose an Agent to manage its skills, MCP, and AGENTS.md.'}</p>}
-        </div>
+      {view === 'tools' ? <ToolsSections zh={zh} settings={settings} skillsRef={skillsRef} mcpRef={mcpRef} filesRef={filesRef} assignments={assignments} onSync={() => setSyncOpen(true)} /> : (
+        <CliView zh={zh} cliId={cliId} setCliId={setCliId} skills={skills} settings={settings} assignments={assignments} onAssign={assign} mcpRef={mcpRef} filesRef={filesRef} />
       )}
-      {syncOpen ? <SyncDialog zh={zh} mode={mode} setMode={setMode} agents={agents} baselineId={baselineId} setBaselineId={setBaselineId} busy={busy} onClose={() => setSyncOpen(false)} onApply={() => void applySync()} /> : null}
+      {syncOpen ? <SyncDialog zh={zh} mode={mode} setMode={setMode} baselineId={baselineId} setBaselineId={setBaselineId} busy={busy} onClose={() => setSyncOpen(false)} onApply={() => void applySync()} /> : null}
     </div>
   )
 }
 
-function ToolsSections({ zh, agents, skillsRef, mcpRef, filesRef, skillsSection, mcpSection, filesSection, settings }: {
+function tell(zh: boolean, changed: number): void {
+  store.toast(changed
+    ? (zh ? `已为 ${changed} 个本地 CLI 补上缺少的 AGENTS.md。已启用的 MCP 服务器保持不变。` : `Added missing AGENTS.md on ${changed} local CLIs. Enabled MCP servers were left as they are.`)
+    : (zh ? '没有需要增加的分配。已启用的 MCP 服务器保持不变。' : 'Nothing was missing. Enabled MCP servers were left as they are.'))
+}
+
+function ToolsSections({ zh, settings, skillsRef, mcpRef, filesRef, assignments, onSync }: {
   zh: boolean
-  agents: Bot[]
+  settings: Settings
   skillsRef: RefObject<SkillsHandle | null>
   mcpRef: RefObject<McpHandle | null>
   filesRef: RefObject<AgentsMdHandle | null>
-  skillsSection: RefObject<HTMLDetailsElement | null>
-  mcpSection: RefObject<HTMLDetailsElement | null>
-  filesSection: RefObject<HTMLDetailsElement | null>
-  settings: Settings
+  assignments: Record<string, string[]>
+  onSync: () => void
 }): ReactNode {
   return <>
-    <details ref={skillsSection} className="ob-tool-section" data-tool-section="skills">
-      <summary>{zh ? '技能' : 'Skills'}</summary>
+    <section className="ob-tool-block" data-tool-section="skills">
+      <header className="ob-tool-block-head">
+        <div>
+          <h3>{zh ? '技能' : 'Skills'}</h3>
+          <p className="ob-hint">{zh ? '安装到共享目录后，各本地 CLI 读取自己的目录和共享目录。' : 'Install into the shared directory. Each local CLI reads its own directory and the shared one.'}</p>
+        </div>
+        <div className="ob-tool-block-actions">
+          <button type="button" className="ob-btn ob-btn-sm" onClick={() => skillsRef.current?.sync()}>{zh ? '同步并验证' : 'Sync and verify'}</button>
+          <button type="button" className="ob-btn ob-btn-sm" onClick={() => skillsRef.current?.updateFromFolder()}>{zh ? '从文件夹更新' : 'Update from folder'}</button>
+          <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" onClick={() => skillsRef.current?.install()}><IconPlus size={12} />{zh ? '安装' : 'Install'}</button>
+        </div>
+      </header>
       <SettingsSkills ref={skillsRef} toolbar={false} />
-      <SkillCoverage zh={zh} agents={agents} />
-    </details>
-    <details ref={mcpSection} className="ob-tool-section" data-tool-section="mcp">
-      <summary>MCP</summary>
-      <p className="ob-hint">{zh ? 'MCP 服务器对本机所有 Agent 共用。' : 'MCP servers are shared by every Agent on this Mac.'}</p>
+    </section>
+    <section className="ob-tool-block" data-tool-section="mcp">
+      <header className="ob-tool-block-head">
+        <div>
+          <h3>MCP</h3>
+          <p className="ob-hint">{zh ? 'MCP 服务器对本机所有本地 CLI 共用。' : 'MCP servers are shared by every local CLI on this Mac.'}</p>
+        </div>
+        <div className="ob-tool-block-actions">
+          <button type="button" className="ob-btn ob-btn-sm" onClick={() => mcpRef.current?.add()}><IconPlus size={12} />{zh ? '添加服务器' : 'Add server'}</button>
+        </div>
+      </header>
       <SettingsMcp ref={mcpRef} settings={settings} compact />
-    </details>
-    <details ref={filesSection} className="ob-tool-section" data-tool-section="agents-md">
-      <summary>AGENTS.md</summary>
-      <SettingsAgentsMd ref={filesRef} zh={zh} />
-    </details>
+    </section>
+    <section className="ob-tool-block" data-tool-section="agents-md">
+      <header className="ob-tool-block-head">
+        <div>
+          <h3>AGENTS.md</h3>
+          <p className="ob-hint">{zh ? '文件分配给本地 CLI，不分配给 Bot。' : 'Files are assigned to a local CLI, not to a Bot.'}</p>
+        </div>
+        <div className="ob-tool-block-actions">
+          <button type="button" className="ob-btn ob-btn-sm" onClick={onSync}>{zh ? '同步分配' : 'Sync assignments'}</button>
+          <button type="button" className="ob-btn ob-btn-sm" onClick={() => filesRef.current?.create()}><IconPlus size={12} />{zh ? '添加' : 'Add'}</button>
+        </div>
+      </header>
+      <SettingsAgentsMd ref={filesRef} zh={zh} assignments={assignments} />
+    </section>
   </>
 }
 
-function SkillCoverage({ zh, agents }: { zh: boolean; agents: Bot[] }): ReactNode {
-  const { skills } = useAppState()
-  if (!skills.length || agents.length === 0) return null
-  return <ul className="ob-skill-list">
-    {groupSkills(skills).map((group) => {
-      const ids = new Set(group.sources.map((skill) => skill.id))
-      const have = agents.filter((bot) => (bot.skills ?? []).some((id) => ids.has(id)))
-      return <li key={group.name} className="ob-hint">{group.name} · {zh ? `${have.length}/${agents.length} 个 Agent 已分配` : `${have.length}/${agents.length} Agents assigned`}</li>
-    })}
-  </ul>
-}
-
-function AgentSections({ zh, agent, skills, settings, mcpRef, filesRef, skillsSection, mcpSection, filesSection }: {
+function CliView({ zh, cliId, setCliId, skills, settings, assignments, onAssign, mcpRef, filesRef }: {
   zh: boolean
-  agent: Bot
+  cliId: string
+  setCliId: (id: string) => void
   skills: ReturnType<typeof useAppState>['skills']
   settings: Settings
+  assignments: Record<string, string[]>
+  onAssign: (id: string, fileIds: string[]) => void
   mcpRef: RefObject<McpHandle | null>
   filesRef: RefObject<AgentsMdHandle | null>
-  skillsSection: RefObject<HTMLDetailsElement | null>
-  mcpSection: RefObject<HTMLDetailsElement | null>
-  filesSection: RefObject<HTMLDetailsElement | null>
 }): ReactNode {
-  const groups = groupSkills(skills)
-  const toggleSkill = (ids: string[], on: boolean): void => {
-    const next = new Set(agent.skills ?? [])
-    ids.forEach((id) => { if (on) next.add(id); else next.delete(id) })
-    void updateBot(agent.id, { skills: [...next] })
-  }
-  return <>
-    <details ref={skillsSection} className="ob-tool-section" data-tool-section="skills">
-      <summary>{zh ? '技能' : 'Skills'}</summary>
-      {groups.length === 0 ? <p className="ob-hint">{zh ? '还没有安装技能。' : 'No skills installed yet.'}</p> : <ul className="ob-skill-list">
-        {groups.map((group) => {
-          const ids = group.sources.map((skill) => skill.id)
-          const on = ids.some((id) => (agent.skills ?? []).includes(id))
-          return <li key={group.name} className="ob-skill-row" data-skill={group.name}>
-            <label className="ob-check"><input type="checkbox" checked={on} onChange={(event) => toggleSkill(ids, event.target.checked)} /><span className="ob-skill-name">{group.name}</span></label>
-            <span className="ob-skill-title">{group.sources.map((skill) => <span key={skill.id} className="ob-pill">{skill.origin}</span>)}</span>
-            {group.description ? <details data-skill-description=""><summary>{zh ? '描述' : 'Description'}</summary><p>{group.description}</p></details> : null}
-          </li>
-        })}
-      </ul>}
-    </details>
-    <details ref={mcpSection} className="ob-tool-section" data-tool-section="mcp">
-      <summary>MCP</summary>
-      <p className="ob-hint">{zh ? 'MCP 服务器对本机所有 Agent 共用。这里的启用状态会作用于每个 Agent。' : 'MCP servers are shared. Enabling one here applies to every Agent.'}</p>
-      <SettingsMcp ref={mcpRef} settings={settings} compact />
-    </details>
-    <details ref={filesSection} className="ob-tool-section" data-tool-section="agents-md">
-      <summary>AGENTS.md</summary>
-      <SettingsAgentsMd ref={filesRef} zh={zh} agentId={agent.id} />
-    </details>
-  </>
+  const cli = CLI_CATALOG.find((item) => item.id === cliId)
+  const visible = useMemo(() => {
+    if (!cli) return []
+    const chain = new Set<string>(preferenceFor(cli.id))
+    return groupSkills(skills.filter((skill) => chain.has(skill.origin) || skill.origin === 'project'))
+  }, [cli, skills])
+  return <div data-agent-view="">
+    <label className="ob-field"><span className="ob-label">{zh ? '选择本地 CLI' : 'Choose a local CLI'}</span>
+      <select className="ob-select" aria-label={zh ? '选择本地 CLI' : 'Choose a local CLI'} value={cliId} onChange={(event) => setCliId(event.target.value)}>
+        <option value="">{zh ? '选择本地 CLI' : 'Choose a local CLI'}</option>
+        {CLI_CATALOG.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+      </select>
+    </label>
+    <p className="ob-hint">{zh ? '本地 CLI 是 Codex、Kimi 等命令行运行时，不是 Bot。' : 'A local CLI is a runtime such as Codex or Kimi, not a Bot.'}</p>
+    {cli ? <>
+      <section className="ob-tool-block" data-tool-section="skills">
+        <header className="ob-tool-block-head"><div><h3>{zh ? '技能' : 'Skills'}</h3><p className="ob-hint">{zh ? `${cli.label} 会读取自己的技能目录和共享目录。` : `${cli.label} reads its own skill directory and the shared directory.`}</p></div></header>
+        {visible.length === 0 ? <p className="ob-hint">{zh ? '这个本地 CLI 还读不到技能。' : 'This local CLI cannot read any skills yet.'}</p> : <ul className="ob-skill-list">
+          {visible.map((group) => <li key={group.name} className="ob-skill-row" data-skill={group.name}>
+            <div className="ob-skill-text">
+              <div className="ob-skill-title"><span className="ob-skill-name">{group.name}</span>{group.sources.map((skill) => <span key={skill.id} className="ob-pill">{SKILL_ORIGIN_LABELS[skill.origin as keyof typeof SKILL_ORIGIN_LABELS] ?? skill.origin}</span>)}</div>
+              {group.description ? <details data-skill-description=""><summary>{zh ? '描述' : 'Description'}</summary><p>{group.description}</p></details> : null}
+            </div>
+          </li>)}
+        </ul>}
+      </section>
+      <section className="ob-tool-block" data-tool-section="mcp">
+        <header className="ob-tool-block-head"><div><h3>MCP</h3><p className="ob-hint">{zh ? '这些服务器对本机所有本地 CLI 共用。这里的开关也会作用于其他本地 CLI。' : 'These servers are shared. A switch here applies to every local CLI.'}</p></div></header>
+        <SettingsMcp ref={mcpRef} settings={settings} compact />
+      </section>
+      <section className="ob-tool-block" data-tool-section="agents-md">
+        <header className="ob-tool-block-head"><div><h3>AGENTS.md</h3><p className="ob-hint">{zh ? `分配给 ${cli.label} 的文件会进入使用该本地 CLI 的回合。` : `Files assigned to ${cli.label} are included on turns that run it.`}</p></div></header>
+        <SettingsAgentsMd ref={filesRef} zh={zh} cliId={cli.id} assignments={assignments} onAssign={onAssign} />
+      </section>
+    </> : <p className="ob-hint">{zh ? '选择一个本地 CLI，查看它能读取的技能和 MCP，并分配 AGENTS.md。' : 'Choose a local CLI to see the skills and MCP it can read, and to assign AGENTS.md.'}</p>}
+  </div>
 }
 
-function SyncDialog({ zh, mode, setMode, agents, baselineId, setBaselineId, busy, onClose, onApply }: {
+function SyncDialog({ zh, mode, setMode, baselineId, setBaselineId, busy, onClose, onApply }: {
   zh: boolean
   mode: SyncMode
   setMode: (mode: SyncMode) => void
-  agents: Bot[]
   baselineId: string
   setBaselineId: (id: string) => void
   busy: boolean
   onClose: () => void
   onApply: () => void
 }): ReactNode {
-  return <div className="ob-tool-sync-dialog" role="dialog" aria-modal="true" aria-label={zh ? '一键同步' : 'Sync all'} data-sync-dialog="">
+  return <div className="ob-tool-sync-dialog" role="dialog" aria-modal="true" aria-label={zh ? '同步 AGENTS.md' : 'Sync AGENTS.md'} data-sync-dialog="">
     <div className="ob-tool-sync-card">
-      <h4>{zh ? '一键同步' : 'Sync all'}</h4>
-      <p className="ob-hint">{zh ? '把缺少的技能和 AGENTS.md 加到其他 Agent。不会取消已有分配，也不会关闭已启用的 MCP 服务器。' : 'Adds missing skills and AGENTS.md. It does not unassign anything or turn off an enabled MCP server.'}</p>
-      <label className="ob-check"><input type="radio" name="sync-mode" value="base" checked={mode === 'base'} onChange={() => setMode('base')} />{zh ? '基准：以一个 Agent 为来源' : 'Base: copy from one Agent'}</label>
-      <label className="ob-check"><input type="radio" name="sync-mode" value="merge" checked={mode === 'merge'} onChange={() => setMode('merge')} />{zh ? '合并：取所有 Agent 的并集' : 'Merge: union across Agents'}</label>
-      {mode === 'base' ? <label className="ob-field"><span className="ob-label">{zh ? '基准 Agent' : 'Base Agent'}</span>
-        <select className="ob-select" aria-label={zh ? '基准 Agent' : 'Base Agent'} value={baselineId} onChange={(event) => setBaselineId(event.target.value)}>
-          <option value="">{zh ? '选择 Agent' : 'Choose an Agent'}</option>
-          {agents.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
+      <h4>{zh ? '同步 AGENTS.md' : 'Sync AGENTS.md'}</h4>
+      <p className="ob-hint">{zh ? '把缺少的 AGENTS.md 加到其他本地 CLI。不会取消已有分配，也不会关闭已启用的 MCP 服务器。' : 'Adds missing AGENTS.md to other local CLIs. It does not unassign anything or turn off an enabled MCP server.'}</p>
+      <label className="ob-check"><input type="radio" name="sync-mode" value="base" checked={mode === 'base'} onChange={() => setMode('base')} />{zh ? '基准：以一个本地 CLI 为来源' : 'Base: copy from one local CLI'}</label>
+      <label className="ob-check"><input type="radio" name="sync-mode" value="merge" checked={mode === 'merge'} onChange={() => setMode('merge')} />{zh ? '合并：取所有本地 CLI 的并集' : 'Merge: union across local CLIs'}</label>
+      {mode === 'base' ? <label className="ob-field"><span className="ob-label">{zh ? '基准本地 CLI' : 'Base local CLI'}</span>
+        <select className="ob-select" aria-label={zh ? '基准本地 CLI' : 'Base local CLI'} value={baselineId} onChange={(event) => setBaselineId(event.target.value)}>
+          <option value="">{zh ? '选择本地 CLI' : 'Choose a local CLI'}</option>
+          {CLI_CATALOG.map((cli) => <option key={cli.id} value={cli.id}>{cli.label}</option>)}
         </select>
       </label> : null}
       <div className="ob-skill-toolbar">

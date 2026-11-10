@@ -604,10 +604,10 @@ const en: SettingsCopy = {
     removed: 'That MCP server was removed, so the editor closed without saving.'
   },
   tools: {
-    intro: 'Manage skills, MCP servers, and AGENTS.md for each Agent.',
+    intro: 'Manage skills, MCP servers, and AGENTS.md. A local CLI is a runtime such as Codex or Kimi, not a Bot.',
     sync: 'Sync',
     skillsTitle: 'Skills',
-    skillsIntro: 'Install a folder into the shared directory, then assign it on each Bot.',
+    skillsIntro: 'Skills install into the shared directory. Each local CLI reads its own directory and that shared one.',
     skillsInstall: 'Install',
     skillsLoading: 'Looking for skills…',
     skillsEmpty: 'No skills installed yet.',
@@ -616,7 +616,7 @@ const en: SettingsCopy = {
   },
   apps: {
     title: 'Apps',
-    intro: 'Connect GitHub, Gmail, and X. Every Bot shares these connections. After connecting, the selected Bot and its execution Agent can use reading and local draft tools. Sending keeps its existing confirmation.',
+    intro: 'Connect GitHub, Gmail, and X. Once connected, every Bot can use them. Sending still needs confirmation.',
     refresh: 'Check again',
     connect: 'Connect',
     connected: 'Connected',
@@ -956,10 +956,10 @@ const zh: SettingsCopy = {
     removed: '这个 MCP 服务器已被删除，编辑器已关闭且没有保存。'
   },
   tools: {
-    intro: '管理每个 Agent 的技能、MCP 服务器和 AGENTS.md。',
+    intro: '管理技能、MCP 服务器和 AGENTS.md。本地 CLI 是 Codex、Kimi 等命令行运行时，不是 Bot。',
     sync: '同步',
     skillsTitle: '技能',
-    skillsIntro: '安装到共享目录后，再到每个 Bot 上选用。',
+    skillsIntro: '技能安装到共享目录。每个本地 CLI 读取自己的目录和这个共享目录。',
     skillsInstall: '安装',
     skillsLoading: '正在查找技能…',
     skillsEmpty: '还没有安装技能。',
@@ -968,7 +968,7 @@ const zh: SettingsCopy = {
   },
   apps: {
     title: '应用',
-    intro: '连接 GitHub、Gmail 和 X，供各个 Bot 共用。连接后允许所选 Bot 及其执行 Agent 使用读取和本地草稿工具，发送仍需原有确认。',
+    intro: '连接 GitHub、Gmail 和 X。连接后每个 Bot 都可以使用，发送仍需确认。',
     refresh: '重新检查',
     connect: '连接',
     connected: '已连接',

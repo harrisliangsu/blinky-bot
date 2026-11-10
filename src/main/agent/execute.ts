@@ -8,7 +8,7 @@
  */
 
 import type { Bot, Session, Settings, ToolCall, ToolResult, ToolSchema } from '../../shared/types'
-import { liveBotTools } from './botToolScope'
+import { toolsVisibleToBot } from '../apps/sharedAccess'
 import { requestApproval } from './approval'
 import {
   deniedRuleForCall,
@@ -57,7 +57,7 @@ export async function toolAllowedForBot(bot: Bot, name: string, resolved?: ToolE
   const schema = entry?.schema ?? builtinSchema(name)
   if (!schema) return false
   const canonical = schema.name === 'double_click' ? 'click' : schema.name
-  const enabled = liveBotTools(bot.id, bot.tools ?? [])
+  const enabled = await toolsVisibleToBot(bot)
   const exposed = mergeBuiltins(await schemasFor(enabled, bot.computerTarget), enabled)
   return exposed.some((item) => item.name === canonical)
 }

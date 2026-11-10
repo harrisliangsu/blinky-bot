@@ -107,11 +107,11 @@ export async function connectGitHub(clientInput = '', secretInput = ''): Promise
   const server = createServer(); let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     assertGitHubStorageAvailable()
+    if (clientInput.trim() || secretInput.trim()) throw new Error('Bring-your-own OAuth clients are not supported.')
     const saved = await readGitHubCredentials()
-    const manual = clientInput.trim() !== '' || secretInput.trim() !== ''
-    const publisher = manual || saved ? undefined : githubClient()
-    const clientId = manual ? clientInput.trim() : saved?.clientId || publisher?.clientId
-    const clientSecret = manual ? secretInput.trim() : saved?.clientSecret || publisher?.clientSecret
+    const publisher = saved ? undefined : githubClient()
+    const clientId = saved?.clientId || publisher?.clientId
+    const clientSecret = saved?.clientSecret || publisher?.clientSecret
     if (!clientId || !clientSecret) throw new Error('This distribution needs a GitHub App client before browser sign-in is available.')
     validateGitHubClient(clientId, clientSecret)
     if (controller.signal.aborted) throw new Error('GitHub authorization was cancelled.')

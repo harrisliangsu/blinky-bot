@@ -55,6 +55,7 @@ import { runCalls } from './calls'
 import { schemasFor } from './toolGateway'
 import { skillsSection } from './skillsGateway'
 import { agentsMdSection } from '../agentsMd/section'
+import { toolsVisibleToBot } from '../apps/sharedAccess'
 import { streamAssistantTurn } from './stream'
 import { isEmptyTurn } from './turnCarry'
 import { backendSeesImages } from '../backends/cli/cliImages'
@@ -122,11 +123,12 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
      */
     timing('context-start')
     timing('model-info-start')
+    const visibleTools = await toolsVisibleToBot(bot)
     const [model, skills, memory, schemas, roster, agentsMd] = await Promise.all([
       getModelInfo(bot.backendId, bot.modelId).then((value) => { timing('model-info-ready'); return value }),
       skillsSection(bot, session),
       memoryStore.list(bot.id),
-      schemasFor(bot.tools ?? [], bot.computerTarget),
+      schemasFor(visibleTools, bot.computerTarget),
       bots.many(session.botIds ?? []),
       agentsMdSection(bot)
     ])
@@ -138,7 +140,7 @@ export async function runTurn(input: TurnInput): Promise<TurnResult> {
       settings,
       memory,
       ...(semanticMemory ? { semantic: semanticMemory } : {}),
-      schemas: mergeBuiltins(schemas, bot.tools ?? []),
+      schemas: mergeBuiltins(schemas, visibleTools),
       roster,
       // Codex maintains its native transcript and compacts it itself. Bound the
       // app's handoff history independently, without mistaking the 8k generic

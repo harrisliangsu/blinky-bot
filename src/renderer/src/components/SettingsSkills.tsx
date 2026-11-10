@@ -17,8 +17,8 @@ export interface SkillsHandle {
 /**
  * Skills installed on this Mac, grouped by name.
  *
- * Assignment stays on each Bot. This list is the shared folder plus whatever
- * the CLIs already have, with no preset catalog.
+ * The list is the shared folder plus whatever the local CLIs already have.
+ * There is no preset catalog and no per-Bot assignment.
  */
 export const SettingsSkills = forwardRef<SkillsHandle, { toolbar?: boolean }>(function SettingsSkills({ toolbar = true }, ref): ReactNode {
   const copy = useSettingsCopy().tools
