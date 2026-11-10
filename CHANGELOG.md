@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.13
+
+- **The Apps list shows an icon, a name, and Connected or Not connected.** A connected app also shows the account name. An app that is not connected has only Connect, and that opens its page. Reconnect, Disconnect, which Bots may use the app, and Advanced: bring your own client stay on that page. The advanced form stays closed until you open it. Calendar and Slack stay off the list.
+- **Tools manages skills, MCP servers, and AGENTS.md.** Built-in tools such as reading a file or running a command stay on by default. They are not listed, and they are not synced. The page opens on Tools. Agent is the view for one Agent. Sync all can copy from one Agent, or merge the union of every Agent. It only adds a skill or an AGENTS.md file that is missing. It does not take an assignment away, and it does not turn off an enabled MCP server. Skills that share a name are grouped, each source is tagged, and the description stays closed.
+- **Permissions leads with the macOS grants this app already uses.** Those are Screen Recording, Accessibility, Automation, Microphone, and Notifications. The status is a live check: Granted, Not granted, Not determined, or Unknown. Open System Settings jumps to that pane. Other privacy items can be added. Removing a row only hides it here. It does not revoke the permission in macOS.
+
 ## 0.3.12
 
 - **Apps lists GitHub, Gmail, and X.** Calendar and Slack stay in the product and stay off this grid. Git identity is no longer a card here.
