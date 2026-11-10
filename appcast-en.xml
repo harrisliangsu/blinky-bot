@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-en.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                                            <item>
-            <title>0.3.12</title>
-            <pubDate>Tue, 10 Nov 2026 13:20:22 -0000</pubDate>
-            <sparkle:version>0.3.12</sparkle:version>
-            <sparkle:shortVersionString>0.3.12</sparkle:shortVersionString>
+                                                                <item>
+            <title>0.3.13</title>
+            <pubDate>Tue, 10 Nov 2026 15:24:51 -0000</pubDate>
+            <sparkle:version>0.3.13</sparkle:version>
+            <sparkle:shortVersionString>0.3.13</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.12</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.13</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.12</h2><ul><li><strong>Apps lists GitHub, Gmail, and X.</strong> Calendar and Slack stay in the product and stay off this grid. Git identity is no longer a card here.</li><li><strong>GitHub signs in with BlinkyBot’s own GitHub App.</strong> Authorization opens in the browser. An earlier <code>gh auth login</code> no longer counts as connected. Disconnecting removes only the token BlinkyBot saved, and leaves <code>gh</code> and github.com signed in.</li><li><strong>Gmail and X use official OAuth.</strong> Gmail can search, read, and draft mail. X this wave is posts only: read a post, or publish a text post or reply. Sending mail and publishing a post still wait for a confirmed draft.</li><li><strong>A GitHub comment or an X post leaves only from its draft card.</strong> The shell refuses a comment posted with <code>gh</code> or the GitHub API, so that command cannot replace the card. Other GitHub writes still ask before they run.</li><li><strong>The packaged app receives its OAuth clients at package time.</strong> Google, X, and GitHub client values come from <code>MAIN_VITE_*</code> and are not stored in the repository. When a client is missing, that app says browser sign-in is not enabled and does not start it.</li><li><strong>A device on the same Wi-Fi can open a workspace you approve.</strong> The Mac sets the scope and whether that device can view or act. Sign-in, credentials, and local approvals stay on the Mac. Revoking the share closes that remote workspace.</li><li><strong>A running task shows its current step and any blocker.</strong> When a task comes back, the notice names where the deliverable is. New delegated work uses the conversation’s folder. A task that depends on one earlier task reuses that task’s folder. An isolated folder needs a specific reason.</li><li><strong>A Bot can use a provider’s fast lane.</strong> The switch appears for an OpenRouter model, and for an OpenAI model that accepts priority service. Every other backend hides it. Faster replies cost more.</li><li><strong>Settings and the chat are quieter.</strong> The models page is labeled Agent and describes these as the runtimes a Bot runs on. A message sent during a run says it is queued, and a paused queue can be resumed. Tools can show which Agents have each tool, and syncing only adds a tool that is missing.</li><li><strong>Codex finishes a file change with BlinkyBot’s edit tools.</strong> Its own sandbox stays read-only. A refusal there no longer ends the turn by pasting the change into the chat.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.12">Release notes on GitHub</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.12/BlinkyBot-0.3.12.zip"
-                       length="146310614"
+</style><h2>BlinkyBot 0.3.13</h2><ul><li><strong>The Apps list shows an icon, a name, and Connected or Not connected.</strong> A connected app also shows the account name. An app that is not connected has only Connect, and that opens its page. Reconnect, Disconnect, which Bots may use the app, and Advanced: bring your own client stay on that page. The advanced form stays closed until you open it. Calendar and Slack stay off the list.</li><li><strong>Tools manages skills, MCP servers, and AGENTS.md.</strong> Built-in tools such as reading a file or running a command stay on by default. They are not listed, and they are not synced. The page opens on Tools. Agent is the view for one Agent. Sync all can copy from one Agent, or merge the union of every Agent. It only adds a skill or an AGENTS.md file that is missing. It does not take an assignment away, and it does not turn off an enabled MCP server. Skills that share a name are grouped, each source is tagged, and the description stays closed.</li><li><strong>Permissions leads with the macOS grants this app already uses.</strong> Those are Screen Recording, Accessibility, Automation, Microphone, and Notifications. The status is a live check: Granted, Not granted, Not determined, or Unknown. Open System Settings jumps to that pane. Other privacy items can be added. Removing a row only hides it here. It does not revoke the permission in macOS.</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.13">Release notes on GitHub</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.13/BlinkyBot-0.3.13.zip"
+                       length="146321021"
                        type="application/octet-stream"
-                       sparkle:edSignature="IM1/cqVP6cGv9/1whiThl32mKYpv3lbmfREJy2KMECvIcNTLIiY2kw5gKnl86E15IhNmG2/VuxwxjnmylMcABw==" />
+                       sparkle:edSignature="ML6/ls8Kc9It4hfuLW7yPZOjrgp3AuZfrmhCLLfI1tNvhJ+arIlIrOaYrPBP2yPtO3c3XB864jegwwbVKx+bAg==" />
         </item>
     </channel>
 </rss>
