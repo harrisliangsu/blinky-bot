@@ -9,7 +9,8 @@
  */
 
 import { firstDenyReason } from './denylist'
-import { headBinary, splitSegments, tokenize } from './parse'
+import { GITHUB_COMMENT_BLOCK, ghEffect, inlineSourcePostsComment } from './github'
+import { commandTokens, headBinary, splitSegments, tokenize } from './parse'
 
 export { splitSegments, unquote } from './parse'
 
@@ -83,6 +84,13 @@ const PROGRAM_FIRST_ARG = new Set(['awk', 'gawk', 'mawk', 'nawk'])
 /** Interpreters whose program is itself a shell command worth analysing again. */
 const SHELL_PROGRAM = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish', 'env'])
 
+/** `bash -lc "…"` clusters `-c` with other short options. The next token is still the script. */
+function isProgramFlag(binary: string, flag: string): boolean {
+  const flags = PROGRAM_FLAGS[binary]
+  if (flags?.has(flag)) return true
+  return Boolean(flags && SHELL_PROGRAM.has(binary) && /^-[A-Za-z]*c[A-Za-z]*$/.test(flag))
+}
+
 /** How deep nested substitutions are followed before we stop and just say high. */
 const MAX_NESTING = 3
 
@@ -111,7 +119,7 @@ function inlinePrograms(tokens: string[]): InlineProgram[] {
 
     let taken = false
     for (let j = i + 1; j < tokens.length - 1; j++) {
-      if (!flags.has(tokens[j] ?? '')) continue
+      if (!isProgramFlag(binary, tokens[j] ?? '')) continue
       found.push({ binary, source: tokens[j + 1] ?? '', shell })
       taken = true
     }
@@ -229,6 +237,7 @@ function analyze(command: string, userDenylist: string[], depth: number): Comman
   /* Programs and substitutions found while walking the segments, analysed once
      the head binaries are known so their own segments can be folded in. */
   const nested: string[] = []
+  let ghComment = false
 
   for (const segment of segments) {
     const tokens = tokenize(segment)
@@ -242,12 +251,35 @@ function analyze(command: string, userDenylist: string[], depth: number): Comman
       /* An awk or perl program is not shell, so re-analysing it would report
          nonsense. It is arbitrary code execution either way, and the honest
          answer for something this classifier cannot model is to always ask. */
+      if (inlineSourcePostsComment(program.source)) ghComment = true
       raise('high', `${program.binary} runs an inline program`)
     }
 
     const head = headBinary(tokens)
+    // `eval 'gh pr comment …'` is a shell command. The denylist already unquotes
+    // interpreters; the risk pass has to see the same text or the write auto-runs.
+    if (head?.binary === 'eval') {
+      const invoked = commandTokens(tokens)
+      if (invoked && invoked.tokens.length > 1) nested.push(invoked.tokens.slice(1).join(' '))
+    }
     if (!head) continue
     if (!binaries.includes(head.binary)) binaries.push(head.binary)
+
+    if (head.viaSudo) raise('high', 'runs with sudo')
+    const effect = ghEffect(tokens)
+    if (effect === 'comment') {
+      ghComment = true
+      raise('high', 'gh would post a GitHub comment')
+      continue
+    }
+    if (effect === 'write') {
+      raise('high', 'gh would change GitHub state')
+      continue
+    }
+    if (head.binary === 'gh') {
+      raise('moderate', 'gh is not a known read-only command')
+      continue
+    }
 
     if (head.binary === 'git') {
       const sub = head.args[0] ?? ''
@@ -256,7 +288,6 @@ function analyze(command: string, userDenylist: string[], depth: number): Comman
       else raise('moderate', `git ${sub} modifies the repository`)
       continue
     }
-    if (head.viaSudo) raise('high', 'runs with sudo')
     if (HIGH_RISK_BINARIES.has(head.binary)) raise('high', `${head.binary} is powerful or irreversible`)
     else if (MODERATE_BINARIES.has(head.binary)) raise('moderate', `${head.binary} modifies files or state`)
     else if (!SAFE_BINARIES.has(head.binary)) raise('moderate', `${head.binary} is not a known read-only command`)
@@ -300,7 +331,10 @@ function analyze(command: string, userDenylist: string[], depth: number): Comman
     }
   } else if (nested.length > 0) {
     raise('high', 'nests commands more deeply than this can be checked')
+    if (nested.some((inner) => inlineSourcePostsComment(inner))) ghComment = true
   }
+
+  if (!blocked && ghComment) blocked = GITHUB_COMMENT_BLOCK
 
   return {
     segments,

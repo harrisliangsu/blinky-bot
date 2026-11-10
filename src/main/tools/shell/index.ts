@@ -33,7 +33,8 @@ export const schema: ToolSchema = {
   name: NAME,
   description:
     "Run a command in the user's login shell and return its combined output and exit code. " +
-    'Use it for builds, tests, git and any CLI work. Destructive commands are refused outright; ' +
+    'Use it for builds, tests, git and any CLI work. Do not post GitHub comments with gh or the GitHub API; ' +
+    'use github_comment_draft. Destructive commands and GitHub comment posts are refused outright; ' +
     'anything that changes state is confirmed with the user first. Prefer the dedicated file tools ' +
     'over cat/sed/echo so edits show a diff.',
   parameters: {
@@ -70,14 +71,18 @@ export const shellTool: Tool = defineTool(schema, async (args, ctx) => {
   const analysis = analyzeCommand(command, settings.denylist)
 
   if (analysis.blocked) {
+    const draft = analysis.blocked.includes('github_comment_draft')
     return {
       callId: ctx.callId ?? '',
       name: NAME,
       ok: false,
-      output:
-        `Refused to run this command: it matches ${analysis.blocked}.\n` +
-        'This is a hard safety rule, not an approval prompt — the command was never executed. ' +
-        'Tell the user what you wanted to achieve and let them run it themselves if they really mean it.',
+      output: draft
+        ? `Refused to run this command: it matches ${analysis.blocked}.\n` +
+          'This is a hard safety rule, not an approval prompt — the command was never executed. ' +
+          'Use github_comment_draft so the user can review the comment. Do not retry with gh, the GitHub API, curl, or another shell command, and do not ask the user to run this command themselves.'
+        : `Refused to run this command: it matches ${analysis.blocked}.\n` +
+          'This is a hard safety rule, not an approval prompt — the command was never executed. ' +
+          'Tell the user what you wanted to achieve and let them run it themselves if they really mean it.',
       detail: { command, blocked: analysis.blocked, risk: analysis.risk }
     }
   }
