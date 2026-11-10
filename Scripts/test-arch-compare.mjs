@@ -86,9 +86,9 @@ async function acceptB2(ws) {
 }
 
 async function acceptC(ws, expectedFile) {
-  const exists = await fs.access(path.join(ws, expectedFile)).then(() => true).catch(() => false)
-  const run = await runNode(`const fs=require('fs');const {execFileSync}=require('child_process');const out=execFileSync(process.execPath,['report.js'],{stdio:'pipe'}).toString();fs.writeFileSync('/tmp/arch-c-stdout.txt',out);console.log('ran')`, ws)
+  const run = await runNode(`const {execFileSync}=require('child_process');const out=execFileSync(process.execPath,['report.js'],{stdio:'pipe'}).toString();fs.writeFileSync('/tmp/arch-c-stdout.txt',out);console.log('ran')`.replace('fs.writeFileSync', "require('fs').writeFileSync"), ws)
   const stdout = run.ok ? (await fs.readFile('/tmp/arch-c-stdout.txt', 'utf8').catch(() => '')) : 'run-failed'
+  const exists = await fs.access(path.join(ws, expectedFile)).then(() => true).catch(() => false)
   const content = exists ? await fs.readFile(path.join(ws, expectedFile), 'utf8').catch(() => '') : ''
   return { correctFile: exists, stdoutQuiet: run.ok && stdout.trim() === '', contentOk: /apples/.test(content) && /12/.test(content) }
 }
@@ -223,11 +223,12 @@ for (let r = 1; r <= repsC && (!only || only === 'C'); r++) {
   try {
     const wsB = path.join(root, 'ws-' + tag + '-bot'); await fixtureC(wsB)
     const bot = await botRun(wsB, [PROMPT_C1, PROMPT_C2], { scenario: tag, clarificationAnswer: 'daily_report.txt', roundTimeoutMs: 600000 })
+    const filesAtRunEnd = (await fs.readdir(wsB)).filter((f) => f !== 'report.js')
     const acc = await acceptC(wsB, 'daily_report.txt')
     const filesCreated = (await fs.readdir(wsB)).filter((f) => f !== 'report.js')
     const reportJs = await fs.readFile(path.join(wsB, 'report.js'), 'utf8').catch(() => '')
     const askedInChat = /\?|？|哪[个个一]|请问|澄清/.test(bot.rounds[0]?.lastVisible || '')
-    emit({ scenario: tag, side: 'blinkybot', wallMs: bot.wallMs, acceptance: acc, askedInChat, filesCreated, reportJsTail: reportJs.slice(-400), visibility: bot.visibility, rounds: bot.rounds.map((x) => ({ wallMs: x.wallMs, clarificationsAnswered: x.clarificationsAnswered, lastVisible: x.lastVisible.slice(0, 400) })) })
+    emit({ scenario: tag, side: 'blinkybot', wallMs: bot.wallMs, acceptance: acc, askedInChat, filesAtRunEnd, filesCreated, reportJsTail: reportJs.slice(-400), visibility: bot.visibility, rounds: bot.rounds.map((x) => ({ wallMs: x.wallMs, clarificationsAnswered: x.clarificationsAnswered, lastVisible: x.lastVisible.slice(0, 400) })) })
   } catch (e) { emit({ scenario: tag, side: 'blinkybot', error: String(e).slice(0, 400) }) }
   try {
     const wsN = path.join(root, 'ws-' + tag + '-native'); await fixtureC(wsN)
