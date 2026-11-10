@@ -182,6 +182,16 @@ const setInput = async (selector, value) => ui.evaluate(`(()=>{const e=document.
 async function openApps() { await click(`document.querySelector('.ob-side-profile')`); await click(`[...document.querySelectorAll('[role=menuitem]')].find(e=>e.textContent.trim()==='应用')`); await wait(`!!document.querySelector('[data-app=gmail]')`) }
 async function closeApps() { await ui.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await ui.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await wait(`!document.querySelector('[data-apps]')`) }
 const cardButton = (service, text) => `[...document.querySelectorAll('[data-app="${service}"] button')].find(e=>e.textContent.trim()===${JSON.stringify(text)})`
+async function openApp(service) {
+  const onDetail = await ui.evaluate(`!!(document.querySelector('[data-app-view="detail"]') && document.querySelector('[data-app="${service}"]'))`)
+  if (onDetail) return
+  if (await ui.evaluate(`!!document.querySelector('[data-app-view="detail"]')`)) {
+    await ui.evaluate(`document.querySelector('.ob-app-back')?.click()`)
+    await wait(`document.querySelector('[data-app-view="list"]')`)
+  }
+  await ui.evaluate(`document.querySelector('[data-app="${service}"] .ob-app-row-main')?.click()`)
+  await wait(`document.querySelector('[data-app-view="detail"] [data-app="${service}"]')`)
+}
 async function sendUser(text) {
   const userIds = () => {
     const database = new DatabaseSync(path.join(data, 'sessions.sqlite'), { readOnly: true })
@@ -219,9 +229,11 @@ const lines = async file => (await fs.readFile(file, 'utf8').catch(() => '')).tr
 try {
   await launch(); await openApps()
   assert.equal(await ui.evaluate(`['git','calendar','slack'].every(id=>!document.querySelector('[data-app="'+id+'"]')) && ['github','gmail','x'].every(id=>!!document.querySelector('[data-app="'+id+'"]'))`), true)
-  await wait(`document.querySelector('[data-app=gmail]')?.textContent.includes('浏览器登录')`)
-  await click(cardButton('gmail', '浏览器登录')); await wait(`document.querySelector('[data-app=gmail]')?.textContent.includes('已连接')`)
-  await click(cardButton('x', '浏览器登录')); await wait(`document.querySelector('[data-app=x]')?.textContent.includes('已连接')`)
+  await click(cardButton('gmail', '连接')); await wait(`document.querySelector('[data-app-view="detail"]')`)
+  await click(cardButton('gmail', '连接')); await wait(`document.querySelector('[data-app=gmail]')?.textContent.includes('已连接')`)
+  await openApp('x')
+  await click(cardButton('x', '连接')); await wait(`document.querySelector('[data-app=x]')?.textContent.includes('已连接')`)
+  await openApp('gmail')
   assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['gmail','x'].includes(r.id)).every(r=>r.status==='connected'))`), true)
   assert.equal(await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.filter(r=>['calendar','slack'].includes(r.id)).every(r=>r.status!=='connected'))`), true)
   for (const [index, email] of ['account2@example.test','account3@example.test','account4@example.test'].entries()) {
@@ -330,12 +342,14 @@ try {
   await stop(); await launch()
   await main.evaluate(`__connectorFixture.denied=true`)
   await openApps()
+  await openApp('gmail')
   await wait(`document.querySelector('[data-app=gmail]')?.textContent.includes('无法验证连接')`)
   await screenshot('permission-denied-light'); await closeApps(); await prompt('CONNECTOR_DENIED_SEARCH')
   assert.ok((await lines(cliTrace)).some(row => row.tag === 'CONNECTOR_DENIED_SEARCH' && row.ok === false))
   assert.equal((await lines(trace)).filter(row => row.send).length, expectedSends)
   result.checks.push('Reduced refreshed scopes surface unavailable status and deny the actual mail tool without a send')
   await openApps()
+  await openApp('gmail')
   for (const service of ['gmail']) {
     let remaining = await ui.evaluate(`window.openbot.apps.status().then(rows=>rows.find(r=>r.id===${JSON.stringify(service)})?.accounts?.length??0)`)
     while (remaining) {
@@ -351,6 +365,7 @@ try {
       await wait(`(document.querySelector(${JSON.stringify(picker)})?.options.length??0)===${remaining}`)
     }
   }
+  await openApp('x')
   for (const service of ['x']) { await click(cardButton(service, '断开')); await click(cardButton(service, '确认断开')); await wait(`document.querySelector('[data-app="${service}"]')?.textContent.includes('未连接')`) }
   await screenshot('disconnected-light'); await closeApps()
   // Change the prompt marker without reusing a previous visible success.

@@ -1,5 +1,5 @@
 import { FormDialog } from './FormDialog'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState, type ReactNode } from 'react'
 import type { McpServerConfig, Settings } from '../../../shared/types'
 import { resolveSettingsLang } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
@@ -10,7 +10,11 @@ import './SettingsMcp.css'
 
 interface SettingsMcpProps {
   settings: Settings
+  /** Page toolbar owns the add button; the list stays compact. */
+  compact?: boolean
 }
+
+export interface McpHandle { add(): void }
 
 const blank = (): McpServerConfig => ({
   id: `mcp-${Date.now()}`,
@@ -26,16 +30,19 @@ const blank = (): McpServerConfig => ({
 })
 
 /** MCP server list: enable, edit connection details, remove. No preset catalog. */
-export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
+export const SettingsMcp = forwardRef<McpHandle, SettingsMcpProps>(function SettingsMcp({ settings, compact = false }, ref): ReactNode {
   const focusScope = useId()
   const copy = useSettingsCopy().mcp
   const zh = resolveSettingsLang(settings.language, typeof navigator === 'undefined' ? 'zh-CN' : navigator.language) === 'zh-CN'
   const [draft, setDraft] = useState<McpServerConfig | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const servers = settings.mcpServers ?? []
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const saving = useRef(false)
+  const openDraft = (): void => { if (saving.current) return; setError(''); setEditingId(null); setDraft(blank()) }
+  useImperativeHandle(ref, () => ({ add: openDraft }), [])
 
   const write = (next: McpServerConfig[]): void => {
     void updateSettings({ mcpServers: next })
@@ -77,60 +84,67 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
 
   return (
     <section className="ob-settings-section" id={focusScope}>
-      <header className="ob-settings-head">
+      {compact ? null : <header className="ob-skill-toolbar">
         <h3 className="ob-label">{copy.title}</h3>
-        <button type="button" data-mcp-add className="ob-btn ob-btn-sm" onClick={() => { if (saving.current) return; setError(''); setEditingId(null); setDraft(blank()) }} disabled={busy || draft !== null}>
+        <button type="button" data-mcp-add className="ob-btn ob-btn-sm ob-btn-primary" onClick={openDraft} disabled={busy || draft !== null}>
           <IconPlus size={12} />
           {copy.add}
         </button>
-      </header>
+      </header>}
+      {compact ? <button type="button" data-mcp-add hidden onClick={openDraft} /> : null}
 
-      <p className="ob-hint">{copy.intro}</p>
+      {compact ? null : <p className="ob-hint">{copy.intro}</p>}
 
       {servers.length === 0 && !draft ? <p className="ob-hint">{copy.empty}</p> : null}
 
       <ul className="ob-mcp-list">
-        {servers.map((server) => (
-          <li key={server.id} className="ob-mcp">
-            <div className="ob-mcp-head">
-              <label className="ob-check">
-                <input type="checkbox" disabled={busy} checked={server.enabled} onChange={(e) => patch(server.id, { enabled: e.target.checked })} />
-                <span className="ob-mcp-name">{server.name || server.id}</span>
-              </label>
+        {servers.map((server) => {
+          const open = openId === server.id
+          const label = server.name || server.id
+          return <li key={server.id} className="ob-mcp" data-mcp={server.id}>
+            <button type="button" className="ob-mcp-head" aria-expanded={open} onClick={() => setOpenId(open ? null : server.id)}>
+              <span className="ob-mcp-name">{label}</span>
               <span className="ob-mcp-right">
+                <span className="ob-pill">{server.enabled ? (zh ? '已启用' : 'Enabled') : (zh ? '未启用' : 'Off')}</span>
                 <span className="ob-pill">{server.transport}</span>
+              </span>
+            </button>
+            {open ? <div className="ob-mcp-detail">
+              <p className="ob-mcp-target">
+                {server.accountName ? `${server.accountName} · ` : ''}
+                {server.transport === 'http' ? server.url || copy.noUrl : server.command || copy.noCommand}
+                {server.auth && server.auth !== 'none' ? ` · ${server.auth}${server.hasBearerToken ? ` ${copy.connected}` : ''}` : ''}
+              </p>
+              <div className="ob-skill-toolbar">
+                <label className="ob-check">
+                  <input type="checkbox" disabled={busy} checked={server.enabled} onChange={(e) => patch(server.id, { enabled: e.target.checked })} />
+                  <span>{zh ? '启用' : 'Enabled'}</span>
+                </label>
                 <button
                   type="button"
-                  className="ob-icon-btn"
-                  aria-label={zh ? `配置 ${server.name || server.id}` : `Configure ${server.name || server.id}`}
+                  className="ob-btn ob-btn-sm"
+                  aria-label={zh ? `配置 ${label}` : `Configure ${label}`}
                   onClick={() => { if (saving.current) return; setError(''); setEditingId(server.id); setDraft({ ...server, bearerToken: '' }) }}
                   disabled={busy || draft !== null}
                 >
                   <IconPencil size={11} />
+                  {zh ? '编辑' : 'Edit'}
                 </button>
-                {/* Removing the server whose editor is open discarded the edit
-                    in silence — the form stayed open over a row that no longer
-                    existed, and its save mapped over nothing. Removal waits
-                    until that editor is closed. */}
                 <button
                   type="button"
-                  className="ob-icon-btn"
-                  aria-label={zh ? `移除 ${server.name || server.id}` : `Remove ${server.name || server.id}`}
+                  className="ob-btn ob-btn-sm"
+                  aria-label={zh ? `移除 ${label}` : `Remove ${label}`}
                   disabled={busy || editingId === server.id}
                   title={editingId === server.id ? (zh ? '请先保存或取消当前编辑，再移除此服务器。' : 'Finish or cancel the open editor before removing this server.') : undefined}
                   onClick={() => write(servers.filter((s) => s.id !== server.id))}
                 >
                   <IconTrash size={12} />
+                  {zh ? '移除' : 'Remove'}
                 </button>
-              </span>
-            </div>
-            <p className="ob-mcp-target">
-              {server.accountName ? `${server.accountName} · ` : ''}
-              {server.transport === 'http' ? server.url || copy.noUrl : server.command || copy.noCommand}
-              {server.auth && server.auth !== 'none' ? ` · ${server.auth}${server.hasBearerToken ? ` ${copy.connected}` : ''}` : ''}
-            </p>
+              </div>
+            </div> : null}
           </li>
-        ))}
+        })}
       </ul>
 
       {draft ? (
@@ -230,4 +244,4 @@ export function SettingsMcp({ settings }: SettingsMcpProps): ReactNode {
       ) : null}
     </section>
   )
-}
+})

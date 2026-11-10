@@ -76,6 +76,14 @@ export const CHANNELS = {
   skillsUninstall: 'openbot:skills:uninstall',
   skillsSyncExisting: 'openbot:skills:syncExisting',
 
+  agentsMdList: 'openbot:agents-md:list',
+  agentsMdRead: 'openbot:agents-md:read',
+  agentsMdCreate: 'openbot:agents-md:create',
+  agentsMdWrite: 'openbot:agents-md:write',
+
+  systemPermissionsStatus: 'openbot:system-permissions:status',
+  systemPermissionsOpen: 'openbot:system-permissions:open',
+
   botsList: 'openbot:bots:list',
   botsGet: 'openbot:bots:get',
   botsCreate: 'openbot:bots:create',

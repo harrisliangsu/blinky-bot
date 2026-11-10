@@ -3,9 +3,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { AppStatus } from '../../../shared/apps'
 import type { Bot } from '../../../shared/types'
 import { settingsCopy } from '../lib/settingsCopy'
-import { BotAppAccess } from './BotAppAccess'
+import { AppBotAccessList } from './AppBotAccessList'
 
-export function GitHubConnectCard({ zh, status, statusLabel, refresh, accessBot }: { zh: boolean; status?: AppStatus; statusLabel: string; refresh: () => void; accessBot?: Bot }): ReactNode {
+export function GitHubConnectCard({ zh, status, statusLabel, refresh, accessBot, bots }: { zh: boolean; status?: AppStatus; statusLabel: string; refresh: () => void; accessBot?: Bot; bots?: Bot[] }): ReactNode {
   const copy = settingsCopy(zh ? 'zh-CN' : 'en').apps
   const [editing, setEditing] = useState(false), [clientId, setClientId] = useState(''), [secret, setSecret] = useState(''), [busy, setBusy] = useState(false), [removing, setRemoving] = useState(false), [error, setError] = useState('')
   const [disconnecting, setDisconnecting] = useState(false)
@@ -34,8 +34,8 @@ export function GitHubConnectCard({ zh, status, statusLabel, refresh, accessBot 
       {status?.detail?.startsWith('verification-failed') ? <p className="ob-hint">{zh ? '无法验证连接，请检查授权和网络。' : 'Could not verify the connection. Check authorization and the network.'}</p> : null}
     </div>
     <div className="ob-apps-google-actions">
-      {busy ? <button type="button" className="ob-btn ob-btn-sm" disabled={disconnecting} onClick={() => void window.openbot.apps.cancelGitHub()}>{disconnecting ? (zh ? '正在断开…' : 'Disconnecting…') : (zh ? '取消授权' : 'Cancel authorization')}</button> : <>
-        <button type="button" className="ob-btn ob-btn-sm" data-connect="github" disabled={!status || !ready} onClick={() => { setError(''); if (ready) authorize() }}>{ready ? (status?.status === 'connected' ? (zh ? '重新授权' : 'Reconnect') : (zh ? '浏览器登录' : 'Sign in with browser')) : (zh ? '浏览器登录暂不可用' : 'Browser sign-in unavailable')}</button>
+      {busy ? <button type="button" className="ob-btn ob-btn-sm" disabled={disconnecting} onClick={() => void window.openbot.apps.cancelGitHub()}>{disconnecting ? (zh ? '正在断开…' : 'Disconnecting…') : (zh ? '取消' : 'Cancel')}</button> : <>
+        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" data-connect="github" disabled={!status || !ready} onClick={() => { setError(''); if (ready) authorize() }}>{status?.status === 'connected' ? (zh ? '重新授权' : 'Reconnect') : (zh ? '连接' : 'Connect')}</button>
         {status?.status === 'connected' || status?.status === 'unavailable' ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => setRemoving(true)}>{zh ? '断开' : 'Disconnect'}</button> : null}
       </>}
     </div>
@@ -57,6 +57,6 @@ export function GitHubConnectCard({ zh, status, statusLabel, refresh, accessBot 
     </div></Modal> : null}
     {busy ? <p className="ob-hint ob-apps-connection-note" role="status">{disconnecting ? (zh ? '正在移除本机授权…' : 'Removing local credentials…') : (zh ? '请在浏览器完成授权或取消。' : 'Complete authorization in your browser or cancel.')}</p> : null}
     {error ? <p className="ob-notice ob-notice-error ob-apps-connection-note" role="alert">{error}</p> : null}
-    {accessBot ? <BotAppAccess service="github" bot={accessBot} connected={status?.status === 'connected'} zh={zh} /> : null}
+    <AppBotAccessList service="github" bots={bots} accessBot={accessBot} connected={status?.status === 'connected'} zh={zh} />
   </section>
 }

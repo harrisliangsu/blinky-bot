@@ -1,36 +1,49 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { TOOL_GROUPS, groupOfTool, toolConsistency, toolSyncPlan } from './toolSync'
+import { entitySyncPlan, groupSkills, mcpServersAfterSync } from './toolSync.ts'
 
-test('every registered tool id belongs to exactly one sync group', async () => {
-  const { TOOL_IDS } = await import('../../../shared/tools.ts')
-  for (const id of TOOL_IDS) {
-    assert.ok(groupOfTool(id), `ungrouped tool: ${id}`)
-  }
-  const total = TOOL_GROUPS.reduce((n, group) => n + group.ids.length, 0)
-  assert.equal(total, new Set(TOOL_GROUPS.flatMap((group) => group.ids)).size)
+const agents = [
+  { botId: 'a', name: 'A', skillIds: ['claude:demo', 'codex:other'], agentsMdIds: ['file-a'] },
+  { botId: 'b', name: 'B', skillIds: ['codex:demo'], agentsMdIds: [] },
+  { botId: 'c', name: 'C', skillIds: [], agentsMdIds: ['file-c'] }
+]
+
+test('skills group by name and keep every source', () => {
+  const grouped = groupSkills([
+    { id: 'claude:demo', name: 'demo', origin: 'claude', description: 'short', path: '/claude' },
+    { id: 'codex:demo', name: 'demo', origin: 'codex', description: 'a longer description', path: '/codex' },
+    { id: 'grok:notes', name: 'notes', origin: 'grok', description: '', path: '/grok' }
+  ])
+  assert.equal(grouped.length, 2)
+  assert.deepEqual(grouped[0].sources.map((item) => item.origin), ['claude', 'codex'])
+  assert.equal(grouped[0].description, 'a longer description')
+  assert.equal(grouped[1].name, 'notes')
 })
 
-test('consistency flags any Agent that lacks the tool', () => {
-  const cells = [
-    { botId: 'a', name: 'A', state: 'on' as const },
-    { botId: 'b', name: 'B', state: 'on' as const },
-    { botId: 'c', name: 'C', state: 'off' as const }
-  ]
-  assert.deepEqual(toolConsistency(cells), { consistent: false, off: 1 })
-  assert.deepEqual(toolConsistency(cells.map((cell) => ({ ...cell, state: 'on' as const }))), { consistent: true, off: 0 })
+test('base sync adds the baseline assignments and never removes', () => {
+  const plan = entitySyncPlan(agents, 'base', 'a')
+  assert.deepEqual(plan, [
+    { botId: 'b', addSkills: ['claude:demo', 'codex:other'], addAgentsMd: ['file-a'] },
+    { botId: 'c', addSkills: ['claude:demo', 'codex:other'], addAgentsMd: ['file-a'] }
+  ])
+  assert.equal(plan.some((step) => step.botId === 'a'), false)
+  assert.equal(plan.some((step) => step.addSkills.includes('codex:demo')), false)
+  assert.deepEqual(entitySyncPlan(agents, 'base', 'missing'), [])
 })
 
-test('sync plan is add-only and never touches the baseline', () => {
-  const cells = [
-    { botId: 'a', name: 'A', state: 'on' as const },
-    { botId: 'b', name: 'B', state: 'off' as const },
-    { botId: 'c', name: 'C', state: 'on' as const }
-  ]
-  const plan = toolSyncPlan(cells, 'a', 'shell', ['shell', 'fetch'])
-  assert.deepEqual(plan, [{ botId: 'b', add: ['shell'] }])
-  // Baseline lacking the tool means nobody gains it.
-  assert.deepEqual(toolSyncPlan(cells, 'b', 'shell', ['fetch']), [])
-  // A baseline without the tool never causes removals.
-  assert.deepEqual(toolSyncPlan(cells, 'b', 'shell', ['fetch']).some((step) => step.add.includes('fetch')), false)
+test('merge sync unions skills and AGENTS.md without dropping anyone', () => {
+  const plan = entitySyncPlan(agents, 'merge')
+  const byId = Object.fromEntries(plan.map((step) => [step.botId, step]))
+  assert.deepEqual(byId.a.addSkills, ['codex:demo'])
+  assert.deepEqual(byId.a.addAgentsMd, ['file-c'])
+  assert.deepEqual(byId.b.addSkills, ['claude:demo', 'codex:other'])
+  assert.deepEqual(byId.b.addAgentsMd, ['file-a', 'file-c'])
+  assert.deepEqual(byId.c.addSkills, ['claude:demo', 'codex:other', 'codex:demo'])
+  assert.deepEqual(byId.c.addAgentsMd, ['file-a'])
+})
+
+test('mcp sync keeps every server enabled flag', () => {
+  const servers = [{ id: 'one', enabled: true }, { id: 'two', enabled: false }]
+  assert.deepEqual(mcpServersAfterSync(servers), servers)
+  assert.equal(mcpServersAfterSync(servers).some((server) => server.id === 'one' && server.enabled === false), false)
 })

@@ -2,9 +2,9 @@ import { Modal } from './Modal'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { AppStatus } from '../../../shared/apps'
 import type { Bot } from '../../../shared/types'
-import { BotAppAccess } from './BotAppAccess'
+import { AppBotAccessList } from './AppBotAccessList'
 
-export function XConnectCard({ zh, status, statusLabel, refresh, accessBot }: { zh: boolean; status?: AppStatus; statusLabel: string; refresh: () => void; accessBot?: Bot }): ReactNode {
+export function XConnectCard({ zh, status, statusLabel, refresh, accessBot, bots }: { zh: boolean; status?: AppStatus; statusLabel: string; refresh: () => void; accessBot?: Bot; bots?: Bot[] }): ReactNode {
   const [editing, setEditing] = useState(false), [clientId, setClientId] = useState(''), [busy, setBusy] = useState(false), [removing, setRemoving] = useState(false), [error, setError] = useState('')
   const [disconnecting, setDisconnecting] = useState(false)
   const ready = status?.detail === 'oauth-ready' || status?.detail === 'verification-failed-with-client' || status?.status === 'connected'
@@ -30,8 +30,8 @@ export function XConnectCard({ zh, status, statusLabel, refresh, accessBot }: { 
       {status?.detail?.startsWith('verification-failed') ? <p className="ob-hint">{zh ? '无法验证连接，请检查授权、网络和 X API 权限。' : 'Could not verify the connection. Check authorization, network and X API access.'}</p> : null}
     </div>
     <div className="ob-apps-google-actions">
-      {busy ? <button type="button" className="ob-btn ob-btn-sm" disabled={disconnecting} onClick={() => void window.openbot.apps.cancelX()}>{disconnecting ? (zh ? '正在断开…' : 'Disconnecting…') : (zh ? '取消授权' : 'Cancel authorization')}</button> : <>
-        <button type="button" className="ob-btn ob-btn-sm" disabled={!status || !ready} onClick={() => { setError(''); if (ready) authorize() }}>{ready ? (status?.status === 'connected' ? (zh ? '重新授权' : 'Reconnect') : (zh ? '浏览器登录' : 'Sign in with browser')) : (zh ? '浏览器登录暂不可用' : 'Browser sign-in unavailable')}</button>
+      {busy ? <button type="button" className="ob-btn ob-btn-sm" disabled={disconnecting} onClick={() => void window.openbot.apps.cancelX()}>{disconnecting ? (zh ? '正在断开…' : 'Disconnecting…') : (zh ? '取消' : 'Cancel')}</button> : <>
+        <button type="button" className="ob-btn ob-btn-sm ob-btn-primary" disabled={!status || !ready} onClick={() => { setError(''); if (ready) authorize() }}>{status?.status === 'connected' ? (zh ? '重新授权' : 'Reconnect') : (zh ? '连接' : 'Connect')}</button>
         {status?.status === 'connected' || status?.status === 'unavailable' ? <button type="button" className="ob-btn ob-btn-sm" onClick={() => setRemoving(true)}>{zh ? '断开' : 'Disconnect'}</button> : null}
       </>}
     </div>
@@ -51,6 +51,6 @@ export function XConnectCard({ zh, status, statusLabel, refresh, accessBot }: { 
     </div></Modal> : null}
     {busy ? <p className="ob-hint ob-apps-connection-note" role="status">{disconnecting ? (zh ? '正在移除本机授权…' : 'Removing local credentials…') : (zh ? '请在浏览器完成授权或取消。' : 'Complete authorization in your browser or cancel.')}</p> : null}
     {error ? <p className="ob-notice ob-notice-error ob-apps-connection-note" role="alert">{error}</p> : null}
-    {accessBot ? <BotAppAccess service="x" bot={accessBot} connected={status?.status === 'connected'} zh={zh} /> : null}
+    <AppBotAccessList service="x" bots={bots} accessBot={accessBot} connected={status?.status === 'connected'} zh={zh} />
   </section>
 }

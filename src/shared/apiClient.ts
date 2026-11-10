@@ -280,6 +280,16 @@ const api: OpenBotApi = {
     uninstall: (id) => invoke<SkillUninstallResult>('openbot:skills:uninstall', id),
     syncExisting: () => invoke('openbot:skills:syncExisting')
   },
+  agentsMd: {
+    list: () => invoke('openbot:agents-md:list'),
+    read: (id) => invoke('openbot:agents-md:read', id),
+    create: (title) => invoke('openbot:agents-md:create', title),
+    write: (id, content) => invoke('openbot:agents-md:write', id, content)
+  },
+  systemPermissions: {
+    status: (ids) => invoke('openbot:system-permissions:status', ids),
+    open: (id) => invoke('openbot:system-permissions:open', id)
+  },
   settings: {
     saveDecisionReview: (enabled) => invoke('openbot:settings:decisionReview', enabled),
     saveMcpServer: (edit) => invoke<import('./settings').McpServerSaveResult>('openbot:settings:saveMcpServer', edit),

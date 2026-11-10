@@ -1,51 +1,82 @@
 /**
- * Tool-consistency helpers for the settings Tools page.
+ * Assignment sync for the settings Tools page.
  *
- * The page treats each Bot as an Agent and answers, per tool: who has it
- * enabled, who does not, and whether the fleet is consistent. Syncing is
- * add-only by design — a tool a baseline Agent disabled is never revoked
- * from another Agent automatically.
+ * Built-in tool primitives are not managed here. Sync copies skill assignments
+ * and AGENTS.md assignments. It only adds what is missing. MCP servers are
+ * shared by every Agent, so sync never disables one.
  */
 
-export interface ToolGroup { id: string; zh: string; en: string; ids: readonly string[] }
-
-export const TOOL_GROUPS: ToolGroup[] = [
-  { id: 'dev', zh: '文件与开发', en: 'Files & development', ids: ['read_file', 'write_file', 'edit_file', 'list_dir', 'glob', 'grep', 'shell'] },
-  { id: 'web', zh: '网络', en: 'Web', ids: ['fetch', 'web_search'] },
-  { id: 'computer', zh: '电脑控制', en: 'Computer control', ids: ['screenshot', 'click', 'type_text', 'key_press', 'scroll', 'drag', 'open_app', 'navigate'] },
-  { id: 'present', zh: '展示', en: 'Presentation', ids: ['visualize'] },
-  { id: 'agent', zh: 'Agent 与任务', en: 'Agent & tasks', ids: ['todo_write', 'remember', 'recall', 'handoff', 'delegate_task', 'review_task', 'decision_review', 'manage_task', 'ask_user', 'request_help'] },
-  { id: 'routines', zh: '例程与触发', en: 'Routines & triggers', ids: ['schedule_routine', 'schedule_once', 'watch_folder', 'watch_github_issue', 'watch_gmail_query', 'create_webhook_routine'] },
-  { id: 'connectors', zh: '应用连接器', en: 'App connectors', ids: ['github_comment_draft', 'search_gmail', 'list_google_accounts', 'read_gmail', 'gmail_draft', 'calendar_event_draft', 'read_x_post', 'x_post_draft', 'slack_message_draft', 'list_calendar_events'] }
-]
-
-export function groupOfTool(toolId: string): ToolGroup | undefined {
-  return TOOL_GROUPS.find((group) => group.ids.includes(toolId))
+export interface SkillSource {
+  id: string
+  name: string
+  origin: string
+  description: string
+  path: string
+  shared?: boolean
 }
 
-export type AgentToolState = 'on' | 'off'
+export interface GroupedSkill<T extends SkillSource = SkillSource> {
+  name: string
+  description: string
+  sources: T[]
+}
 
-export interface AgentToolCell { botId: string; name: string; state: AgentToolState }
+/** One row per skill name. Sources stay attached so the UI can show them as tags. */
+export function groupSkills<T extends SkillSource>(skills: readonly T[]): Array<GroupedSkill<T>> {
+  const groups = new Map<string, GroupedSkill<T>>()
+  for (const skill of skills) {
+    const key = skill.name.trim() || skill.id
+    const existing = groups.get(key)
+    if (!existing) groups.set(key, { name: key, description: skill.description ?? '', sources: [skill] })
+    else {
+      existing.sources.push(skill)
+      if ((skill.description ?? '').length > existing.description.length) existing.description = skill.description
+    }
+  }
+  return [...groups.values()]
+}
 
-/** Consistency across the fleet: every Agent on → consistent, otherwise how many are off. */
-export function toolConsistency(cells: AgentToolCell[]): { consistent: boolean; off: number } {
-  const off = cells.filter((cell) => cell.state === 'off').length
-  return { consistent: off === 0, off }
+export interface AgentEntities {
+  botId: string
+  name: string
+  skillIds: readonly string[]
+  agentsMdIds: readonly string[]
+}
+
+export interface EntitySyncStep {
+  botId: string
+  addSkills: string[]
+  addAgentsMd: string[]
+}
+
+function unique(ids: readonly string[]): string[] {
+  return [...new Set(ids.filter((id) => typeof id === 'string' && id.length > 0))]
 }
 
 /**
- * Add-only sync plan: every Agent that lacks the tool and is not the baseline
- * gets it added. Baseline and already-enabled Agents are untouched, and the
- * baseline's disabled tools are never removed from anyone.
+ * Add-only plan. Base copies one Agent's assignments onto the others.
+ * Merge unions every Agent's assignments. Nothing is removed.
  */
-export function toolSyncPlan(cells: AgentToolCell[], baselineId: string, toolId: string, baselineTools: string[]): Array<{ botId: string; add: string[] }> {
-  const plan: Array<{ botId: string; add: string[] }> = []
-  const desired = new Set(baselineTools)
-  for (const cell of cells) {
-    if (cell.botId === baselineId) continue
-    const add: string[] = []
-    if (desired.has(toolId) && cell.state === 'off') add.push(toolId)
-    if (add.length) plan.push({ botId: cell.botId, add })
+export function entitySyncPlan(agents: readonly AgentEntities[], mode: 'base' | 'merge', baselineId?: string): EntitySyncStep[] {
+  const usable = agents.filter((agent) => agent.botId)
+  if (usable.length < 2) return []
+  const baseline = mode === 'base' ? usable.find((agent) => agent.botId === baselineId) : undefined
+  if (mode === 'base' && !baseline) return []
+  const desiredSkills = unique(mode === 'merge' ? usable.flatMap((agent) => agent.skillIds) : baseline!.skillIds)
+  const desiredFiles = unique(mode === 'merge' ? usable.flatMap((agent) => agent.agentsMdIds) : baseline!.agentsMdIds)
+  const plan: EntitySyncStep[] = []
+  for (const agent of usable) {
+    if (mode === 'base' && agent.botId === baselineId) continue
+    const haveSkills = new Set(agent.skillIds)
+    const haveFiles = new Set(agent.agentsMdIds)
+    const addSkills = desiredSkills.filter((id) => !haveSkills.has(id))
+    const addAgentsMd = desiredFiles.filter((id) => !haveFiles.has(id))
+    if (addSkills.length || addAgentsMd.length) plan.push({ botId: agent.botId, addSkills, addAgentsMd })
   }
   return plan
+}
+
+/** Sync must not flip a shared MCP server off. */
+export function mcpServersAfterSync<T extends { id: string; enabled: boolean }>(servers: readonly T[]): T[] {
+  return servers.map((server) => ({ ...server }))
 }

@@ -1,7 +1,16 @@
 .ob-tools-intro {
   margin: 0;
 }
+.ob-tools-toolbar, .ob-skill-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ob-space-2);
+}
+.ob-tools-toolbar .ob-btn, .ob-skill-toolbar .ob-btn, .ob-tools-toolbar .ob-tools-tabs { flex: 0 0 auto; }
 .ob-tools-tabs { display: flex; gap: var(--ob-space-2); }
+.ob-tool-section { margin-top: var(--ob-space-3); }
+.ob-tool-section summary { cursor: pointer; font-weight: var(--ob-weight-medium); }
 .ob-tools-tabs [aria-selected='true'] { background: var(--ob-bg-hover); border-color: var(--ob-border-subtle); }
 
 .ob-skill-search {

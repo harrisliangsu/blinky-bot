@@ -5,6 +5,15 @@
 .ob-apps-filters { display: flex; flex-wrap: wrap; gap: var(--ob-space-2); }
 .ob-apps-filters button[aria-pressed='true'] { background: var(--ob-text-primary); color: var(--ob-bg-editor); }
 .ob-apps-heading { margin: var(--ob-space-3) 0 0; font-size: var(--ob-font-size-lg); }
+.ob-app-list { display: flex; flex-direction: column; }
+.ob-app-row { display: flex; align-items: center; gap: var(--ob-space-3); min-width: 0; padding: var(--ob-space-2) 0; border-bottom: 1px solid var(--ob-border-subtle); }
+.ob-app-row-main { flex: 1; display: flex; align-items: center; gap: var(--ob-space-3); min-width: 0; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ob-app-row-main strong { display: block; font-size: var(--ob-font-size-base); }
+.ob-app-row .ob-btn { flex: none; }
+.ob-app-detail { display: flex; flex-direction: column; gap: var(--ob-space-3); }
+.ob-app-back { align-self: flex-start; }
+.ob-app-bots { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--ob-space-2); }
+.ob-app-bots h4 { margin: var(--ob-space-2) 0 0; font-size: var(--ob-font-size-sm); }
 .ob-apps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); column-gap: var(--ob-space-8); row-gap: var(--ob-space-4); }
 .ob-app-card {
   display: grid;

@@ -599,7 +599,7 @@ const en: SettingsCopy = {
     removed: 'That MCP server was removed, so the editor closed without saving.'
   },
   tools: {
-    intro: 'MCP servers and skills for every Bot. Apps stays GitHub, Gmail, and X.',
+    intro: 'Manage skills, MCP servers, and AGENTS.md for each Agent.',
     sync: 'Sync',
     skillsTitle: 'Skills',
     skillsIntro: 'Install a folder into the shared directory, then assign it on each Bot.',
@@ -946,7 +946,7 @@ const zh: SettingsCopy = {
     removed: '这个 MCP 服务器已被删除，编辑器已关闭且没有保存。'
   },
   tools: {
-    intro: '每个 Bot 都能用的 MCP 服务器和技能。应用只放 GitHub、Gmail 和 X。',
+    intro: '管理每个 Agent 的技能、MCP 服务器和 AGENTS.md。',
     sync: '同步',
     skillsTitle: '技能',
     skillsIntro: '安装到共享目录后，再到每个 Bot 上选用。',

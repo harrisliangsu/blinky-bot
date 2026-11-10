@@ -15,6 +15,8 @@ import { registerRoutineIpc } from './routines'
 import { registerSessionIpc } from './sessions'
 import { registerSettingsIpc } from './settings'
 import { registerSkillIpc } from './skills'
+import { registerAgentsMdIpc } from './agentsMd'
+import { registerSystemPermissionIpc } from './systemPermissions'
 import { registerUpdateIpc } from './updates'
 import { registerWindowIpc } from './window'
 import { registerSearchIpc } from './search'
@@ -50,6 +52,8 @@ export function registerIpc(): void {
   registerAppIpc()
   registerSettingsIpc()
   registerSkillIpc()
+  registerAgentsMdIpc()
+  registerSystemPermissionIpc()
   registerDialogIpc()
   registerWindowIpc()
   registerUpdateIpc()
