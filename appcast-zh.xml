@@ -5,23 +5,23 @@
         <link>https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast-zh.xml</link>
         <description>Updates for BlinkyBot.</description>
         <language>en</language>
-                                                        <item>
-            <title>0.3.9</title>
-            <pubDate>Wed, 04 Nov 2026 10:46:27 -0000</pubDate>
-            <sparkle:version>0.3.9</sparkle:version>
-            <sparkle:shortVersionString>0.3.9</sparkle:shortVersionString>
+                                                            <item>
+            <title>0.3.12</title>
+            <pubDate>Tue, 10 Nov 2026 13:20:22 -0000</pubDate>
+            <sparkle:version>0.3.12</sparkle:version>
+            <sparkle:shortVersionString>0.3.12</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9</link>
+            <link>https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.12</link>
             <description><![CDATA[<style>
   h2 { font-size: 1.05em; margin: 0 0 .5em; }
   ul { margin: 0; padding-left: 1.2em; }
   li { margin: .3em 0; }
   p { margin: .8em 0 0; }
-</style><h2>BlinkyBot 0.3.9</h2><ul><li><strong>模型列表显示 CLI 的真实模型。</strong> Codex 用 <code>model/list</code> 填充列表，不再只有「默认」这一个词。Claude Code 提供 Opus、Sonnet 和 Haiku 别名。</li><li><strong>粘贴或拖入图片会送到 CLI。</strong> 图片留在这条消息上。Codex 收到本地图片文件，Claude Code 收到图片块。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.9">在 GitHub 查看更新说明</a></p>]]></description>
-            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.9/BlinkyBot-0.3.9.zip"
-                       length="123992293"
+</style><h2>BlinkyBot 0.3.12</h2><ul><li><strong>应用页只列出 GitHub、Gmail 和 X。</strong> 日历和 Slack 仍在产品里，但不出现在这个列表。Git 身份不再是一张应用卡片。</li><li><strong>GitHub 使用 BlinkyBot 自己的 GitHub App 登录。</strong> 授权在浏览器里完成。以前的 <code>gh auth login</code> 不再算作已连接。断开只会删除 BlinkyBot 保存的令牌，<code>gh</code> 和 github.com 保持登录。</li><li><strong>Gmail 和 X 使用官方 OAuth。</strong> Gmail 可以搜索、读取和起草邮件。这一版的 X 只有帖子：读取帖子，或发布文字帖和回复。发信和发帖仍要先确认草稿。</li><li><strong>GitHub 评论和 X 帖子只从草稿卡片发出。</strong> 终端会拒绝用 <code>gh</code> 或 GitHub API 发评论，这条命令不能代替那张卡片。其他 GitHub 写入仍会先询问。</li><li><strong>打包时注入发行方的 OAuth 客户端。</strong> Google、X 和 GitHub 的客户端值来自 <code>MAIN_VITE_*</code>，不写进仓库。缺少客户端时，该应用会说明浏览器登录尚未启用，并且不会开始登录。</li><li><strong>同一 Wi-Fi 上的设备可以打开你批准的工作区。</strong> 由这台 Mac 决定范围，以及对方只能查看还是可以操作。登录、凭据和本机授权仍在 Mac 上完成。撤销共享会关闭那个远程工作区。</li><li><strong>进行中的任务会显示当前步骤和阻碍。</strong> 任务返回时，通知会写明交付物在哪里。新委派的工作使用当前对话的文件夹。只依赖一个先前任务的工作会沿用那个任务的文件夹。隔离文件夹需要具体理由。</li><li><strong>Bot 可以使用供应商的快速通道。</strong> OpenRouter 模型，以及接受优先服务的 OpenAI 模型，会显示这个开关。其他后端不显示。更快的回复费用更高。</li><li><strong>设置和聊天更干净。</strong> 模型页改名为 Agent，并说明这里是 Bot 的运行载体。运行中发出的消息会标明排队，暂停的队列可以继续处理。工具页可以查看每个工具在哪些 Agent 上启用，同步只会补上缺少的工具。</li><li><strong>Codex 用 BlinkyBot 的编辑工具完成文件修改。</strong> 它自己的沙箱仍然只读。那里的拒绝不再让这一轮停住并把改动贴进聊天。</li></ul><p><a href="https://github.com/harrisliangsu/blinky-bot/releases/tag/v0.3.12">在 GitHub 查看更新说明</a></p>]]></description>
+            <enclosure url="https://github.com/harrisliangsu/blinky-bot/releases/download/v0.3.12/BlinkyBot-0.3.12.zip"
+                       length="146310614"
                        type="application/octet-stream"
-                       sparkle:edSignature="l0Ig8Mb6qroYZi3kd994tTpEq7JUodonaGjQgNZ3B8IWR1YfLDmIq0d/LVCdf5lV79Ijobx1GEnSwcXUwuh+Ag==" />
+                       sparkle:edSignature="IM1/cqVP6cGv9/1whiThl32mKYpv3lbmfREJy2KMECvIcNTLIiY2kw5gKnl86E15IhNmG2/VuxwxjnmylMcABw==" />
         </item>
     </channel>
 </rss>
