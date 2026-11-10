@@ -5,9 +5,9 @@
 
 ## Workflow / CI 改动核查（专项）
 
-- 本分支全量 diff **未触碰** `.github/`、`.aoneci/` 任何文件（`git diff --name-only` 为空，`git log -- <path>` 34 个 commit 为零命中）
+- 本分支全量 diff **未触碰** `.github/` 等 CI 配置（`git diff --name-only` 为空，`git log -- <path>` 34 个 commit 为零命中）
 - origin 工作区（另一本地副本）的未提交改动也无 workflow/CI 文件
-- 结论：推送报错提到的 workflow/CI 不是本分支内容引入的；本分支无可审查、无需保留或回退的 workflow 改动。报错疑似平台侧（Aone 保护规则）提示，建议下次推送时核对目标远端与分支
+- 结论：推送报错提到的 workflow/CI 不是本分支内容引入的；本分支无可审查、无需保留或回退的 workflow 改动。报错疑似代码平台侧保护规则提示，建议下次推送时核对目标远端与分支
 
 ## 审查范围与覆盖度
 
