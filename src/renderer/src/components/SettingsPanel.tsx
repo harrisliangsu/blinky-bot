@@ -4,7 +4,7 @@ import { listedBackends } from '../../../shared/backendSections'
 import { thinkingOptions, thinkingWire, type ThinkingDepth } from '../../../shared/thinking'
 import type { AgentMode, Settings, UpdateReport } from '../../../shared/types'
 import { SETTINGS_SECTIONS, takeSettingsTab, rememberSettingsSection, settingsScroll, saveSettingsScroll, type SettingsSection } from '../lib/settingsNavigation'
-import { resolveSettingsLang } from '../lib/settingsCopy'
+import { resolveSettingsLang, updateStatusText } from '../lib/settingsCopy'
 import { useSettingsCopy } from '../lib/useSettingsCopy'
 import { loadSettings, store, updateSettings, useAppState } from '../state'
 import { IconSearch } from './Icons'
@@ -378,12 +378,23 @@ function Updates({ settings }: { settings: Settings }): ReactNode {
       </Row>
       {report ? (
         <p className="ob-hint" role="status">
-          {report.note}
+          {updateStatusText(report, u)}
           {report.updateAvailable && report.url ? (
             <>
               {' '}
-              <button type="button" className="ob-btn ob-btn-sm" onClick={() => void window.openbot.updates.openRelease(report.url!)}>
-                {u.open}
+              <button
+                type="button"
+                className="ob-btn ob-btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true)
+                  void window.openbot.updates
+                    .check(settings.updateChannel)
+                    .then(setReport)
+                    .finally(() => setBusy(false))
+                }}
+              >
+                {report.installable ? u.install : u.open}
               </button>
             </>
           ) : null}

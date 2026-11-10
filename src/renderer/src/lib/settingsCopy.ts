@@ -316,7 +316,12 @@ export interface SettingsCopy {
     beta: string
     check: string
     checking: string
+    install: string
     open: string
+    available: string
+    upToDate: string
+    noBeta: string
+    emptyFeed: string
     hint: string
   }
   about: {
@@ -662,8 +667,13 @@ const en: SettingsCopy = {
     beta: 'Beta',
     check: 'Check now',
     checking: 'Checking…',
+    install: 'Download and Install',
     open: 'Open release',
-    hint: 'BlinkyBot does not install the update by itself. Check now looks, and Open release downloads it.'
+    available: '{version} is available.',
+    upToDate: '{version} is the newest version.',
+    noBeta: 'No beta release is published.',
+    emptyFeed: 'The update feed had no version.',
+    hint: 'A newer signed build notifies you and asks to download and install it. Check now does the same.'
   },
   about: {
     blurb: 'BlinkyBot is a local-first Mac app for the local CLIs and API keys you already have.',
@@ -1009,8 +1019,13 @@ const zh: SettingsCopy = {
     beta: '测试',
     check: '立即检查',
     checking: '正在检查…',
+    install: '下载并安装',
     open: '打开发布页',
-    hint: 'BlinkyBot 不会自己安装更新。立即检查只负责查看，打开发布页再下载。'
+    available: '{version} 可以更新。',
+    upToDate: '{version} 已是最新版本。',
+    noBeta: '还没有测试版。',
+    emptyFeed: '更新源里没有版本。',
+    hint: '有较新的签名版本时会通知你，并询问是否下载安装。立即检查也会这样做。'
   },
   about: {
     blurb: 'BlinkyBot 是装在这台 Mac 上的本地应用，使用你已经有的本地 CLI 和 API key。',
@@ -1033,6 +1048,17 @@ export function resolveSettingsLang(preference: string | undefined, systemLang: 
 
 export function settingsCopy(lang: SettingsLang): SettingsCopy {
   return DICTS[lang]
+}
+
+/** The settings row. Errors keep the checker’s message; the other results are translated here. */
+export function updateStatusText(
+  report: { status?: 'update' | 'current' | 'empty' | 'error'; channel: 'stable' | 'beta'; current: string; latest: string | null; note: string },
+  copy: SettingsCopy['updates']
+): string {
+  if (report.status === 'update' && report.latest) return copy.available.replace('{version}', report.latest)
+  if (report.status === 'current') return copy.upToDate.replace('{version}', report.current)
+  if (report.status === 'empty') return report.channel === 'beta' ? copy.noBeta : copy.emptyFeed
+  return report.note
 }
 
 /** Flat key list so a test can prove the two languages describe the same controls. */

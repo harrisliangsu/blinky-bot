@@ -6,14 +6,11 @@
  */
 
 import { app } from 'electron'
-import { decideUpdate, pickRelease, readSparkleItem, type UpdateDecision } from './sparkleFeed'
+import type { UpdateCandidate } from './prompt'
+import { decideUpdate, pickRelease, readSparkleItem } from './sparkleFeed'
 
 const APPCAST = 'https://github.com/harrisliangsu/blinky-bot/releases/latest/download/appcast.xml'
 const RELEASES = 'https://api.github.com/repos/harrisliangsu/blinky-bot/releases?per_page=20'
-
-export interface UpdateReport extends UpdateDecision {
-  channel: 'stable' | 'beta'
-}
 
 async function fetchText(url: string, accept: string): Promise<string> {
   const response = await fetch(url, {
@@ -24,7 +21,7 @@ async function fetchText(url: string, accept: string): Promise<string> {
   return await response.text()
 }
 
-export async function checkForUpdate(channel: 'stable' | 'beta'): Promise<UpdateReport> {
+export async function checkForUpdate(channel: 'stable' | 'beta', language: 'en' | 'zh-CN' = 'en'): Promise<UpdateCandidate> {
   const current = app.getVersion()
   try {
     if (channel === 'beta') {
@@ -45,13 +42,16 @@ export async function checkForUpdate(channel: 'stable' | 'beta'): Promise<Update
       const picked = pickRelease(releases, 'beta')
       const decision = decideUpdate(
         current,
-        picked ? { version: picked.version, url: picked.url } : null,
+        picked ? { version: picked.version, url: picked.url, edSignature: null, length: null, notes: '' } : null,
         'No beta release is published.'
       )
-      return { ...decision, channel }
+      return candidate(channel, decision, null, decision.latest ? (decision.updateAvailable ? 'update' : 'current') : 'empty')
     }
     const xml = await fetchText(APPCAST, 'application/rss+xml, application/xml, text/xml')
-    return { ...decideUpdate(current, readSparkleItem(xml), 'The update feed had no version.'), channel }
+    const item = readSparkleItem(xml, language)
+    const decision = decideUpdate(current, item, 'The update feed had no version.')
+    const status = item ? (decision.updateAvailable ? 'update' : 'current') : 'empty'
+    return candidate(channel, decision, item, status)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The update check failed.'
     return {
@@ -60,8 +60,32 @@ export async function checkForUpdate(channel: 'stable' | 'beta'): Promise<Update
       latest: null,
       url: null,
       updateAvailable: false,
-      note: message
+      note: message,
+      status: 'error',
+      edSignature: null,
+      length: null,
+      notes: ''
     }
+  }
+}
+
+function candidate(
+  channel: 'stable' | 'beta',
+  decision: { current: string; latest: string | null; url: string | null; updateAvailable: boolean; note: string },
+  item: { edSignature: string | null; length: number | null; notes: string } | null,
+  status: UpdateCandidate['status']
+): UpdateCandidate {
+  return {
+    channel,
+    current: decision.current,
+    latest: decision.latest,
+    url: decision.url,
+    updateAvailable: decision.updateAvailable,
+    note: decision.note,
+    status,
+    edSignature: item?.edSignature ?? null,
+    length: item?.length ?? null,
+    notes: item?.notes ?? ''
   }
 }
 

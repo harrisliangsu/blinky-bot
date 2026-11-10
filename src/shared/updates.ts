@@ -6,4 +6,8 @@ export interface UpdateReport {
   url: string | null
   updateAvailable: boolean
   note: string
+  /** Why the check stopped. The settings row uses this instead of the English note. */
+  status: 'update' | 'current' | 'empty' | 'error'
+  /** A signed BlinkyBot zip from this repository's GitHub releases. */
+  installable: boolean
 }
