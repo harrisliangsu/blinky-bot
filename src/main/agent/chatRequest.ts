@@ -68,6 +68,24 @@ function mcpServersFor(input: ChatRequestInput): ChatRequest['mcpServers'] {
  */
 const READ_ONLY_KINDS = new Set(['fetch'])
 
+/**
+ * Command lines a CLI approval may be describing.
+ *
+ * Codex puts the command in `target` and again after "wants to run:" in the
+ * summary. Analysing only the summary would see the word "Codex" as the binary
+ * and miss `gh`. The labelled command is classified on its own.
+ */
+function shellCommands(summary: string, detail: string, target: string | undefined, policyTarget: string): string[] {
+  const texts = new Set<string>()
+  if (policyTarget.trim()) texts.add(policyTarget.trim())
+  for (const text of [target ?? '', detail, summary]) {
+    const labelled = /wants to run:\s*([\s\S]+)/i.exec(text)
+    const command = labelled?.[1]?.trim()
+    if (command) texts.add(command)
+  }
+  return [...texts]
+}
+
 export function buildChatRequest(input: ChatRequestInput): ChatRequest {
   const { session, bot, settings, signal, mode, messages, tools } = input
   return {
@@ -133,11 +151,20 @@ export function buildChatRequest(input: ChatRequestInput): ChatRequest {
       if (isCodexCoordinator(session, bot) && ['shell', 'write', 'edit', 'computer'].includes(kind)) return 'reject'
       let mustConfirm = force === true
       if (kind === 'shell') {
-        const analysis = analyzeCommand(policyTarget, settings.denylist)
         // CLI-owned shell tools must obey the same hard refusal as OpenBOT's
         // own shell tool; an approval dialog is not an escape hatch for it.
-        if (analysis.blocked) return 'reject'
-        mustConfirm ||= analysis.risk === 'high'
+        // A GitHub comment post is refused here, before allowlists and before
+        // "always allow", so a generic "wants to run: gh …" card cannot replace
+        // github_comment_draft. Other gh writes stay high and must confirm.
+        let blocked = false
+        let high = false
+        for (const text of shellCommands(summary, detail, target, policyTarget)) {
+          const analysis = analyzeCommand(text, settings.denylist)
+          blocked ||= Boolean(analysis.blocked)
+          high ||= analysis.risk === 'high'
+        }
+        if (blocked) return 'reject'
+        mustConfirm ||= high
       }
       const outcome = await requestApproval({
         sessionId: session.id,

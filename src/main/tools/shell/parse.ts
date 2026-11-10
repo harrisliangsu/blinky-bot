@@ -110,6 +110,11 @@ export function unquote(command: string): string {
 
 const WRAPPERS = new Set(['sudo', 'command', 'env', 'nohup', 'time', 'nice', 'xargs', 'exec', 'builtin', 'doas'])
 
+function wrapperName(token: string): string | undefined {
+  const base = token.includes('/') ? (token.split('/').pop() ?? token) : token
+  return WRAPPERS.has(base) ? base : undefined
+}
+
 /**
  * Wrapper flags that consume the token after them.
  *
@@ -134,33 +139,48 @@ export interface HeadBinary {
 }
 
 /**
- * The binary a segment really invokes: leading `NAME=value` assignments and
- * wrappers such as `env`, `nohup` or `sudo` are stepped over, so `FOO=1 sudo rm`
- * reports `rm` rather than the assignment or the wrapper.
+ * The tokens a segment really runs, with leading `NAME=value` assignments and
+ * wrappers such as `env`, `nohup` or `sudo` removed.
+ *
+ * Path-qualified wrappers count too: `/usr/bin/sudo gh …` is still `sudo`.
+ * `FOO=1 sudo rm` therefore reports `rm` rather than the assignment or the wrapper.
  */
-export function headBinary(tokens: string[]): HeadBinary | undefined {
+export function commandTokens(tokens: string[]): { tokens: string[]; viaSudo: boolean } | undefined {
   let viaSudo = false
   let i = 0
   while (i < tokens.length) {
-    const token = tokens[i]
+    const token = tokens[i] ?? ''
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) {
       i++
       continue
     }
-    if (WRAPPERS.has(token)) {
-      if (token === 'sudo' || token === 'doas') viaSudo = true
-      const takesValue = WRAPPER_VALUE_FLAGS[token] ?? new Set<string>()
+    const wrapper = wrapperName(token)
+    if (wrapper) {
+      if (wrapper === 'sudo' || wrapper === 'doas') viaSudo = true
+      const takesValue = WRAPPER_VALUE_FLAGS[wrapper] ?? new Set<string>()
       i++
       // Skip the wrapper's own flags, and the value of any flag that takes one.
-      while (i < tokens.length && tokens[i].startsWith('-')) {
-        const flag = tokens[i]
+      while (i < tokens.length && (tokens[i] ?? '').startsWith('-')) {
+        const flag = tokens[i] ?? ''
         i++
         if (takesValue.has(flag) && i < tokens.length) i++
       }
       continue
     }
-    const binary = token.includes('/') ? (token.split('/').pop() ?? token) : token
-    return { binary, args: tokens.slice(i + 1).filter((a) => !a.startsWith('-')), viaSudo }
+    return { tokens: tokens.slice(i), viaSudo }
   }
   return undefined
+}
+
+/**
+ * The binary a segment really invokes: leading `NAME=value` assignments and
+ * wrappers such as `env`, `nohup` or `sudo` are stepped over, so `FOO=1 sudo rm`
+ * reports `rm` rather than the assignment or the wrapper.
+ */
+export function headBinary(tokens: string[]): HeadBinary | undefined {
+  const invoked = commandTokens(tokens)
+  if (!invoked) return undefined
+  const token = invoked.tokens[0] ?? ''
+  const binary = token.includes('/') ? (token.split('/').pop() ?? token) : token
+  return { binary, args: invoked.tokens.slice(1).filter((arg) => !arg.startsWith('-')), viaSudo: invoked.viaSudo }
 }
