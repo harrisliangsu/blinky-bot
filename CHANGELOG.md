@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.15
+
+- **Apps is a card grid for GitHub, Gmail, and X.** Each card shows the icon, the name, and Connected or Not connected. A connected card also shows the account. A card that is not connected has only Connect, and that opens the detail page. Reconnect, Disconnect, and Add another account for Gmail stay on the detail page. Search, the Connected and All filters, and Recheck are gone.
+- **Once GitHub, Gmail, or X is connected, every Bot that is not aimed at a VM can use that app.** The per-Bot allowlist is gone, including from the Bot editor. Bring-your-own OAuth client is gone. Sign-in uses the distributor client. Calendar and Slack stay hidden.
+- **Tools manages skills, MCP servers, and AGENTS.md as separate sections.** Install is the main skills action. Sync, update, add server, and add AGENTS.md sit in their sections. The second view is Local CLI, not Agent. The picker lists Codex, Kimi Code, Claude Code, OpenCode, Grok, Pi, and Factory Droid. It does not list Bots such as Developer. AGENTS.md is assigned to a local CLI, not to a Bot.
+- **Built-in tools stay hidden and stay on.** Sending mail or posting still waits for a confirmed draft.
+
 ## 0.3.14
 
 - **A packaged app checks the Sparkle feed shortly after launch and again every 12 hours.** When a newer signed zip is available, it posts a notification and shows a dialog to download and install. Later and Skip This Version are on that dialog. Check now, the settings row, and Check for Updates… in the app menu use the same prompt.
