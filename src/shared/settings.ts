@@ -132,6 +132,12 @@ export interface Settings {
   quickDecision?: { backendId: string; modelId: string } | null
   backends: Record<string, BackendConfig>
   mcpServers: McpServerConfig[]
+  /**
+   * AGENTS.md file ids assigned to each local CLI (Codex, Kimi, and the rest).
+   * This is not a per-Bot allowlist. A Bot receives the files for the local CLI
+   * that is running the turn.
+   */
+  localCliAgentsMd?: Record<string, string[]>
   /** Installed Apps are GitHub, Gmail, and X. One connection, shared by every Bot. */
   apps: AppLinks
   /**

@@ -19,6 +19,7 @@ import { newId } from './ids'
 import { routines } from './routineGateway'
 import { runSideCall } from './backendGateway'
 import { schemasFor } from './toolGateway'
+import { toolsVisibleToBot } from '../apps/sharedAccess'
 import { stringifySafe } from './json'
 import { TOOL_PARAM_KEY } from './recorder'
 import { truncate } from './text'
@@ -142,7 +143,7 @@ async function deriveAdaptiveCall(
   if (!fresh) return literalCall(step)
 
   const schemas = availableTools(
-    await schemasFor(input.bot.tools ?? [], input.bot.computerTarget),
+    await schemasFor(await toolsVisibleToBot(input.bot), input.bot.computerTarget),
     input.session,
     input.bot
   )

@@ -29,8 +29,11 @@ test('X OAuth validates callback and account, rotates credentials, and posts onl
     assert.equal((await fetch(`${X_REDIRECT}?state=wrong&code=invalid`)).status, 400)
     assert.equal((await fetch(`${X_REDIRECT}?state=${encodeURIComponent(state)}&code=fixture-code${callbackError ? '&error=access_denied' : ''}`)).status, 200)
   })
+  const oldClient = process.env.BLINKY_X_CLIENT_ID
+  process.env.BLINKY_X_CLIENT_ID = 'fixture-client-123'
   try {
-    assert.deepEqual(await connectX('fixture-client-123'), { username: 'fixture' }); assert.ok(pkce)
+    await assert.rejects(connectX('fixture-client-123'), /not supported/)
+    assert.deepEqual(await connectX(), { username: 'fixture' }); assert.ok(pkce)
     assert.ok(!(await readFile(join(root, 'x-connection.json'), 'utf8')).includes('fixture-refresh'))
     assert.equal(await xAccessToken(), 'fixture-access'); assert.equal((await readXCredentials())?.refreshToken, 'rotated-refresh')
     assert.deepEqual(await verifyXConnection(), { username: 'fixture' }); assert.equal(refreshes, 1)
@@ -38,14 +41,17 @@ test('X OAuth validates callback and account, rotates credentials, and posts onl
     await assert.rejects(readXPost('../other'), /Invalid/)
     await assert.rejects(postXMessage('999', 'fixture message'), /changed/); assert.equal(posts, 0)
     assert.equal(await postXMessage('123', 'fixture message'), '456'); assert.equal(posts, 1)
-    failIdentity = true; await assert.rejects(connectX('fixture-client-123'), /failed/); assert.equal((await readXCredentials())?.refreshToken, 'rotated-refresh')
+    failIdentity = true; await assert.rejects(connectX(), /failed/); assert.equal((await readXCredentials())?.refreshToken, 'rotated-refresh')
     // An error response must not be treated as a grant even if a code is present.
     // Keep the prior connection and never exchange the ambiguous callback.
     failIdentity = false; callbackError = true
     const saved = await readXCredentials(), before = exchanges, beforePosts = posts
-    await assert.rejects(connectX('fixture-client-123'), /declined/)
+    await assert.rejects(connectX(), /declined/)
     assert.equal(exchanges, before); assert.equal(posts, beforePosts)
     assert.deepEqual(await readXCredentials(), saved)
     invalidateXAccess(); await clearXCredentials(); assert.equal(await readXCredentials(), null)
-  } finally { invalidateXAccess(); setXTransportForTests(); setXStorageForTests(undefined); await rm(root, { recursive: true, force: true }) }
+  } finally {
+    if (oldClient === undefined) delete process.env.BLINKY_X_CLIENT_ID; else process.env.BLINKY_X_CLIENT_ID = oldClient
+    invalidateXAccess(); setXTransportForTests(); setXStorageForTests(undefined); await rm(root, { recursive: true, force: true })
+  }
 })

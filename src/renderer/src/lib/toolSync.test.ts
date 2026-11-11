@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { agentsMdIdsForTurn, localCliAgentsMdMigration } from '../../../shared/localCliTools.ts'
 import { entitySyncPlan, groupSkills, mcpServersAfterSync } from './toolSync.ts'
 
-const agents = [
-  { botId: 'a', name: 'A', skillIds: ['claude:demo', 'codex:other'], agentsMdIds: ['file-a'] },
-  { botId: 'b', name: 'B', skillIds: ['codex:demo'], agentsMdIds: [] },
-  { botId: 'c', name: 'C', skillIds: [], agentsMdIds: ['file-c'] }
+const clis = [
+  { id: 'codex', name: 'Codex', agentsMdIds: ['file-a'] },
+  { id: 'kimi', name: 'Kimi Code', agentsMdIds: [] },
+  { id: 'claude', name: 'Claude Code', agentsMdIds: ['file-c'] }
 ]
 
 test('skills group by name and keep every source', () => {
@@ -20,26 +21,34 @@ test('skills group by name and keep every source', () => {
   assert.equal(grouped[1].name, 'notes')
 })
 
-test('base sync adds the baseline assignments and never removes', () => {
-  const plan = entitySyncPlan(agents, 'base', 'a')
+test('base sync copies one local CLI and never removes', () => {
+  const plan = entitySyncPlan(clis, 'base', 'codex')
   assert.deepEqual(plan, [
-    { botId: 'b', addSkills: ['claude:demo', 'codex:other'], addAgentsMd: ['file-a'] },
-    { botId: 'c', addSkills: ['claude:demo', 'codex:other'], addAgentsMd: ['file-a'] }
+    { id: 'kimi', addAgentsMd: ['file-a'] },
+    { id: 'claude', addAgentsMd: ['file-a'] }
   ])
-  assert.equal(plan.some((step) => step.botId === 'a'), false)
-  assert.equal(plan.some((step) => step.addSkills.includes('codex:demo')), false)
-  assert.deepEqual(entitySyncPlan(agents, 'base', 'missing'), [])
+  assert.equal(plan.some((step) => step.id === 'codex'), false)
+  assert.deepEqual(entitySyncPlan(clis, 'base', 'missing'), [])
 })
 
-test('merge sync unions skills and AGENTS.md without dropping anyone', () => {
-  const plan = entitySyncPlan(agents, 'merge')
-  const byId = Object.fromEntries(plan.map((step) => [step.botId, step]))
-  assert.deepEqual(byId.a.addSkills, ['codex:demo'])
-  assert.deepEqual(byId.a.addAgentsMd, ['file-c'])
-  assert.deepEqual(byId.b.addSkills, ['claude:demo', 'codex:other'])
-  assert.deepEqual(byId.b.addAgentsMd, ['file-a', 'file-c'])
-  assert.deepEqual(byId.c.addSkills, ['claude:demo', 'codex:other', 'codex:demo'])
-  assert.deepEqual(byId.c.addAgentsMd, ['file-a'])
+test('merge sync unions AGENTS.md across local CLIs', () => {
+  const plan = entitySyncPlan(clis, 'merge')
+  const byId = Object.fromEntries(plan.map((step) => [step.id, step]))
+  assert.deepEqual(byId.codex.addAgentsMd, ['file-c'])
+  assert.deepEqual(byId.kimi.addAgentsMd, ['file-a', 'file-c'])
+  assert.deepEqual(byId.claude.addAgentsMd, ['file-a'])
+})
+
+test('Bot AGENTS.md assignments move onto the local CLIs that Bot runs', () => {
+  const moved = localCliAgentsMdMigration({}, [
+    { id: 'developer', backendId: 'openai', executionAgent: { backendId: 'codex' }, agentsMdIds: ['from-bot'] },
+    { id: 'provider-only', backendId: 'openai', agentsMdIds: ['stay'] }
+  ])
+  assert.deepEqual(moved.next.codex, ['from-bot'])
+  assert.deepEqual(moved.clearBotIds, ['developer'])
+  const turn = agentsMdIdsForTurn({ backendId: 'codex', agentsMdIds: ['from-bot'] }, { localCliAgentsMd: moved.next })
+  assert.deepEqual(turn, ['from-bot'])
+  assert.deepEqual(agentsMdIdsForTurn({ backendId: 'openai', agentsMdIds: ['stay'] }, { localCliAgentsMd: moved.next }), ['stay'])
 })
 
 test('mcp sync keeps every server enabled flag', () => {

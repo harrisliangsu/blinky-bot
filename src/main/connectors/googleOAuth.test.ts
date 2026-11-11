@@ -32,9 +32,12 @@ test('desktop OAuth validates state and scopes, verifies service, and preserves 
     assert.equal((await fetch(`${redirect}?state=${encodeURIComponent(state)}&code=fixture-code`)).status, 200)
   }
   setGoogleOAuthTransportForTests(mockFetch, opener)
+  const oldId = process.env.BLINKY_GOOGLE_CLIENT_ID, oldSecret = process.env.BLINKY_GOOGLE_CLIENT_SECRET
+  process.env.BLINKY_GOOGLE_CLIENT_ID = '123456789-test.apps.googleusercontent.com'
+  process.env.BLINKY_GOOGLE_CLIENT_SECRET = 'fixture-secret'
   try {
-    const input = '123456789-test.apps.googleusercontent.com'
-    assert.deepEqual(await connectGoogle('gmail', input, 'fixture-secret'), { account: 'fixture@example.test' })
+    await assert.rejects(connectGoogle('gmail', process.env.BLINKY_GOOGLE_CLIENT_ID, 'fixture-secret'), /not supported/)
+    assert.deepEqual(await connectGoogle('gmail'), { account: 'fixture@example.test' })
     assert.ok(observedPkce)
     const disk = await readFile(join(root, 'google-connections.json'), 'utf8')
     assert.ok(!disk.includes('fixture-secret') && !disk.includes('fixture-refresh'))
@@ -42,10 +45,14 @@ test('desktop OAuth validates state and scopes, verifies service, and preserves 
     assert.equal(await googleAccessToken('gmail'), 'fixture-access')
     assert.deepEqual(await verifyGoogleConnection('gmail'), { account: 'fixture@example.test' })
     failedService = true
-    await assert.rejects(connectGoogle('gmail', input, 'different-secret'), /failed/)
+    await assert.rejects(connectGoogle('gmail'), /failed/)
     assert.equal((await readGoogleCredentials('gmail'))?.clientSecret, 'fixture-secret')
     await assert.rejects(verifyGoogleConnection('gmail'), /failed/)
     await removeGoogleCredentials('gmail')
     assert.equal(await readGoogleCredentials('gmail'), null)
-  } finally { setGoogleOAuthTransportForTests(); setGoogleStorageForTests(undefined); await rm(root, { recursive: true, force: true }) }
+  } finally {
+    if (oldId === undefined) delete process.env.BLINKY_GOOGLE_CLIENT_ID; else process.env.BLINKY_GOOGLE_CLIENT_ID = oldId
+    if (oldSecret === undefined) delete process.env.BLINKY_GOOGLE_CLIENT_SECRET; else process.env.BLINKY_GOOGLE_CLIENT_SECRET = oldSecret
+    setGoogleOAuthTransportForTests(); setGoogleStorageForTests(undefined); await rm(root, { recursive: true, force: true })
+  }
 })

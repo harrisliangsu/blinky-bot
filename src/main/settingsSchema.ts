@@ -9,6 +9,7 @@
 
 import type { AppId, AppLinks } from '../shared/apps'
 import { CLI_CATALOG } from '../shared/cliCatalog'
+import { normaliseLocalCliAgentsMd } from '../shared/localCliTools'
 import { PROVIDER_CATALOG } from '../shared/providerCatalog'
 import { isThinkingDepth } from '../shared/thinking'
 import { profileImageSource } from '../shared/userProfile'
@@ -129,6 +130,7 @@ export function defaultSettings(): Settings {
     rules: '',
     backends: defaultBackends(),
     mcpServers: [],
+    localCliAgentsMd: {},
     apps: defaultApps(),
     computerUseAllowedApps: [],
     telemetry: false
@@ -374,6 +376,7 @@ export function normaliseSettings(raw: unknown): Settings {
       )
     ),
     mcpServers: normaliseMcpServers(merged['mcpServers']),
+    localCliAgentsMd: normaliseLocalCliAgentsMd(merged['localCliAgentsMd']),
     apps: normaliseApps(Object.prototype.hasOwnProperty.call(rawObj, 'apps') ? rawObj['apps'] : defaults.apps),
     computerUseAllowedApps: stringList(merged['computerUseAllowedApps']),
     // OpenBOT never phones home. Not user-configurable, by design.

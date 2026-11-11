@@ -117,7 +117,8 @@ export async function connectGoogle(service: GoogleService, clientIdInput = '', 
     if (options.accountId && !previous) throw new Error('The selected Google account is not connected.')
     if (previous && !options.addAccount) activeAccountId = googleAccountId(previous.account)
     if (activeAccountId && disconnects.has(keyFor(service, activeAccountId))) throw new Error('A Google authorization change is already in progress.')
-    const configured = clientIdInput.trim() ? { clientId: clientIdInput.trim(), clientSecret: secretInput.trim() } : await resolveClient(service, options.accountId)
+    if (clientIdInput.trim() || secretInput.trim()) throw new Error('Bring-your-own OAuth clients are not supported.')
+    const configured = await resolveClient(service, options.accountId)
     if (!configured) throw new Error('This distribution needs a Google desktop OAuth client before browser sign-in is available.')
     const clientId = configured.clientId, secret = configured.clientSecret ?? ''
     validateGoogleClient(clientId, secret)

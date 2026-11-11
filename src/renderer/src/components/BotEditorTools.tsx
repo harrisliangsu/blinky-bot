@@ -21,8 +21,7 @@ const TOOL_GROUPS: Array<{ label: string; ids: ToolId[] }> = [
    */
   { label: 'Presentation', ids: ['visualize'] },
   { label: 'Bot', ids: ['todo_write', 'remember', 'handoff', 'delegate_task', 'request_help'] },
-  { label: 'Routines', ids: ['schedule_routine', 'watch_github_issue', 'watch_gmail_query', 'create_webhook_routine'] },
-  { label: 'Connected apps', ids: ['github_comment_draft', 'search_gmail', 'read_gmail', 'gmail_draft', 'list_calendar_events', 'calendar_event_draft', 'read_x_post', 'x_post_draft', 'slack_message_draft'] }
+  { label: 'Routines', ids: ['schedule_routine', 'watch_github_issue', 'watch_gmail_query', 'create_webhook_routine'] }
 ]
 
 /*
@@ -31,6 +30,7 @@ const TOOL_GROUPS: Array<{ label: string; ids: ToolId[] }> = [
  * invisible, so the hint now names it instead of hiding it.
  */
 const GROUPED_IDS: ReadonlySet<string> = new Set(TOOL_GROUPS.flatMap((group) => group.ids))
+const SHARED_APP_TOOLS: ReadonlySet<string> = new Set(['github_comment_draft', 'search_gmail', 'read_gmail', 'gmail_draft', 'list_calendar_events', 'calendar_event_draft', 'read_x_post', 'x_post_draft', 'slack_message_draft', 'list_google_accounts'])
 
 const TOOL_LABELS_ZH: Partial<Record<ToolId, string>> = {
   read_file: '读取文件', write_file: '写入文件', edit_file: '编辑文件', list_dir: '浏览目录',
@@ -51,13 +51,13 @@ interface ToolsProps {
 /** The tool grant, grouped the way the tools themselves are. */
 export function BotEditorTools({ tools, onToggle }: ToolsProps): ReactNode {
   const zh = useBotChinese()
-  const ungroupedTools = tools.filter((id) => !GROUPED_IDS.has(id))
-  const groupNames: Record<string, string> = { 'Files & code': '文件与代码', Web: '网络', Computer: '电脑', Presentation: '展示', Bot: 'Bot 协作', Routines: '例程', 'Connected apps': '已连接应用' }
+  const ungroupedTools = tools.filter((id) => !GROUPED_IDS.has(id) && !SHARED_APP_TOOLS.has(id))
+  const groupNames: Record<string, string> = { 'Files & code': '文件与代码', Web: '网络', Computer: '电脑', Presentation: '展示', Bot: 'Bot 协作', Routines: '例程' }
 
   return (
     <div className="ob-field">
       <p className="ob-hint">{zh ? '选择此 Bot 可调用的应用内工具。CLI 自带工具的权限由各 CLI 控制。' : 'Choose app-managed tools. Each CLI controls its own built-in tools.'}</p>
-      <p className="ob-hint">{zh ? '连接应用后，请在下方为此 Bot 勾选需要使用的工具；原先通过派发任务使用的应用和例程工具也需要勾选。' : 'After connecting an app, select the tools this Bot may use below. App and routine tools previously available through delegation also need to be selected.'}</p>
+      <p className="ob-hint">{zh ? '已连接的 GitHub、Gmail 和 X 对每个 Bot 可用，发送仍需确认。' : 'Connected GitHub, Gmail, and X are available to every Bot. Sending still needs confirmation.'}</p>
       {TOOL_GROUPS.map((group) => (
         <fieldset key={group.label} className="ob-bot-tools">
           <legend>{zh ? groupNames[group.label] : group.label}</legend>

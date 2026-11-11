@@ -26,14 +26,12 @@ let githubJob: Promise<unknown> | null = null, githubEpoch = 0
 
 export function registerAppIpc(): void {
   handle<AppStatus[]>(CHANNELS.appsStatus, () => appStatuses(), emptyArray)
-  handleEvent<{ ok: boolean; error?: string }>(CHANNELS.appsConnectGitHub, async (_event, [clientId, clientSecret, botId]) => {
+  handleEvent<{ ok: boolean; error?: string }>(CHANNELS.appsConnectGitHub, async (_event, [clientId, clientSecret]) => {
     if (githubJob || typeof clientId !== 'string' || clientId.length > 200 || typeof clientSecret !== 'string' || clientSecret.length > 1024) return { ok: false }
-    let intent: AppToolIntent | undefined
-    try { intent = captureAppToolIntent('github', botId) } catch { return { ok: false, error: 'Choose an available Bot.' } }
-    const epoch = githubEpoch, job = connectGitHub(clientId, clientSecret); githubJob = job
-    let connected = false
-    try { await job; connected = true; if (epoch !== githubEpoch) return { ok: false }; invalidateGitHubStatus(); await finishAppToolIntent(intent); return { ok: true } }
-    catch { return { ok: false, ...(connected ? { error: '应用已连接，但 Bot 工具授权未保存。请重新允许此 Bot 使用应用。 / Connected, but Bot tool access was not saved. Allow this Bot again.' } : {}) } }
+    if (clientId.trim() || clientSecret.trim()) return { ok: false, error: 'Bring-your-own OAuth clients are not supported.' }
+    const epoch = githubEpoch, job = connectGitHub(); githubJob = job
+    try { await job; if (epoch !== githubEpoch) return { ok: false }; invalidateGitHubStatus(); return { ok: true } }
+    catch { return { ok: false } }
     finally { if (githubJob === job) githubJob = null }
   }, () => ({ ok: false }))
   handleEvent<void>(CHANNELS.appsCancelGitHub, () => { githubEpoch++; invalidateAppToolIntent('github'); cancelGitHubConnect() }, () => undefined)
@@ -57,31 +55,25 @@ export function registerAppIpc(): void {
     () => ({ id: 'git', status: 'disconnected', detail: 'failed' })
   )
   handle<AppStatus>(CHANNELS.appsRequestGmail, () => requestGmail(), () => ({ id: 'gmail', status: 'disconnected' }))
-  // User-entered OAuth client credentials are accepted only from a trusted app
-  // window, never from the native agent bridge or model tools.
+  // Browser sign-in uses the distributor client. A renderer-supplied client id is refused.
   handleEvent<{ ok: boolean; error?: string }>(CHANNELS.appsConnectGoogle, async (_event, [rawService, rawClient, rawSecret, rawOptions]) => {
-    let connected = false
     try {
       if ((rawService !== 'gmail' && rawService !== 'calendar') || typeof rawClient !== 'string' || rawClient.length > 300 || typeof rawSecret !== 'string' || rawSecret.length > 1024) throw new Error('invalid configuration')
-      if (rawOptions !== undefined && (!rawOptions || typeof rawOptions !== 'object' || Array.isArray(rawOptions) || Object.keys(rawOptions).some(key => !['addAccount', 'accountId', 'botId'].includes(key)))) throw new Error('invalid options')
-      const { botId, ...options } = (rawOptions ?? {}) as { botId?: unknown; addAccount?: boolean; accountId?: string }
-      const intent = captureAppToolIntent(rawService, botId)
-      await connectGoogle(rawService, rawClient, rawSecret, rawOptions === undefined ? undefined : options)
-      connected = true
+      if (rawClient.trim() || rawSecret.trim()) return { ok: false, error: 'Bring-your-own OAuth clients are not supported.' }
+      if (rawOptions !== undefined && (!rawOptions || typeof rawOptions !== 'object' || Array.isArray(rawOptions) || Object.keys(rawOptions).some(key => !['addAccount', 'accountId'].includes(key)))) throw new Error('invalid options')
+      const options = rawOptions as { addAccount?: boolean; accountId?: string } | undefined
+      await connectGoogle(rawService, '', '', options)
       invalidateGoogleStatus(rawService)
-      await finishAppToolIntent(intent)
       return { ok: true }
-    } catch { return { ok: false, error: connected ? '应用已连接，但 Bot 工具授权未保存。请重新允许此 Bot 使用应用。 / Connected, but Bot tool access was not saved. Allow this Bot again.' : 'Google authorization did not complete. Check the client, permissions, API availability, and network.' } }
+    } catch { return { ok: false, error: 'Google authorization did not complete. Check the client, permissions, API availability, and network.' } }
   }, () => ({ ok: false, error: 'Google authorization could not be started.' }))
   handleEvent<void>(CHANNELS.appsCancelGoogle, () => { invalidateAppToolIntent('gmail'); invalidateAppToolIntent('calendar'); cancelGoogleConnect() }, () => undefined)
-  handleEvent<{ ok: boolean; error?: string }>(CHANNELS.appsConnectX, async (_event, [clientId, botId]) => {
+  handleEvent<{ ok: boolean; error?: string }>(CHANNELS.appsConnectX, async (_event, [clientId]) => {
     if (xJob || typeof clientId !== 'string' || clientId.length > 500) return { ok: false }
-    let intent: AppToolIntent | undefined
-    try { intent = captureAppToolIntent('x', botId) } catch { return { ok: false, error: 'Choose an available Bot.' } }
-    const epoch = xEpoch, job = connectX(clientId); xJob = job
-    let connected = false
-    try { await job; connected = true; if (epoch !== xEpoch) return { ok: false }; invalidateXStatus(); await finishAppToolIntent(intent); return { ok: true } }
-    catch { return { ok: false, ...(connected ? { error: '应用已连接，但 Bot 工具授权未保存。请重新允许此 Bot 使用应用。 / Connected, but Bot tool access was not saved. Allow this Bot again.' } : {}) } } finally { if (xJob === job) xJob = null }
+    if (clientId.trim()) return { ok: false, error: 'Bring-your-own OAuth clients are not supported.' }
+    const epoch = xEpoch, job = connectX(); xJob = job
+    try { await job; if (epoch !== xEpoch) return { ok: false }; invalidateXStatus(); return { ok: true } }
+    catch { return { ok: false } } finally { if (xJob === job) xJob = null }
   }, () => ({ ok: false }))
   handleEvent<void>(CHANNELS.appsCancelX, () => { xEpoch++; invalidateAppToolIntent('x'); cancelXConnect() }, () => undefined)
   handleEvent<{ ok: boolean }>(CHANNELS.appsDisconnectX, async () => {

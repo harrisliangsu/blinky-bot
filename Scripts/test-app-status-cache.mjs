@@ -53,10 +53,7 @@ try {
           window.unmount(); await delay(); window.mount(); await delay();
           assert(text('github').includes('已连接') && !text('github').includes('上次'), 'reopen did not reuse the recent status');
           assert(window.testPending.length === 0, 'reopen unnecessarily repeated the check');
-          document.querySelector('.ob-apps-intro button').click(); await delay();
-          window.testPending.shift().reject(new Error('offline')); await delay();
-          assert(text('github').includes('上次：已连接'), 'failure lost last known state');
-          assert(!!document.querySelector('[data-apps] [role="alert"]'), 'failure not visible');
+          assert(!document.querySelector('.ob-apps-search') && !document.querySelector('.ob-apps-intro button'), 'list chrome was removed');
         } else {
           assert(text('github').includes('上次：已连接'), 'restart did not restore last known status');
           window.testPending.shift().resolve([
@@ -65,7 +62,7 @@ try {
             {id:'slack',status:'disconnected'}, {id:'x',status:'disconnected'}]);
           await delay(); assert(text('github').includes('未连接') && !text('github').includes('上次'), 'fresh revocation not reflected');
           assert(!document.querySelector('[data-app="git"]') && !document.querySelector('[data-app="calendar"]') && !document.querySelector('[data-app="slack"]'), 'hidden apps are not in the grid');
-          assert(document.querySelector('[data-app="gmail"]').textContent.includes('无法验证连接'), 'verification failure hidden');
+          assert(text('gmail').includes('不可用'), 'verification failure hidden');
         }
         return 'ok';
       })()\`, true);

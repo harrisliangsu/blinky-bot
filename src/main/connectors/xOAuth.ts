@@ -67,7 +67,8 @@ export async function connectX(clientInput = ''): Promise<{ username: string }> 
   const server = createServer(); let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     assertXStorageAvailable(); await readXCredentials()
-    const clientId = clientInput.trim() || (await readXCredentials())?.clientId || xClientId()
+    if (clientInput.trim()) throw new Error('Bring-your-own OAuth clients are not supported.')
+    const clientId = (await readXCredentials())?.clientId || xClientId()
     if (!clientId) throw new Error('This distribution needs an X Native App client before browser sign-in is available.')
     validateXClient(clientId)
     if (controller.signal.aborted) throw new Error('X authorization was cancelled.')

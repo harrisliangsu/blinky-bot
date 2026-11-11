@@ -1,9 +1,10 @@
 /**
  * Assignment sync for the settings Tools page.
  *
- * Built-in tool primitives are not managed here. Sync copies skill assignments
- * and AGENTS.md assignments. It only adds what is missing. MCP servers are
- * shared by every Agent, so sync never disables one.
+ * The owners are local CLIs (Codex, Kimi, and the rest), not Bots.
+ * Sync copies AGENTS.md assignments and only adds what is missing.
+ * Skills live in CLI directories, and MCP servers are shared, so sync never
+ * disables an MCP server or rewrites a skill folder.
  */
 
 export interface SkillSource {
@@ -36,16 +37,14 @@ export function groupSkills<T extends SkillSource>(skills: readonly T[]): Array<
   return [...groups.values()]
 }
 
-export interface AgentEntities {
-  botId: string
+export interface ToolOwner {
+  id: string
   name: string
-  skillIds: readonly string[]
   agentsMdIds: readonly string[]
 }
 
 export interface EntitySyncStep {
-  botId: string
-  addSkills: string[]
+  id: string
   addAgentsMd: string[]
 }
 
@@ -54,24 +53,21 @@ function unique(ids: readonly string[]): string[] {
 }
 
 /**
- * Add-only plan. Base copies one Agent's assignments onto the others.
- * Merge unions every Agent's assignments. Nothing is removed.
+ * Add-only plan. Base copies one local CLI's AGENTS.md onto the others.
+ * Merge unions every local CLI's files. Nothing is removed.
  */
-export function entitySyncPlan(agents: readonly AgentEntities[], mode: 'base' | 'merge', baselineId?: string): EntitySyncStep[] {
-  const usable = agents.filter((agent) => agent.botId)
+export function entitySyncPlan(owners: readonly ToolOwner[], mode: 'base' | 'merge', baselineId?: string): EntitySyncStep[] {
+  const usable = owners.filter((owner) => owner.id)
   if (usable.length < 2) return []
-  const baseline = mode === 'base' ? usable.find((agent) => agent.botId === baselineId) : undefined
+  const baseline = mode === 'base' ? usable.find((owner) => owner.id === baselineId) : undefined
   if (mode === 'base' && !baseline) return []
-  const desiredSkills = unique(mode === 'merge' ? usable.flatMap((agent) => agent.skillIds) : baseline!.skillIds)
-  const desiredFiles = unique(mode === 'merge' ? usable.flatMap((agent) => agent.agentsMdIds) : baseline!.agentsMdIds)
+  const desiredFiles = unique(mode === 'merge' ? usable.flatMap((owner) => owner.agentsMdIds) : baseline!.agentsMdIds)
   const plan: EntitySyncStep[] = []
-  for (const agent of usable) {
-    if (mode === 'base' && agent.botId === baselineId) continue
-    const haveSkills = new Set(agent.skillIds)
-    const haveFiles = new Set(agent.agentsMdIds)
-    const addSkills = desiredSkills.filter((id) => !haveSkills.has(id))
+  for (const owner of usable) {
+    if (mode === 'base' && owner.id === baselineId) continue
+    const haveFiles = new Set(owner.agentsMdIds)
     const addAgentsMd = desiredFiles.filter((id) => !haveFiles.has(id))
-    if (addSkills.length || addAgentsMd.length) plan.push({ botId: agent.botId, addSkills, addAgentsMd })
+    if (addAgentsMd.length) plan.push({ id: owner.id, addAgentsMd })
   }
   return plan
 }

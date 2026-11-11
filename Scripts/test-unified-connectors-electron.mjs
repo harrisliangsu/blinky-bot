@@ -189,7 +189,7 @@ async function openApp(service) {
     await ui.evaluate(`document.querySelector('.ob-app-back')?.click()`)
     await wait(`document.querySelector('[data-app-view="list"]')`)
   }
-  await ui.evaluate(`document.querySelector('[data-app="${service}"] .ob-app-row-main')?.click()`)
+  await ui.evaluate(`document.querySelector('[data-app-view="list"] [data-app="${service}"] .ob-app-tile-open')?.click()`)
   await wait(`document.querySelector('[data-app-view="detail"] [data-app="${service}"]')`)
 }
 async function sendUser(text) {
